@@ -117,7 +117,7 @@ export class FileReviewContextPreparation extends BaseFileReviewContextPreparati
 
         const fileContext: AnalysisContext = {
             ...baseContext.fileContext,
-            workflowJobId: context.workflowJobId,
+            workflowJobId: context.workflowJobId, // Pass workflowJobId from pipeline context
         };
 
         return { fileContext };
