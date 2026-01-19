@@ -49,6 +49,7 @@ services:
             - CHOKIDAR_USEPOLLING=false
             - API_DEVELOPMENT_MODE=${API_DEVELOPMENT_MODE:-true}
             - RUN_MIGRATIONS=true
+            - PYROSCOPE_SERVER_ADDRESS=${PYROSCOPE_SERVER_ADDRESS:-http://pyroscope:4040}
 
     worker:
         <<: *app-service-defaults
@@ -74,6 +75,7 @@ services:
             - DEBUG_PORT=9231
             - COMPONENT_TYPE=worker
             - API_LOG_PRETTY=true
+            - PYROSCOPE_SERVER_ADDRESS=${PYROSCOPE_SERVER_ADDRESS:-http://pyroscope:4040}
 
     webhooks:
         <<: *app-service-defaults
@@ -99,6 +101,24 @@ services:
             - NODE_OPTIONS=--max-old-space-size=800 --max-semi-space-size=64
             - DEBUG_PORT=9232
             - API_LOG_PRETTY=true
+            - PYROSCOPE_SERVER_ADDRESS=${PYROSCOPE_SERVER_ADDRESS:-http://pyroscope:4040}
+
+    #----------------------------------------------------------------
+    # Observability & Profiling
+    #----------------------------------------------------------------
+    pyroscope:
+        profiles:
+            - profiling
+            - infra
+        image: grafana/pyroscope:latest
+        container_name: pyroscope
+        ports:
+            - '4040:4040'
+        volumes:
+            - pyroscope-data:/var/lib/pyroscope
+        networks:
+            - kodus-backend-services
+        restart: unless-stopped
 
     #----------------------------------------------------------------
     # Databases & Infrastructure
@@ -165,6 +185,7 @@ volumes:
     node_modules_cache:
     pgdata:
     mongodbdata:
+    pyroscope-data:
 
 networks:
     kodus-backend-services:
