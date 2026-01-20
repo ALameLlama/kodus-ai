@@ -1,4 +1,5 @@
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 
 import { createLogger } from '@kodus/flow';
 import {
@@ -43,11 +44,11 @@ export class FindByKeyParametersUseCase {
     constructor(
         @Inject(PARAMETERS_SERVICE_TOKEN)
         private readonly parametersService: IParametersService,
+        private readonly configService: ConfigService,
     ) {
-        this.cacheTTL = parseInt(
-            process.env.PARAMETERS_CACHE_TTL_MS || String(DEFAULT_CACHE_TTL_MS),
-            10,
-        );
+        this.cacheTTL =
+            this.configService.get<number>('PARAMETERS_CACHE_TTL_MS') ??
+            DEFAULT_CACHE_TTL_MS;
     }
 
     /**

@@ -1,4 +1,7 @@
 import Pyroscope from '@pyroscope/nodejs';
+import { createLogger } from '@kodus/flow';
+
+const logger = createLogger('Pyroscope');
 
 export interface PyroscopeConfig {
     appName: string;
@@ -15,12 +18,18 @@ export function initPyroscope(config: PyroscopeConfig): void {
         process.env.PYROSCOPE_HEAP_PROFILING === 'true';
 
     if (!serverAddress) {
-        console.log('[Pyroscope] PYROSCOPE_SERVER_ADDRESS not set, skipping profiling');
+        logger.debug({
+            message: 'PYROSCOPE_SERVER_ADDRESS not set, skipping profiling',
+            context: 'Pyroscope',
+        });
         return;
     }
 
     if (isInitialized) {
-        console.log('[Pyroscope] Already initialized, skipping');
+        logger.debug({
+            message: 'Already initialized, skipping',
+            context: 'Pyroscope',
+        });
         return;
     }
 
@@ -45,14 +54,24 @@ export function initPyroscope(config: PyroscopeConfig): void {
         // Start heap profiling if enabled
         if (enableHeapProfiling) {
             Pyroscope.startHeapProfiling();
-            console.log(`[Pyroscope] Heap profiling enabled for ${config.appName}`);
+            logger.log({
+                message: `Heap profiling enabled for ${config.appName}`,
+                context: 'Pyroscope',
+            });
         }
 
         isInitialized = true;
 
-        console.log(`[Pyroscope] Profiling started for ${config.appName} -> ${serverAddress}`);
+        logger.log({
+            message: `Profiling started for ${config.appName} -> ${serverAddress}`,
+            context: 'Pyroscope',
+        });
     } catch (error) {
-        console.error('[Pyroscope] Failed to initialize:', error);
+        logger.error({
+            message: 'Failed to initialize Pyroscope',
+            context: 'Pyroscope',
+            error: error instanceof Error ? error : new Error(String(error)),
+        });
     }
 }
 
@@ -61,6 +80,9 @@ export async function stopPyroscope(): Promise<void> {
         await Pyroscope.stopHeapProfiling();
         await Pyroscope.stop();
         isInitialized = false;
-        console.log('[Pyroscope] Profiling stopped');
+        logger.log({
+            message: 'Profiling stopped',
+            context: 'Pyroscope',
+        });
     }
 }

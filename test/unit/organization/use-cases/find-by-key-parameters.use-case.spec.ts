@@ -10,6 +10,7 @@
 
 import { Test, TestingModule } from '@nestjs/testing';
 import { NotFoundException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { FindByKeyParametersUseCase } from '@libs/organization/application/use-cases/parameters/find-by-key-use-case';
 import {
     IParametersService,
@@ -28,6 +29,10 @@ const mockLogger = {
     error: jest.fn(),
     warn: jest.fn(),
     debug: jest.fn(),
+};
+
+const mockConfigService = {
+    get: jest.fn().mockReturnValue(60000), // Default TTL
 };
 
 // Mock @kodus/flow createLogger
@@ -88,6 +93,10 @@ describe('FindByKeyParametersUseCase', () => {
                 {
                     provide: PARAMETERS_SERVICE_TOKEN,
                     useValue: mockParametersService,
+                },
+                {
+                    provide: ConfigService,
+                    useValue: mockConfigService,
                 },
             ],
         }).compile();
@@ -359,6 +368,10 @@ describe('FindByKeyParametersUseCase - Cache Optimization Contract', () => {
                     provide: PARAMETERS_SERVICE_TOKEN,
                     useValue: mockParametersService,
                 },
+                {
+                    provide: ConfigService,
+                    useValue: mockConfigService,
+                },
             ],
         }).compile();
 
@@ -505,6 +518,10 @@ describe('FindByKeyParametersUseCase - Performance Baseline', () => {
                 {
                     provide: PARAMETERS_SERVICE_TOKEN,
                     useValue: mockParametersService,
+                },
+                {
+                    provide: ConfigService,
+                    useValue: mockConfigService,
                 },
             ],
         }).compile();
