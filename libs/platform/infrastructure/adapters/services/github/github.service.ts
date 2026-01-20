@@ -4474,7 +4474,7 @@ This is an experimental feature that generates committable changes. Review the d
             viewer: { login: string; id: string };
         } = await graphQLWithAuth(query);
 
-        const { data: allReviews } = await octokit.rest.pulls.listReviews({
+        const allReviews = await octokit.paginate(octokit.rest.pulls.listReviews, {
             owner: githubAuth.org,
             repo: repository.name,
             pull_number: prNumber,
@@ -4501,7 +4501,7 @@ This is an experimental feature that generates committable changes. Review the d
             return null;
         }
 
-        const lastReview = myReviews.pop();
+        const lastReview = myReviews.at(-1);
 
         switch (lastReview?.state) {
             case 'APPROVED':
