@@ -282,7 +282,7 @@ export class FileContextAugmentationService {
         }
 
         try {
-            return JSON.stringify(payload, null, 2);
+            return JSON.stringify(payload);
         } catch {
             return String(payload ?? '[unserializable payload]');
         }

@@ -76,7 +76,7 @@ export class KodyIssuesAnalysisService {
                             role: PromptRole.SYSTEM,
                         })
                         .addPrompt({
-                            prompt: (input) => JSON.stringify(input, null, 2),
+                            prompt: (input) => JSON.stringify(input),
                             role: PromptRole.USER,
                         })
                         .addMetadata({
@@ -174,7 +174,7 @@ export class KodyIssuesAnalysisService {
                             role: PromptRole.SYSTEM,
                         })
                         .addPrompt({
-                            prompt: (input) => JSON.stringify(input, null, 2),
+                            prompt: (input) => JSON.stringify(input),
                             role: PromptRole.USER,
                         })
                         .addMetadata({

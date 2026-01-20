@@ -1134,7 +1134,7 @@ export const prompt_codereview_user_tool = (payload: any) => {
 - Provide a maximum of 1 comment per file.
 
 **Provided Data**:
-${JSON.stringify(payload, null, 2)}
+${JSON.stringify(payload)}
 </context>
 
 <instructions>

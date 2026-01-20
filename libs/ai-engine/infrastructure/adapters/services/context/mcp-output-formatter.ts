@@ -132,5 +132,5 @@ function looksLikeJSON(value: string): boolean {
 }
 
 function wrapAsJSON(value: unknown): string {
-    return `\`\`\`mcp-result\n${JSON.stringify(value, null, 2)}\n\`\`\``;
+    return `\`\`\`mcp-result\n${JSON.stringify(value)}\n\`\`\``;
 }

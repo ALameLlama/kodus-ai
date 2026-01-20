@@ -393,7 +393,7 @@ export class MCPToolArgResolverAgentService extends BaseAgentProvider {
 
     private safeStringify(value: unknown): string {
         try {
-            return JSON.stringify(value, null, 2);
+            return JSON.stringify(value);
         } catch (error) {
             this.logger.warn({
                 message: 'Failed to stringify value, using fallback',

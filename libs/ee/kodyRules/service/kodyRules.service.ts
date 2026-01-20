@@ -1356,10 +1356,10 @@ Return ONLY a JSON object (no markdown, no code fences):
 }`;
 
             const userPrompt = `## Recent Code Review Suggestions (patterns to analyze):
-${JSON.stringify(allSuggestions, null, 2)}
+${JSON.stringify(allSuggestions)}
 
 ## Available Rules Library (filtered by language):
-${JSON.stringify(filteredLibrary, null, 2)}
+${JSON.stringify(filteredLibrary)}
 
 Analyze the suggestions and recommend the most relevant rules.`;
 

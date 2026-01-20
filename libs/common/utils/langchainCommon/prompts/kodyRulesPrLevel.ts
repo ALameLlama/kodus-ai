@@ -65,7 +65,7 @@ You are a code review expert specialized in identifying cross-file rule violatio
 ### Available Rules
 \`\`\`json
 {
-  "rules": ${JSON.stringify(payload?.rules || [], null, 2)}
+  "rules": ${JSON.stringify(payload?.rules || [])}
 }
 \`\`\`
 ${
@@ -120,7 +120,7 @@ ${outputs
         if (aug?.output) {
             try {
                 const parsedOutput = JSON.parse(aug.output);
-                outputContent = JSON.stringify(parsedOutput, null, 2);
+                outputContent = JSON.stringify(parsedOutput);
             } catch (e) {
                 outputContent = aug.output;
             }

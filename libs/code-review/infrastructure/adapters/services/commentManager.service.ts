@@ -209,7 +209,7 @@ export class CommentManagerService implements ICommentManagerService {
                 }
 
                 const fallbackProvider = LLMModelProvider.OPENAI_GPT_4O;
-                userPrompt += `<changedFilesContext>${JSON.stringify(baseContext?.changedFiles, null, 2) || 'No files changed'}</changedFilesContext>`;
+                userPrompt += `<changedFilesContext>${JSON.stringify(baseContext?.changedFiles) || 'No files changed'}</changedFilesContext>`;
 
                 const promptRunner = new BYOKPromptRunnerService(
                     this.promptRunnerService,
@@ -1045,7 +1045,7 @@ ${reviewOptions}
                     ? LLMModelProvider.NOVITA_DEEPSEEK_V3
                     : LLMModelProvider.OPENAI_GPT_4O;
 
-            const userPrompt = `<codeSuggestionsContext>${JSON.stringify(baseContext?.codeSuggestions, null, 2) || 'No code suggestions provided'}</codeSuggestionsContext>`;
+            const userPrompt = `<codeSuggestionsContext>${JSON.stringify(baseContext?.codeSuggestions) || 'No code suggestions provided'}</codeSuggestionsContext>`;
 
             const promptRunner = new BYOKPromptRunnerService(
                 this.promptRunnerService,

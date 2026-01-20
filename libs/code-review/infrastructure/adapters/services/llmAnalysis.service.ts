@@ -85,7 +85,7 @@ export class LLMAnalysisService implements IAIAnalysisService {
 </filePath>
 
 <suggestionsContext>
-    ${JSON.stringify(context?.suggestions, null, 2) || 'No suggestions provided'}
+    ${JSON.stringify(context?.suggestions) || 'No suggestions provided'}
 </suggestionsContext>`;
         }
 
@@ -105,7 +105,7 @@ export class LLMAnalysisService implements IAIAnalysisService {
 </filePath>
 
 <suggestionsContext>
-${JSON.stringify(context?.suggestions, null, 2) || 'No suggestions provided'}
+${JSON.stringify(context?.suggestions) || 'No suggestions provided'}
 </suggestionsContext>`;
     }
 

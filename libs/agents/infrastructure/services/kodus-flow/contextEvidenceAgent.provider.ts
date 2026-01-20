@@ -270,7 +270,7 @@ Task: Fulfill this request using available tools based on the provided code chan
                     null,
             }));
 
-            return JSON.stringify(summarized, null, 2);
+            return JSON.stringify(summarized);
         } catch {
             return dependencies
                 .map(
@@ -328,7 +328,7 @@ Task: Fulfill this request using available tools based on the provided code chan
         const text =
             typeof response === 'string'
                 ? response
-                : JSON.stringify(response, null, 2);
+                : JSON.stringify(response);
 
         try {
             const parsed: any = EnhancedJSONParser.parse(text);

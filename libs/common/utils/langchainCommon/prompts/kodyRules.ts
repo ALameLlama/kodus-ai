@@ -147,7 +147,7 @@ export const prompt_kodyrules_classifier_user = (payload: any) => {
                 const rule = kodyRules.find((r: any) => r.uuid === ruleUuid);
                 if (rule) {
                     mcpResultsSection += `\n\nRule: ${rule.title} (${ruleUuid})`;
-                    mcpResultsSection += `\nMCP Tool Outputs:\n${JSON.stringify(results, null, 2)}`;
+                    mcpResultsSection += `\nMCP Tool Outputs:\n${JSON.stringify(results)}`;
                 }
             },
         );
@@ -163,7 +163,7 @@ ${patchWithLinesStr}
 </codeForAnalysis>
 
 <kodyRules>
-${JSON.stringify(kodyRules, null, 2)}
+${JSON.stringify(kodyRules)}
 </kodyRules>
 ${externalReferencesSection}
 ${mcpResultsSection}
@@ -312,11 +312,11 @@ Always consider the language parameter (e.g., en-US, pt-BR) when giving suggesti
 
 Standard Suggestions:
 
-${JSON.stringify(standardSuggestions, null, 2)}
+${JSON.stringify(standardSuggestions)}
 
 Kody Rules:
 
-${JSON.stringify(kodyRules, null, 2)}
+${JSON.stringify(kodyRules)}
 ${externalReferencesSection}
 File diff:
 
@@ -469,7 +469,7 @@ Instructions:
 
 Standard suggestions:
 
-${updatedSuggestions ? JSON.stringify(updatedSuggestions, null, 2) : 'No standard suggestions provided'}
+${updatedSuggestions ? JSON.stringify(updatedSuggestions) : 'No standard suggestions provided'}
 
 Code for Review (PR Diff):
 
@@ -477,7 +477,7 @@ ${patchWithLinesStr}
 
 kodyRules:
 
-${JSON.stringify(filteredKodyRules, null, 2)}
+${JSON.stringify(filteredKodyRules)}
 ${externalReferencesSection}
 ${mcpResultsSection}
 
@@ -602,11 +602,11 @@ export const prompt_kodyrules_guardian_user = (payload: any) => {
     return `
 Code Suggestions:
 
-${JSON.stringify(standardSuggestions, null, 2)}
+${JSON.stringify(standardSuggestions)}
 
 Kody Rules:
 
-${JSON.stringify(kodyRules, null, 2)}
+${JSON.stringify(kodyRules)}
 `;
 };
 

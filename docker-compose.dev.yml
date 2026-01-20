@@ -50,6 +50,7 @@ services:
             - API_DEVELOPMENT_MODE=${API_DEVELOPMENT_MODE:-true}
             - RUN_MIGRATIONS=true
             - PYROSCOPE_SERVER_ADDRESS=${PYROSCOPE_SERVER_ADDRESS:-http://pyroscope:4040}
+            - PYROSCOPE_HEAP_PROFILING=${PYROSCOPE_HEAP_PROFILING:-true}
 
     worker:
         <<: *app-service-defaults
@@ -76,6 +77,7 @@ services:
             - COMPONENT_TYPE=worker
             - API_LOG_PRETTY=true
             - PYROSCOPE_SERVER_ADDRESS=${PYROSCOPE_SERVER_ADDRESS:-http://pyroscope:4040}
+            - PYROSCOPE_HEAP_PROFILING=${PYROSCOPE_HEAP_PROFILING:-true}
 
     webhooks:
         <<: *app-service-defaults
@@ -102,6 +104,7 @@ services:
             - DEBUG_PORT=9232
             - API_LOG_PRETTY=true
             - PYROSCOPE_SERVER_ADDRESS=${PYROSCOPE_SERVER_ADDRESS:-http://pyroscope:4040}
+            - PYROSCOPE_HEAP_PROFILING=${PYROSCOPE_HEAP_PROFILING:-true}
 
     #----------------------------------------------------------------
     # Observability & Profiling

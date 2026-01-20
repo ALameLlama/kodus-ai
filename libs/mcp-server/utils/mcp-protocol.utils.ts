@@ -50,7 +50,7 @@ export function createToolResponse<T>(
         content.push({
             type: 'text',
             text:
-                typeof data === 'string' ? data : JSON.stringify(data, null, 2),
+                typeof data === 'string' ? data : JSON.stringify(data),
         });
     }
     for (const r of resources) {
@@ -109,7 +109,7 @@ export function wrapToolHandler<I = any, O = any>(
                     content: [
                         {
                             type: 'text',
-                            text: JSON.stringify(payload, null, 2),
+                            text: JSON.stringify(payload),
                         },
                     ],
                     structuredContent: onErrorStructured(e, args),
