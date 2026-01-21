@@ -1,11 +1,6 @@
 import { ExecuteCliReviewUseCase } from '@libs/cli-review/application/use-cases/execute-cli-review.use-case';
 import { AuthenticatedRateLimiterService } from '@libs/cli-review/infrastructure/services/authenticated-rate-limiter.service';
 import { TrialRateLimiterService } from '@libs/cli-review/infrastructure/services/trial-rate-limiter.service';
-import { AutoAssignLicenseUseCase } from '@libs/ee/license/use-cases/auto-assign-license.use-case';
-import {
-    PermissionValidationService,
-    ValidationErrorType,
-} from '@libs/ee/shared/services/permissionValidation.service';
 import {
     ITeamCliKeyService,
     TEAM_CLI_KEY_SERVICE_TOKEN,
@@ -40,8 +35,6 @@ export class CliReviewController {
         private readonly authenticatedRateLimiter: AuthenticatedRateLimiterService,
         @Inject(TEAM_CLI_KEY_SERVICE_TOKEN)
         private readonly teamCliKeyService: ITeamCliKeyService,
-        private readonly permissionValidationService: PermissionValidationService,
-        private readonly autoAssignLicenseUseCase: AutoAssignLicenseUseCase,
     ) {}
 
     /**
@@ -213,46 +206,9 @@ export class CliReviewController {
                     );
                 }
             }
-
-            // 5. Validate/auto-assign license
-            const validationResult =
-                await this.permissionValidationService.validateExecutionPermissions(
-                    organizationAndTeamData,
-                    body.userEmail,
-                    CliReviewController.name,
-                );
-
-            if (
-                !validationResult.allowed &&
-                validationResult.errorType ===
-                    ValidationErrorType.USER_NOT_LICENSED
-            ) {
-                // Try auto-assign
-                const autoAssignResult =
-                    await this.autoAssignLicenseUseCase.execute({
-                        organizationAndTeamData,
-                        userGitId: body.userEmail,
-                        prNumber: 0,
-                        prCount: 0,
-                        repositoryName: body.gitRemote,
-                        provider: body.inferredPlatform,
-                    });
-
-                if (!autoAssignResult.shouldProceed) {
-                    throw new ForbiddenException(
-                        `No license available for ${body.userEmail}. ` +
-                            `Reason: ${autoAssignResult.reason}. ` +
-                            `Contact your admin or visit https://app.kodus.io/settings/subscription`,
-                    );
-                }
-            } else if (!validationResult.allowed) {
-                throw new ForbiddenException(
-                    `Permission validation failed: ${validationResult.errorType}`,
-                );
-            }
         }
 
-        // 6. Execute review
+        // 5. Execute review
         return this.executeCliReviewUseCase.execute({
             organizationAndTeamData,
             input: {
