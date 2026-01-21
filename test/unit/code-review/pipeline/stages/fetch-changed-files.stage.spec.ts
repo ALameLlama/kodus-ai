@@ -5,6 +5,17 @@ import { CodeReviewPipelineContext } from '@/code-review/pipeline/context/code-r
 import { PlatformType } from '@/core/domain/enums';
 import { AutomationStatus, AutomationMessage } from '@/automation/domain/automation/enum/automation-status';
 
+// Mock logger to silence logs during tests
+jest.mock('@kodus/flow', () => ({
+    createLogger: () => ({
+        log: jest.fn(),
+        error: jest.fn(),
+        warn: jest.fn(),
+        debug: jest.fn(),
+        info: jest.fn(),
+    }),
+}));
+
 describe('FetchChangedFilesStage', () => {
     let stage: FetchChangedFilesStage;
 
