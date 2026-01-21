@@ -32,6 +32,7 @@ import { ModuleRef } from '@nestjs/core';
 import { CreateOrUpdateKodyRulesUseCase } from './create-or-update.use-case';
 import { FindRulesInOrganizationByRuleFilterKodyRulesUseCase } from './find-rules-in-organization-by-filter.use-case';
 import { SendRulesNotificationUseCase } from './send-rules-notification.use-case';
+import { CreateOrUpdateParametersUseCase } from '@libs/organization/application/use-cases/parameters/create-or-update-use-case';
 
 @Injectable()
 export class GenerateKodyRulesUseCase {
@@ -43,6 +44,7 @@ export class GenerateKodyRulesUseCase {
         private readonly integrationConfigService: IIntegrationConfigService,
         @Inject(PARAMETERS_SERVICE_TOKEN)
         private readonly parametersService: IParametersService,
+        private readonly createOrUpdateParametersUseCase: CreateOrUpdateParametersUseCase,
         private readonly codeManagementService: CodeManagementService,
         private readonly commentAnalysisService: CommentAnalysisService,
         private readonly moduleRef: ModuleRef,
@@ -112,7 +114,7 @@ export class GenerateKodyRulesUseCase {
                 throw new Error('Platform config not found');
             }
 
-            await this.parametersService.createOrUpdateConfig(
+            await this.createOrUpdateParametersUseCase.execute(
                 ParametersKey.PLATFORM_CONFIGS,
                 {
                     ...platformConfig.configValue,
@@ -283,7 +285,7 @@ export class GenerateKodyRulesUseCase {
                     metadata: { body, organizationAndTeamData },
                 });
 
-                await this.parametersService.createOrUpdateConfig(
+                await this.createOrUpdateParametersUseCase.execute(
                     ParametersKey.PLATFORM_CONFIGS,
                     {
                         ...platformConfig.configValue,
@@ -295,7 +297,7 @@ export class GenerateKodyRulesUseCase {
                 return [];
             }
 
-            await this.parametersService.createOrUpdateConfig(
+            await this.createOrUpdateParametersUseCase.execute(
                 ParametersKey.PLATFORM_CONFIGS,
                 {
                     ...platformConfig.configValue,
@@ -348,7 +350,7 @@ export class GenerateKodyRulesUseCase {
             });
 
             if (platformConfig) {
-                await this.parametersService.createOrUpdateConfig(
+                await this.createOrUpdateParametersUseCase.execute(
                     ParametersKey.PLATFORM_CONFIGS,
                     {
                         ...platformConfig.configValue,

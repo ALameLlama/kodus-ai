@@ -107,7 +107,12 @@ export class ParametersController {
         @Query('key') key: ParametersKey,
         @Query('teamId') teamId: string,
     ) {
-        return await this.findByKeyParametersUseCase.execute(key, { teamId });
+        const organizationId = this.request?.user?.organization?.uuid;
+
+        return await this.findByKeyParametersUseCase.execute(key, {
+            teamId,
+            organizationId,
+        });
     }
 
     //endregion

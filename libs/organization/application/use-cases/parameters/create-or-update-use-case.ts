@@ -8,6 +8,7 @@ import {
 import { ParametersKey } from '@libs/core/domain/enums';
 import { ParametersEntity } from '@libs/organization/domain/parameters/entities/parameters.entity';
 import { OrganizationAndTeamData } from '@libs/core/infrastructure/config/types/general/organizationAndTeamData';
+import { FindByKeyParametersUseCase } from './find-by-key-use-case';
 
 @Injectable()
 export class CreateOrUpdateParametersUseCase {
@@ -18,6 +19,7 @@ export class CreateOrUpdateParametersUseCase {
     constructor(
         @Inject(PARAMETERS_SERVICE_TOKEN)
         private readonly parametersService: IParametersService,
+        private readonly findByKeyParametersUseCase: FindByKeyParametersUseCase,
     ) {}
 
     async execute<K extends ParametersKey>(
@@ -26,11 +28,18 @@ export class CreateOrUpdateParametersUseCase {
         organizationAndTeamData: OrganizationAndTeamData,
     ): Promise<ParametersEntity<K> | boolean> {
         try {
-            return await this.parametersService.createOrUpdateConfig(
+            const result = await this.parametersService.createOrUpdateConfig(
                 parametersKey,
                 configValue,
                 organizationAndTeamData,
             );
+
+            this.findByKeyParametersUseCase.invalidateCache(
+                parametersKey,
+                organizationAndTeamData,
+            );
+
+            return result;
         } catch (error) {
             this.logger.error({
                 message: 'Error creating or updating parameters',

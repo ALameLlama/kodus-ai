@@ -1,3 +1,4 @@
+import { CreateOrUpdateParametersUseCase } from '@libs/organization/application/use-cases/parameters/create-or-update-use-case';
 import { Inject, Injectable } from '@nestjs/common';
 import { REQUEST } from '@nestjs/core';
 import { produce } from 'immer';
@@ -34,6 +35,8 @@ export class DeleteRepositoryCodeReviewParameterUseCase {
     constructor(
         @Inject(PARAMETERS_SERVICE_TOKEN)
         private readonly parametersService: IParametersService,
+
+        private readonly createOrUpdateParametersUseCase: CreateOrUpdateParametersUseCase,
 
         @Inject(CODE_REVIEW_SETTINGS_LOG_SERVICE_TOKEN)
         private readonly codeReviewSettingsLogService: ICodeReviewSettingsLogService,
@@ -132,7 +135,7 @@ export class DeleteRepositoryCodeReviewParameterUseCase {
             repo.isSelected = false;
         });
 
-        const updated = await this.parametersService.createOrUpdateConfig(
+        const updated = await this.createOrUpdateParametersUseCase.execute(
             ParametersKey.CODE_REVIEW_CONFIG,
             updatedConfig,
             organizationAndTeamData,
@@ -188,7 +191,7 @@ export class DeleteRepositoryCodeReviewParameterUseCase {
             }
         });
 
-        const updated = await this.parametersService.createOrUpdateConfig(
+        const updated = await this.createOrUpdateParametersUseCase.execute(
             ParametersKey.CODE_REVIEW_CONFIG,
             updatedConfig,
             organizationAndTeamData,

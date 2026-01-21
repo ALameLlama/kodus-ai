@@ -1187,7 +1187,7 @@ export class BitbucketService implements Omit<
             const { organizationAndTeamData } = params;
 
             const filters = params?.filters ?? {};
-            const { prStatus } = filters ?? 'OPEN';
+            const { prStatus = 'OPEN' } = filters;
             const perRepoLimit = Math.min(Math.max(filters?.limit || 5, 1), 10);
             const repoFilter = filters?.repositoryId
                 ? new Set([String(filters.repositoryId)])

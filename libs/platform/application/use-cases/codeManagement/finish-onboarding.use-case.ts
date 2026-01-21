@@ -15,6 +15,7 @@ import { FindRulesInOrganizationByRuleFilterKodyRulesUseCase } from '@libs/kodyR
 import { ChangeStatusKodyRulesUseCase } from '@libs/kodyRules/application/use-cases/change-status-kody-rules.use-case';
 import { SyncSelectedRepositoriesKodyRulesUseCase } from '@libs/kodyRules/application/use-cases/sync-selected-repositories.use-case';
 import { KodyRulesStatus } from '@libs/kodyRules/domain/interfaces/kodyRules.interface';
+import { CreateOrUpdateParametersUseCase } from '@libs/organization/application/use-cases/parameters/create-or-update-use-case';
 
 @Injectable()
 export class FinishOnboardingUseCase {
@@ -31,6 +32,7 @@ export class FinishOnboardingUseCase {
             user: { organization: { uuid: string } };
         },
         private readonly syncSelectedReposKodyRulesUseCase: SyncSelectedRepositoriesKodyRulesUseCase,
+        private readonly createOrUpdateParametersUseCase: CreateOrUpdateParametersUseCase,
     ) {}
 
     async execute(params: FinishOnboardingDTO) {
@@ -60,7 +62,7 @@ export class FinishOnboardingUseCase {
                 throw new Error('Platform config not found');
             }
 
-            await this.parametersService.createOrUpdateConfig(
+            await this.createOrUpdateParametersUseCase.execute(
                 ParametersKey.PLATFORM_CONFIGS,
                 {
                     ...platformConfig.configValue,

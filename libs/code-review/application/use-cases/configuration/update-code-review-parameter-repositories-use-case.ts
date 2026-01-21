@@ -1,3 +1,4 @@
+import { CreateOrUpdateParametersUseCase } from '@libs/organization/application/use-cases/parameters/create-or-update-use-case';
 import { Inject, Injectable } from '@nestjs/common';
 import { REQUEST } from '@nestjs/core';
 
@@ -44,6 +45,8 @@ export class UpdateCodeReviewParameterRepositoriesUseCase {
     constructor(
         @Inject(PARAMETERS_SERVICE_TOKEN)
         private readonly parametersService: IParametersService,
+
+        private readonly createOrUpdateParametersUseCase: CreateOrUpdateParametersUseCase,
 
         @Inject(INTEGRATION_CONFIG_SERVICE_TOKEN)
         private readonly integrationConfigService: IIntegrationConfigService,
@@ -120,7 +123,7 @@ export class UpdateCodeReviewParameterRepositoriesUseCase {
                 repositories: updatedRepositories,
             } as CodeReviewParameter;
 
-            const result = await this.parametersService.createOrUpdateConfig(
+            const result = await this.createOrUpdateParametersUseCase.execute(
                 ParametersKey.CODE_REVIEW_CONFIG,
                 updatedCodeReviewConfigValue,
                 organizationAndTeamData,

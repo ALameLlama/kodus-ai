@@ -384,6 +384,7 @@ ${'```'}`,
         @Query() query: OnboardingReviewModeSignalsQueryDto,
     ) {
         const organizationId = this.request.user?.organization?.uuid;
+
         if (!organizationId) {
             throw new Error('No organization found in request');
         }

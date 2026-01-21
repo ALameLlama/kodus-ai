@@ -130,13 +130,14 @@ export class ImplementationVerificationProcessor implements IJobProcessorService
 
             const teamAutomations = await this.teamAutomationService.find({
                 team: { uuid: payload.organizationAndTeamData.teamId },
-                automation: {
-                    automationType: AutomationType.AUTOMATION_CODE_REVIEW,
-                },
                 status: true,
             });
 
-            const teamAutomation = teamAutomations?.[0];
+            const teamAutomation = teamAutomations?.find(
+                (ta) =>
+                    ta.automation?.automationType ===
+                    AutomationType.AUTOMATION_CODE_REVIEW,
+            );
 
             // Retrieve last analyzed commit from the last successful code review execution
             const lastExecution =
@@ -166,6 +167,22 @@ export class ImplementationVerificationProcessor implements IJobProcessorService
                 );
 
             // 4. Construct Code Patch
+            const changedFilenames = new Set(
+                changedFiles.map((f) => f.filename),
+            );
+
+            // Filter suggestions to check ONLY for files that changed
+            const suggestionsToValidate = suggestionsToCheck.filter(
+                (s) => s.relevantFile && changedFilenames.has(s.relevantFile),
+            );
+
+            if (suggestionsToValidate.length === 0) {
+                await this.markCompleted(jobId, {
+                    reason: 'NO_RELEVANT_CHANGES',
+                });
+                return;
+            }
+
             // Concatenate all patches to form a full diff string
             const codePatch = changedFiles
                 .filter((f) => f.patch)
@@ -188,7 +205,7 @@ export class ImplementationVerificationProcessor implements IJobProcessorService
             await this.suggestionService.validateImplementedSuggestions(
                 payload.organizationAndTeamData,
                 codePatch,
-                suggestionsToCheck,
+                suggestionsToValidate,
                 payload.pullRequestNumber,
             );
 

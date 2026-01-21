@@ -14,6 +14,7 @@ import {
     KODY_RULES_SERVICE_TOKEN,
 } from '@libs/kodyRules/domain/contracts/kodyRules.service.contract';
 import { KodyRulesStatus } from '@libs/kodyRules/domain/interfaces/kodyRules.interface';
+import { CreateOrUpdateParametersUseCase } from '@libs/organization/application/use-cases/parameters/create-or-update-use-case';
 
 @Injectable()
 export class DeleteIntegrationAndRepositoriesUseCase {
@@ -24,6 +25,7 @@ export class DeleteIntegrationAndRepositoriesUseCase {
         private readonly deleteIntegrationUseCase: DeleteIntegrationUseCase,
         @Inject(PARAMETERS_SERVICE_TOKEN)
         private readonly parametersService: IParametersService,
+        private readonly createOrUpdateParametersUseCase: CreateOrUpdateParametersUseCase,
         @Inject(PULL_REQUEST_MESSAGES_SERVICE_TOKEN)
         private readonly pullRequestMessagesService: IPullRequestMessagesService,
         @Inject(KODY_RULES_SERVICE_TOKEN)
@@ -194,7 +196,7 @@ export class DeleteIntegrationAndRepositoriesUseCase {
                 repositories: [],
             };
 
-            await this.parametersService.createOrUpdateConfig(
+            await this.createOrUpdateParametersUseCase.execute(
                 ParametersKey.CODE_REVIEW_CONFIG,
                 updatedConfigValue,
                 {

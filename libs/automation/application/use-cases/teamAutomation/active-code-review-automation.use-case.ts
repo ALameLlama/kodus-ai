@@ -45,9 +45,11 @@ export class ActiveCodeReviewAutomationUseCase implements IUseCase {
             automation: { uuid: codeReviewAutomation.automationUuid },
         });
 
-        await this.updateTeamAutomationStatusUseCase.execute(
-            teamAutomation.uuid,
-            true,
-        );
+        if (teamAutomation) {
+            await this.updateTeamAutomationStatusUseCase.execute(
+                teamAutomation.uuid,
+                true,
+            );
+        }
     }
 }

@@ -22,15 +22,11 @@ import {
     DRY_RUN_SERVICE_TOKEN,
     IDryRunService,
 } from '@libs/dryRun/domain/contracts/dryRun.service.contract';
-import { PullRequestReviewComment } from '@libs/platform/domain/platformIntegrations/types/codeManagement/pullRequests.type';
 import { CodeManagementService } from '@libs/platform/infrastructure/adapters/services/codeManagement.service';
 import {
     IPullRequestsService,
     PULL_REQUESTS_SERVICE_TOKEN,
 } from '@libs/platformData/domain/pullRequests/contracts/pullRequests.service.contracts';
-import { PullRequestsEntity } from '@libs/platformData/domain/pullRequests/entities/pullRequests.entity';
-import { DeliveryStatus } from '@libs/platformData/domain/pullRequests/enums/deliveryStatus.enum';
-import { ImplementationStatus } from '@libs/platformData/domain/pullRequests/enums/implementationStatus.enum';
 import { Inject, Injectable } from '@nestjs/common';
 import { CodeReviewPipelineContext } from '../context/code-review-pipeline.context';
 
