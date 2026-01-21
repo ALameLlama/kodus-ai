@@ -33,6 +33,7 @@ jobs:
                   API_MG_DB_DATABASE=${{ secrets.API_MG_DB_DATABASE }}
                   API_MG_DB_HOST=${{ secrets.API_MG_DB_HOST }}
                   API_MG_DB_PORT=${{ secrets.API_MG_DB_PORT }}
+                  API_CRYPTO_KEY=${{ secrets.API_CRYPTO_KEY }}
                   EOF
 
             - name: Create .env for forks
@@ -51,6 +52,7 @@ jobs:
                   API_MG_DB_DATABASE=kodus_db
                   API_MG_DB_HOST=db_mongodb
                   API_MG_DB_PORT=27017
+                  API_CRYPTO_KEY=0000000000000000000000000000000000000000000000000000000000000000
                   EOF
 
             - name: Create network

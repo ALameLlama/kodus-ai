@@ -25,6 +25,7 @@ describe('CreateFileCommentsStage', () => {
     const mockSuggestionService = {
         sortAndPrioritizeSuggestions: jest.fn(),
         verifyIfSuggestionsWereSent: jest.fn(),
+        resolveImplementedSuggestionsOnPlatform: jest.fn(),
     };
 
     const mockDryRunService = {
@@ -488,7 +489,9 @@ describe('CreateFileCommentsStage', () => {
             await (stage as any).executeStage(context);
 
             // Check that resolve was attempted
-            expect(mockCodeManagementService.getPullRequestReviewThreads).toHaveBeenCalled();
+            expect(
+                mockSuggestionService.resolveImplementedSuggestionsOnPlatform,
+            ).toHaveBeenCalled();
         });
     });
 

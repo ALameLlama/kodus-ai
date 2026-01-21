@@ -13,6 +13,7 @@ import { PriorityStatus } from '@libs/platformData/domain/pullRequests/enums/pri
 import { LLM_ANALYSIS_SERVICE_TOKEN } from '@libs/core/infrastructure/adapters/services/codeBase/llmAnalysis.service';
 import { SuggestionService } from '@libs/core/infrastructure/adapters/services/codeBase/suggestion.service';
 import { SeverityLevel } from '@libs/common/enums/severityLevel.enum';
+import { CodeManagementService } from '@libs/platform/infrastructure/adapters/services/codeManagement.service';
 
 describe('SuggestionService - Kody Rules Filter Control', () => {
     let service: SuggestionService;
@@ -61,6 +62,14 @@ describe('SuggestionService - Kody Rules Filter Control', () => {
                     useValue: {
                         repeatedCodeReviewSuggestionClustering: jest.fn(),
                         enrichParentSuggestionsWithRelated: jest.fn(),
+                    },
+                },
+                {
+                    provide: CodeManagementService,
+                    useValue: {
+                        getPullRequestReviewThreads: jest.fn(),
+                        getPullRequestReviewComments: jest.fn(),
+                        markReviewCommentAsResolved: jest.fn(),
                     },
                 },
             ],

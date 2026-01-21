@@ -4,6 +4,7 @@ const require = createRequire(import.meta.url);
 export default {
     preset: 'ts-jest',
     testEnvironment: 'node',
+    setupFiles: ['<rootDir>/test/jest.setup.ts'],
     moduleFileExtensions: ['ts', 'js', 'json'],
     testMatch: ['**/*.spec.ts', '**/*.integration.spec.ts', '**/*.e2e-spec.ts'],
     transform: {

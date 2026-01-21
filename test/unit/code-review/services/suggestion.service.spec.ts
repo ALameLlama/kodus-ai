@@ -3,6 +3,7 @@ import { SuggestionService } from '@/code-review/infrastructure/adapters/service
 import { LLM_ANALYSIS_SERVICE_TOKEN } from '@/code-review/infrastructure/adapters/services/llmAnalysis.service';
 import { PULL_REQUESTS_SERVICE_TOKEN } from '@/platformData/domain/pullRequests/contracts/pullRequests.service.contracts';
 import { COMMENT_MANAGER_SERVICE_TOKEN } from '@/code-review/domain/contracts/CommentManagerService.contract';
+import { CodeManagementService } from '@/platform/infrastructure/adapters/services/codeManagement.service';
 import { PriorityStatus } from '@/platformData/domain/pullRequests/enums/priorityStatus.enum';
 import { DeliveryStatus } from '@/platformData/domain/pullRequests/enums/deliveryStatus.enum';
 import {
@@ -31,6 +32,12 @@ describe('SuggestionService', () => {
         enrichParentSuggestionsWithRelated: jest.fn(),
     };
 
+    const mockCodeManagementService = {
+        getPullRequestReviewThreads: jest.fn(),
+        getPullRequestReviewComments: jest.fn(),
+        markReviewCommentAsResolved: jest.fn(),
+    };
+
     const mockOrganizationAndTeamData = {
         organizationId: 'org-123',
         teamId: 'team-456',
@@ -43,6 +50,7 @@ describe('SuggestionService', () => {
                 { provide: LLM_ANALYSIS_SERVICE_TOKEN, useValue: mockAIAnalysisService },
                 { provide: PULL_REQUESTS_SERVICE_TOKEN, useValue: mockPullRequestService },
                 { provide: COMMENT_MANAGER_SERVICE_TOKEN, useValue: mockCommentManagerService },
+                { provide: CodeManagementService, useValue: mockCodeManagementService },
             ],
         }).compile();
 
