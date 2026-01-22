@@ -5,6 +5,8 @@
     "author": "",
     "license": "UNLICENSED",
     "scripts": {
+        "analyze-pr": "ts-node scripts/analyze-pr-performance.cli.ts",
+        "pr-report": "npx ts-node scripts/pr-performance-report.cli.ts --env=.env.prod",
         "setup": "./scripts/dev/setup.sh",
         "dev:health-check": "./scripts/docker/health-check.sh",
         "dev:first-run": "yarn setup",
