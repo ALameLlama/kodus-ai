@@ -222,6 +222,7 @@ export class OutboxRelayService
      *
      * Uses consumer-specific timeouts based on the type of work:
      * - Webhooks: 20 minutes (job timeout is 10min + margin)
+     * - Check implementation: 20 minutes (job timeout is 10min + margin)
      * - Code reviews: 12 hours (very conservative to avoid reprocessing without checkpoints)
      *
      * PERFORMANCE NOTE: Uses separate queries per consumer for better index utilization.
@@ -229,6 +230,9 @@ export class OutboxRelayService
      *   CREATE INDEX CONCURRENTLY idx_inbox_webhook_stale
      *     ON kodus_workflow.inbox_messages (lockedAt)
      *     WHERE consumerId = 'workflow-job-consumer.webhook' AND status = 'PROCESSING';
+     *   CREATE INDEX CONCURRENTLY idx_inbox_check_implementation_stale
+     *     ON kodus_workflow.inbox_messages (lockedAt)
+     *     WHERE consumerId = 'workflow-job-consumer.check_implementation' AND status = 'PROCESSING';
      *   CREATE INDEX CONCURRENTLY idx_inbox_codereview_stale
      *     ON kodus_workflow.inbox_messages (lockedAt)
      *     WHERE consumerId = 'workflow-job-consumer.code_review' AND status = 'PROCESSING';
@@ -245,6 +249,8 @@ export class OutboxRelayService
                 // Each timeout is ~1.5-2x the actual job timeout to account for overhead
                 const consumerTimeouts = {
                     'workflow-job-consumer.webhook': 20 * 60 * 1000, // 20 minutes
+                    'workflow-job-consumer.check_implementation':
+                        20 * 60 * 1000, // 20 minutes
                     'workflow-job-consumer.code_review': 12 * 60 * 60 * 1000, // 12 hours (very conservative to avoid reprocessing without checkpoints)
                 };
 
