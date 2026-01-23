@@ -82,13 +82,14 @@ export class RabbitMQWrapperModule {
                         timeout: 5000,
                     },
                     connectionManagerOptions: {
-                        heartbeatIntervalInSeconds: 30,
+                        heartbeatIntervalInSeconds: 60,
                     },
                     reconnectTimeInSeconds: 10,
                     enableControllerDiscovery: options.enableConsumers,
-                    prefetchCount: configService.get<number>(
-                        'workflowQueue.WORKFLOW_QUEUE_WORKER_PREFETCH',
-                    ),
+                    prefetchCount:
+                        configService.get<number>(
+                            'workflowQueue.WORKFLOW_QUEUE_WORKER_PREFETCH',
+                        ) || 5,
                 };
             },
             inject: [ConfigService],
