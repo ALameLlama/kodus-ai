@@ -205,6 +205,7 @@ export class ValidateNewCommitsStage extends BasePipelineStage<CodeReviewPipelin
         });
 
         return this.updateContext(context, (draft) => {
+            draft.prCommits = commits;
             if (lastExecutionResult) {
                 draft.lastExecution = lastExecutionResult;
             }

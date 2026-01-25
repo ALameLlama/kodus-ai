@@ -56,12 +56,13 @@ export class ResolveConfigStage extends BasePipelineStage<CodeReviewPipelineCont
         context: CodeReviewPipelineContext,
     ): Promise<CodeReviewPipelineContext> {
         try {
+            // Busca apenas metadados dos arquivos (sem conteúdo) - mais rápido
+            // O conteúdo será buscado depois no FetchChangedFilesStage apenas para arquivos não ignorados
             const preliminaryFiles =
-                await this.pullRequestHandlerService.getChangedFiles(
+                await this.pullRequestHandlerService.getChangedFilesMetadata(
                     context.organizationAndTeamData,
                     context.repository,
                     context.pullRequest,
-                    [], // Sem ignorePaths ainda, vamos aplicar depois
                     context?.lastExecution?.lastAnalyzedCommit,
                 );
 
@@ -115,6 +116,7 @@ export class ResolveConfigStage extends BasePipelineStage<CodeReviewPipelineCont
             return this.updateContext(context, (draft) => {
                 draft.codeReviewConfig = config;
                 draft.pullRequestMessagesConfig = pullRequestMessagesConfig;
+                draft.preliminaryFiles = preliminaryFiles;
             });
         } catch (error) {
             this.logger.error({

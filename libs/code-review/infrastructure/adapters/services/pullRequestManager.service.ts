@@ -251,4 +251,128 @@ export class PullRequestHandlerService implements IPullRequestManagerService {
             throw error;
         }
     }
+
+    /**
+     * Busca apenas metadados dos arquivos alterados (sem conteúdo).
+     * Mais rápido que getChangedFiles pois não faz chamadas repos.getContent.
+     */
+    async getChangedFilesMetadata(
+        organizationAndTeamData: OrganizationAndTeamData,
+        repository: { name: string; id: any },
+        pullRequest: any,
+        lastCommit?: string,
+    ): Promise<FileChange[]> {
+        try {
+            let changedFiles: FileChange[];
+
+            if (lastCommit) {
+                changedFiles =
+                    await this.codeManagementService.getChangedFilesSinceLastCommit(
+                        {
+                            organizationAndTeamData,
+                            repository,
+                            prNumber: pullRequest?.number,
+                            lastCommit,
+                        },
+                    );
+            } else {
+                changedFiles =
+                    await this.codeManagementService.getFilesByPullRequestId({
+                        organizationAndTeamData,
+                        repository,
+                        prNumber: pullRequest?.number,
+                    });
+            }
+
+            return changedFiles || [];
+        } catch (error) {
+            this.logger.error({
+                message: 'Error fetching changed files metadata',
+                context: PullRequestHandlerService.name,
+                error,
+                metadata: {
+                    prNumber: pullRequest?.number,
+                    repository,
+                },
+            });
+            throw error;
+        }
+    }
+
+    /**
+     * Enriquece arquivos com conteúdo.
+     * Usado para buscar conteúdo apenas dos arquivos que passaram pelo filtro ignorePaths.
+     */
+    async enrichFilesWithContent(
+        organizationAndTeamData: OrganizationAndTeamData,
+        repository: { name: string; id: any },
+        pullRequest: any,
+        files: FileChange[],
+    ): Promise<FileChange[]> {
+        if (!files || files.length === 0) {
+            return [];
+        }
+
+        try {
+            const filesWithContent = await Promise.all(
+                files.map(async (file) => {
+                    try {
+                        const fileContent =
+                            await this.codeManagementService.getRepositoryContentFile(
+                                {
+                                    organizationAndTeamData,
+                                    repository,
+                                    file,
+                                    pullRequest,
+                                },
+                            );
+
+                        const content = fileContent?.data?.content;
+                        let decodedContent = content;
+
+                        if (
+                            content &&
+                            fileContent?.data?.encoding === 'base64'
+                        ) {
+                            decodedContent = Buffer.from(
+                                content,
+                                'base64',
+                            ).toString('utf-8');
+                        }
+
+                        return {
+                            ...file,
+                            fileContent: decodedContent,
+                        };
+                    } catch (error) {
+                        this.logger.error({
+                            message: `Error fetching content for file: ${file.filename}`,
+                            context: PullRequestHandlerService.name,
+                            error,
+                            metadata: {
+                                prNumber: pullRequest?.number,
+                                repository,
+                                filename: file.filename,
+                            },
+                        });
+                        return file;
+                    }
+                }),
+            );
+
+            return filesWithContent;
+        } catch (error) {
+            this.logger.error({
+                message: 'Error enriching files with content',
+                context: PullRequestHandlerService.name,
+                error,
+                metadata: {
+                    prNumber: pullRequest?.number,
+                    repository,
+                    fileCount: files.length,
+                },
+            });
+            throw error;
+        }
+    }
 }

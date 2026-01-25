@@ -15,6 +15,7 @@ import {
     convertToHunksWithLinesNumbers,
     handlePatchDeletions,
 } from '@libs/common/utils/patch';
+import { isFileMatchingGlob } from '@libs/common/utils/glob-utils';
 import { CodeReviewPipelineContext } from '../context/code-review-pipeline.context';
 
 @Injectable()
@@ -53,16 +54,39 @@ export class FetchChangedFilesStage extends BasePipelineStage<CodeReviewPipeline
             });
         }
 
-        const files = await this.pullRequestHandlerService.getChangedFiles(
-            context.organizationAndTeamData,
-            context.repository,
-            context.pullRequest,
-            context.codeReviewConfig.ignorePaths,
-            context?.lastExecution?.lastAnalyzedCommit,
+        // Reutilizar arquivos do ResolveConfigStage se disponíveis, caso contrário buscar
+        let filesToProcess = context.preliminaryFiles;
+
+        if (!filesToProcess || filesToProcess.length === 0) {
+            this.logger.log({
+                message: `No preliminary files in context, fetching from API for PR#${context.pullRequest.number}`,
+                context: this.stageName,
+                metadata: {
+                    organizationAndTeamData: context.organizationAndTeamData,
+                    repository: context.repository.name,
+                },
+            });
+
+            filesToProcess =
+                await this.pullRequestHandlerService.getChangedFilesMetadata(
+                    context.organizationAndTeamData,
+                    context.repository,
+                    context.pullRequest,
+                    context?.lastExecution?.lastAnalyzedCommit,
+                );
+        }
+
+        // Aplicar filtro ignorePaths
+        const ignorePaths = context.codeReviewConfig.ignorePaths || [];
+        const filteredFiles = filesToProcess?.filter(
+            (file) => !isFileMatchingGlob(file.filename, ignorePaths),
         );
 
-        if (!files?.length || files.length > this.maxFilesToAnalyze) {
-            const msg = !files?.length
+        if (
+            !filteredFiles?.length ||
+            filteredFiles.length > this.maxFilesToAnalyze
+        ) {
+            const msg = !filteredFiles?.length
                 ? AutomationMessage.NO_FILES_AFTER_IGNORE
                 : AutomationMessage.TOO_MANY_FILES;
 
@@ -71,8 +95,9 @@ export class FetchChangedFilesStage extends BasePipelineStage<CodeReviewPipeline
                 context: FetchChangedFilesStage.name,
                 metadata: {
                     organizationAndTeamData: context?.organizationAndTeamData,
-                    filesCount: files?.length || 0,
-                    ignorePaths: context.codeReviewConfig.ignorePaths,
+                    filesCount: filteredFiles?.length || 0,
+                    totalFilesBeforeFilter: filesToProcess?.length || 0,
+                    ignorePaths,
                 },
             });
             return this.updateContext(context, (draft) => {
@@ -85,17 +110,30 @@ export class FetchChangedFilesStage extends BasePipelineStage<CodeReviewPipeline
         }
 
         this.logger.log({
-            message: `Found ${files.length} files to analyze for PR#${context.pullRequest.number}`,
+            message: `Found ${filteredFiles.length} files to analyze for PR#${context.pullRequest.number} (${filesToProcess?.length || 0} total, ${(filesToProcess?.length || 0) - filteredFiles.length} ignored)`,
             context: this.stageName,
             metadata: {
                 organizationAndTeamData: context.organizationAndTeamData,
                 repository: context.repository.name,
                 pullRequestNumber: context.pullRequest.number,
-                filesCount: files.length,
+                filesCount: filteredFiles.length,
+                totalFilesBeforeFilter: filesToProcess?.length || 0,
+                ignoredFilesCount:
+                    (filesToProcess?.length || 0) - filteredFiles.length,
             },
         });
 
-        const filesWithLineNumbers = this.prepareFilesWithLineNumbers(files);
+        // Buscar conteúdo apenas dos arquivos filtrados (não ignorados)
+        const filesWithContent =
+            await this.pullRequestHandlerService.enrichFilesWithContent(
+                context.organizationAndTeamData,
+                context.repository,
+                context.pullRequest,
+                filteredFiles,
+            );
+
+        const filesWithLineNumbers =
+            this.prepareFilesWithLineNumbers(filesWithContent);
 
         const stats = this.getStatsForPR(filesWithLineNumbers);
 

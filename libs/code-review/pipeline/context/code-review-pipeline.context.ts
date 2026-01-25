@@ -13,6 +13,7 @@ import {
     FileChange,
     Repository,
 } from '@libs/core/infrastructure/config/types/general/codeReview.type';
+import { Commit } from '@libs/core/infrastructure/config/types/general/commit.type';
 import { OrganizationAndTeamData } from '@libs/core/infrastructure/config/types/general/organizationAndTeamData';
 import { PipelineContext } from '@libs/core/infrastructure/pipeline/interfaces/pipeline-context.interface';
 import { TaskStatus } from '@libs/ee/kodyAST/interfaces/code-ast-analysis.interface';
@@ -66,7 +67,15 @@ export interface CodeReviewPipelineContext extends PipelineContext {
     githubCheckRunId?: number;
     pipelineError?: boolean;
 
+    /** Commits do PR - buscados uma vez no ValidateNewCommitsStage e reutilizados em stages subsequentes */
+    prCommits?: Commit[];
+
+    /** Arquivos preliminares SEM conteúdo - buscados no ResolveConfigStage para determinar config */
+    preliminaryFiles?: FileChange[];
+
+    /** Arquivos filtrados COM conteúdo - após aplicar ignorePaths no FetchChangedFilesStage */
     changedFiles?: FileChange[];
+
     lastExecution?: {
         commentId?: any;
         noteId?: any;
