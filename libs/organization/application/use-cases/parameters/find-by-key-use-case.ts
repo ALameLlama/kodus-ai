@@ -1,4 +1,4 @@
-import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
 import { createLogger } from '@kodus/flow';
@@ -96,7 +96,7 @@ export class FindByKeyParametersUseCase {
     async execute<K extends ParametersKey>(
         parametersKey: K,
         organizationAndTeamData: OrganizationAndTeamData,
-    ): Promise<IParameters<K>> {
+    ): Promise<IParameters<K> | null> {
         const cacheKey = this.getCacheKey(parametersKey, organizationAndTeamData);
 
         // PERF: Check cache first
@@ -112,7 +112,7 @@ export class FindByKeyParametersUseCase {
             );
 
             if (!parameter) {
-                throw new NotFoundException('Parameter config does not exist');
+                return null;
             }
 
             const updatedParameters = this.getUpdatedParamaters(parameter);
