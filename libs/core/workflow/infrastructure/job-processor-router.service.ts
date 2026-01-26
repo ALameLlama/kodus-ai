@@ -1,4 +1,5 @@
 import { Injectable, Inject } from '@nestjs/common';
+import { createLogger } from '@kodus/flow';
 
 import { IJobProcessorRouter } from '@libs/core/workflow/domain/contracts/job-processor-router.contract';
 import { IJobProcessorService } from '@libs/core/workflow/domain/contracts/job-processor.service.contract';
@@ -7,6 +8,8 @@ import {
     WORKFLOW_JOB_REPOSITORY_TOKEN,
 } from '@libs/core/workflow/domain/contracts/workflow-job.repository.contract';
 import { WorkflowType } from '@libs/core/workflow/domain/enums/workflow-type.enum';
+import { JobStatus } from '@libs/core/workflow/domain/enums/job-status.enum';
+import { ErrorClassification } from '@libs/core/workflow/domain/enums/error-classification.enum';
 
 import { WebhookProcessingJobProcessorService } from '@libs/automation/webhook-processing/webhook-processing-job.processor';
 import { CodeReviewJobProcessorService } from '@libs/code-review/workflow/code-review-job-processor.service';
@@ -21,6 +24,8 @@ const CHECK_IMPLEMENTATION_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
 export class JobProcessorRouterService
     implements IJobProcessorService, IJobProcessorRouter
 {
+    private readonly logger = createLogger(JobProcessorRouterService.name);
+
     constructor(
         @Inject(WORKFLOW_JOB_REPOSITORY_TOKEN)
         private readonly jobRepository: IWorkflowJobRepository,
@@ -39,11 +44,47 @@ export class JobProcessorRouterService
         const processor = this.getProcessor(job.workflowType);
         const timeoutMs = this.getProcessTimeoutMs(job.workflowType);
 
-        return await this.runWithTimeout(
-            processor.process(jobId),
-            timeoutMs,
-            `Workflow job ${jobId} timeout after ${timeoutMs}ms`,
-        );
+        try {
+            return await this.runWithTimeout(
+                processor.process(jobId),
+                timeoutMs,
+                `Workflow job ${jobId} timeout after ${timeoutMs}ms`,
+            );
+        } catch (error) {
+            const isTimeout = error.message?.includes('timeout after');
+
+            // Always mark job as FAILED when an error occurs (including timeout)
+            try {
+                await this.jobRepository.update(jobId, {
+                    status: JobStatus.FAILED,
+                    errorClassification: isTimeout
+                        ? ErrorClassification.RETRYABLE
+                        : ErrorClassification.PERMANENT,
+                    lastError: error.message,
+                });
+
+                this.logger.error({
+                    message: `Job ${jobId} marked as FAILED${isTimeout ? ' due to timeout' : ''}`,
+                    context: JobProcessorRouterService.name,
+                    error,
+                    metadata: {
+                        jobId,
+                        workflowType: job.workflowType,
+                        isTimeout,
+                        timeoutMs,
+                    },
+                });
+            } catch (updateError) {
+                this.logger.error({
+                    message: `Failed to update job ${jobId} status to FAILED`,
+                    context: JobProcessorRouterService.name,
+                    error: updateError,
+                    metadata: { jobId, originalError: error.message },
+                });
+            }
+
+            throw error;
+        }
     }
 
     async handleFailure(jobId: string, error: Error): Promise<void> {

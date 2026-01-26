@@ -9,6 +9,12 @@ import { ConsumeMessage } from 'amqplib';
 import { IJobProcessorService } from '@libs/core/workflow/domain/contracts/job-processor.service.contract';
 import { JOB_PROCESSOR_SERVICE_TOKEN } from '@libs/core/workflow/domain/contracts/job-processor.service.contract';
 import { MessagePayload } from '@libs/core/domain/contracts/message-broker.service.contracts';
+import {
+    IWorkflowJobRepository,
+    WORKFLOW_JOB_REPOSITORY_TOKEN,
+} from '@libs/core/workflow/domain/contracts/workflow-job.repository.contract';
+import { JobStatus } from '@libs/core/workflow/domain/enums/job-status.enum';
+import { ErrorClassification } from '@libs/core/workflow/domain/enums/error-classification.enum';
 
 import { ObservabilityService } from '@libs/core/log/observability.service';
 import { createLogger } from '@kodus/flow';
@@ -42,6 +48,8 @@ export class WorkflowJobConsumer implements OnApplicationShutdown {
         private readonly jobProcessor: IJobProcessorService,
         @Inject(INBOX_MESSAGE_REPOSITORY_TOKEN)
         private readonly inboxRepository: IInboxMessageRepository,
+        @Inject(WORKFLOW_JOB_REPOSITORY_TOKEN)
+        private readonly jobRepository: IWorkflowJobRepository,
         private readonly observability: ObservabilityService,
         @Inject(TASK_PROTECTION_SERVICE_TOKEN)
         private readonly taskProtectionService: ITaskProtectionService,
@@ -343,6 +351,34 @@ export class WorkflowJobConsumer implements OnApplicationShutdown {
                             queueName,
                         },
                     });
+
+                    // CRITICAL: Always mark job as FAILED to prevent stuck PENDING jobs
+                    try {
+                        await this.jobRepository.update(unwrappedMessage.jobId, {
+                            status: JobStatus.FAILED,
+                            errorClassification: ErrorClassification.PERMANENT,
+                            lastError: error.message,
+                        });
+
+                        this.logger.log({
+                            message: 'Job marked as FAILED after processing error',
+                            context: WorkflowJobConsumer.name,
+                            metadata: {
+                                jobId: unwrappedMessage.jobId,
+                                error: error.message,
+                            },
+                        });
+                    } catch (updateError) {
+                        this.logger.error({
+                            message: 'Failed to update job status to FAILED',
+                            context: WorkflowJobConsumer.name,
+                            error: updateError,
+                            metadata: {
+                                jobId: unwrappedMessage.jobId,
+                                originalError: error.message,
+                            },
+                        });
+                    }
 
                     // Release lock so message can be re-claimed on retry
                     // Retry scheduling is handled by RabbitMQErrorHandler (single source of truth)

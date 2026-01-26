@@ -17,6 +17,12 @@ import {
     IInboxMessageRepository,
     INBOX_MESSAGE_REPOSITORY_TOKEN,
 } from '@libs/core/workflow/domain/contracts/inbox-message.repository.contract';
+import {
+    IWorkflowJobRepository,
+    WORKFLOW_JOB_REPOSITORY_TOKEN,
+} from '@libs/core/workflow/domain/contracts/workflow-job.repository.contract';
+import { JobStatus } from '@libs/core/workflow/domain/enums/job-status.enum';
+import { ErrorClassification } from '@libs/core/workflow/domain/enums/error-classification.enum';
 import { OutboxMessageModel } from './repositories/schemas/outbox-message.model';
 
 import {
@@ -87,6 +93,8 @@ export class OutboxRelayService
         private readonly outboxRepository: IOutboxMessageRepository,
         @Inject(INBOX_MESSAGE_REPOSITORY_TOKEN)
         private readonly inboxRepository: IInboxMessageRepository,
+        @Inject(WORKFLOW_JOB_REPOSITORY_TOKEN)
+        private readonly jobRepository: IWorkflowJobRepository,
         @Inject(MESSAGE_BROKER_SERVICE_TOKEN)
         private readonly messageBroker: IMessageBrokerService,
         private readonly observability: ObservabilityService,
@@ -439,6 +447,38 @@ export class OutboxRelayService
                             error.message,
                         );
 
+                        // CRITICAL: Also mark the workflow job as FAILED to prevent orphaned PENDING jobs
+                        if (jobId) {
+                            try {
+                                await this.jobRepository.update(jobId, {
+                                    status: JobStatus.FAILED,
+                                    errorClassification: ErrorClassification.PERMANENT,
+                                    lastError: `Outbox message failed after ${this.maxAttemptsOutbox} attempts: ${error.message}`,
+                                });
+
+                                this.logger.log({
+                                    message: 'Job marked as FAILED due to outbox publish failure',
+                                    context: OutboxRelayService.name,
+                                    metadata: {
+                                        jobId,
+                                        messageId: message.uuid,
+                                        attempts: message.attempts,
+                                    },
+                                });
+                            } catch (updateError) {
+                                this.logger.error({
+                                    message: 'Failed to update job status to FAILED after outbox failure',
+                                    context: OutboxRelayService.name,
+                                    error: updateError,
+                                    metadata: {
+                                        jobId,
+                                        messageId: message.uuid,
+                                        originalError: error.message,
+                                    },
+                                });
+                            }
+                        }
+
                         this.logger.error({
                             message:
                                 'Outbox message permanently failed after max attempts',
@@ -446,6 +486,7 @@ export class OutboxRelayService
                             error,
                             metadata: {
                                 messageId: message.uuid,
+                                jobId,
                                 attempts: message.attempts,
                                 maxAttempts: this.maxAttemptsOutbox,
                             },
