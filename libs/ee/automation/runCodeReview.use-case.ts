@@ -53,7 +53,7 @@ export class RunCodeReviewAutomationUseCase implements IUseCase {
     async execute(params: EnqueueCodeReviewJobInput) {
         try {
             const {
-                payload,
+                codeManagementPayload: payload,
                 event,
                 platformType,
                 teamAutomationId,

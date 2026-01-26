@@ -44,7 +44,7 @@ export class CodeReviewJobProcessorService implements IJobProcessorService {
 
             const jobPayload = job.payload || {};
             const {
-                payload,
+                codeManagementPayload,
                 event,
                 platformType,
                 organizationAndTeamData,
@@ -52,7 +52,7 @@ export class CodeReviewJobProcessorService implements IJobProcessorService {
             } = jobPayload as EnqueueCodeReviewJobInput;
 
             if (
-                !payload ||
+                !codeManagementPayload ||
                 !event ||
                 !platformType ||
                 !organizationAndTeamData ||
@@ -62,7 +62,7 @@ export class CodeReviewJobProcessorService implements IJobProcessorService {
             }
 
             await this.runCodeReviewAutomationUseCase.execute({
-                payload,
+                codeManagementPayload,
                 event,
                 platformType,
                 correlationId,

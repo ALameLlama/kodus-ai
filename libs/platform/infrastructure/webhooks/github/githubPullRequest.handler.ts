@@ -136,7 +136,7 @@ export class GitHubPullRequestHandler implements IWebhookEventHandler {
             ) {
                 this.enqueueCodeReviewJobUseCase
                     .execute({
-                        payload: payload,
+                        codeManagementPayload: payload,
                         event: event,
                         platformType: PlatformType.GITHUB,
                         organizationAndTeamData:
@@ -464,7 +464,7 @@ export class GitHubPullRequestHandler implements IWebhookEventHandler {
                     ) {
                         const jobId =
                             await this.enqueueCodeReviewJobUseCase.execute({
-                                payload: updatedParams.payload,
+                                codeManagementPayload: updatedParams.payload,
                                 event: event,
                                 platformType: PlatformType.GITHUB,
                                 organizationAndTeamData:

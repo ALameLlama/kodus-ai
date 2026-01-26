@@ -138,7 +138,7 @@ export class AzureReposPullRequestHandler implements IWebhookEventHandler {
                     ) {
                         const jobId =
                             await this.enqueueCodeReviewJobUseCase.execute({
-                                payload: params.payload,
+                                codeManagementPayload: params.payload,
                                 event: params.event,
                                 platformType: PlatformType.AZURE_REPOS,
                                 organizationAndTeamData:
@@ -419,7 +419,7 @@ export class AzureReposPullRequestHandler implements IWebhookEventHandler {
                 await this.savePullRequestUseCase.execute(updatedParams);
                 if (context.organizationAndTeamData) {
                     await this.enqueueCodeReviewJobUseCase.execute({
-                        payload: updatedParams.payload,
+                        codeManagementPayload: updatedParams.payload,
                         event: updatedParams.event,
                         platformType: PlatformType.AZURE_REPOS,
                         organizationAndTeamData:

@@ -165,7 +165,7 @@ export class BitbucketPullRequestHandler implements IWebhookEventHandler {
                     ) {
                         this.enqueueCodeReviewJobUseCase
                             .execute({
-                                payload: params.payload,
+                                codeManagementPayload: params.payload,
                                 event: params.event,
                                 platformType: PlatformType.BITBUCKET,
                                 organizationAndTeamData:
@@ -372,7 +372,7 @@ export class BitbucketPullRequestHandler implements IWebhookEventHandler {
                 await this.savePullRequestUseCase.execute(updatedParams);
                 if (context.organizationAndTeamData) {
                     await this.enqueueCodeReviewJobUseCase.execute({
-                        payload: updatedParams.payload,
+                        codeManagementPayload: updatedParams.payload,
                         event: updatedParams.event,
                         platformType: PlatformType.BITBUCKET,
                         organizationAndTeamData:

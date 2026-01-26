@@ -13,7 +13,7 @@ import { WorkflowType } from '@libs/core/workflow/domain/enums/workflow-type.enu
 import { OrganizationAndTeamData } from '@libs/core/infrastructure/config/types/general/organizationAndTeamData';
 
 export type EnqueueCodeReviewJobInput = {
-    payload: any;
+    codeManagementPayload: any;
     event: string;
     platformType: PlatformType;
     organizationAndTeamData: OrganizationAndTeamData;
@@ -41,16 +41,21 @@ export class EnqueueCodeReviewJobUseCase implements IUseCase {
                 metadata: {
                     correlationId,
                     platformType: input.platformType,
-                    repositoryId: input.payload.repositoryId,
-                    pullRequestNumber: input.payload.pullRequestNumber,
+                    repositoryId: input.codeManagementPayload.repositoryId,
+                    pullRequestNumber:
+                        input.codeManagementPayload.pullRequestNumber,
                     teamAutomationId: input.teamAutomationId,
                 },
             });
 
+            // TODO: Documentar melhor aqui que esse payload é o que precisa para executar o processo de review.
             const jobPayload = {
                 event: input.event,
+                //action: 'code_review_requested', // TODO: ver depois mas ter uma noção melhor do evento se foi de openpr ou sync, update
                 platformType: input.platformType,
-                payload: input.payload,
+                codeManagementPayload: input.codeManagementPayload,
+                organizationAndTeamData: input.organizationAndTeamData,
+                teamAutomationId: input.teamAutomationId,
             };
 
             const jobId = await this.jobQueueService.enqueue({
@@ -59,9 +64,8 @@ export class EnqueueCodeReviewJobUseCase implements IUseCase {
                 handlerType: HandlerType.PIPELINE_SYNC,
                 payload: jobPayload,
                 organizationAndTeamData: input.organizationAndTeamData,
-                teamAutomationId: input.teamAutomationId,
                 status: JobStatus.PENDING,
-                priority: 0,
+                priority: 0, // ENTENDER esse priority aqui
                 retryCount: 0,
                 maxRetries: 1,
             });

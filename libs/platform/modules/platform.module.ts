@@ -88,6 +88,7 @@ import { WorkflowModule } from '@libs/core/workflow/modules/workflow.module';
         ...CodeManagementUseCases,
         GetConnectionsUseCase,
         GetOrganizationLanguageUseCase,
+        WebhookContextService,
         'AZURE_REPOS_WEBHOOK_HANDLER',
         'GITHUB_WEBHOOK_HANDLER',
         'GITLAB_WEBHOOK_HANDLER',

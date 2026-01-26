@@ -122,7 +122,7 @@ export class GitLabMergeRequestHandler implements IWebhookEventHandler {
                 ) {
                     this.enqueueCodeReviewJobUseCase
                         .execute({
-                            payload,
+                            codeManagementPayload: payload,
                             event: params.event,
                             platformType: PlatformType.GITLAB,
                             organizationAndTeamData:
@@ -357,7 +357,7 @@ export class GitLabMergeRequestHandler implements IWebhookEventHandler {
                     await this.savePullRequestUseCase.execute(updatedParams);
                     if (context.organizationAndTeamData) {
                         await this.enqueueCodeReviewJobUseCase.execute({
-                            payload: updatedParams.payload,
+                            codeManagementPayload: updatedParams.payload,
                             event: updatedParams.event,
                             platformType: PlatformType.GITLAB,
                             organizationAndTeamData:

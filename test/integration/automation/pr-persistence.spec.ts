@@ -212,7 +212,7 @@ describe('PR Persistence Integration Test', () => {
 
         // Act
         await useCase.execute({
-            payload,
+            codeManagementPayload: payload,
             event: 'pull_request.opened',
             platformType: PlatformType.GITHUB,
             throwOnError: false,
