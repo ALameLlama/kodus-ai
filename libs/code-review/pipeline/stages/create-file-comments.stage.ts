@@ -16,19 +16,20 @@ import {
     FileChange,
     Repository,
 } from '@libs/core/infrastructure/config/types/general/codeReview.type';
+import { Commit } from '@libs/core/infrastructure/config/types/general/commit.type';
 import { OrganizationAndTeamData } from '@libs/core/infrastructure/config/types/general/organizationAndTeamData';
 import { BasePipelineStage } from '@libs/core/infrastructure/pipeline/abstracts/base-stage.abstract';
 import {
     DRY_RUN_SERVICE_TOKEN,
     IDryRunService,
 } from '@libs/dryRun/domain/contracts/dryRun.service.contract';
-import { CodeManagementService } from '@libs/platform/infrastructure/adapters/services/codeManagement.service';
 import {
     IPullRequestsService,
     PULL_REQUESTS_SERVICE_TOKEN,
 } from '@libs/platformData/domain/pullRequests/contracts/pullRequests.service.contracts';
 import { Inject, Injectable } from '@nestjs/common';
 import { CodeReviewPipelineContext } from '../context/code-review-pipeline.context';
+import { ICommit } from '@libs/platformData/domain/pullRequests/interfaces/pullRequests.interface';
 
 @Injectable()
 export class CreateFileCommentsStage extends BasePipelineStage<CodeReviewPipelineContext> {
@@ -47,8 +48,6 @@ export class CreateFileCommentsStage extends BasePipelineStage<CodeReviewPipelin
 
         @Inject(DRY_RUN_SERVICE_TOKEN)
         private readonly dryRunService: IDryRunService,
-
-        private readonly codeManagementService: CodeManagementService,
     ) {
         super();
     }
@@ -113,21 +112,14 @@ export class CreateFileCommentsStage extends BasePipelineStage<CodeReviewPipelin
                 },
             });
 
-            const commits =
-                await this.codeManagementService.getCommitsForPullRequestForCodeReview(
-                    {
-                        organizationAndTeamData:
-                            context.organizationAndTeamData,
-                        repository: context.repository,
-                        prNumber: context.pullRequest.number,
-                    },
-                );
+            // Usar todos os commits para determinar o lastAnalyzedCommit
+            const allCommits = context.prAllCommits;
 
-            if (!commits?.length) {
+            if (!allCommits?.length) {
                 return context;
             }
 
-            const lastAnalyzedCommit = commits[commits.length - 1];
+            const lastAnalyzedCommit = allCommits[allCommits.length - 1];
 
             return this.updateContext(context, (draft) => {
                 draft.lineComments = [];
@@ -251,6 +243,7 @@ export class CreateFileCommentsStage extends BasePipelineStage<CodeReviewPipelin
             platformType,
             context.fileMetadata,
             dryRun,
+            context.prAllCommits,
         );
 
         return {
@@ -363,6 +356,7 @@ export class CreateFileCommentsStage extends BasePipelineStage<CodeReviewPipelin
         platformType: string,
         fileMetadata?: Map<string, any>,
         dryRun?: CodeReviewPipelineContext['dryRun'],
+        prCommits?: Commit[],
     ) {
         const enrichedFiles = changedFiles.map((file) => {
             const metadata = fileMetadata?.get(file.filename);
@@ -396,14 +390,8 @@ export class CreateFileCommentsStage extends BasePipelineStage<CodeReviewPipelin
                 commentResults,
             );
 
-        const pullRequestCommits =
-            await this.codeManagementService.getCommitsForPullRequestForCodeReview(
-                {
-                    organizationAndTeamData,
-                    repository: { id: repository.id, name: repository.name },
-                    prNumber: pullRequest.number,
-                },
-            );
+        // Reutilizar commits do context (buscados no ValidateNewCommitsStage)
+        const pullRequestCommits = prCommits || [];
 
         await this.pullRequestService.aggregateAndSaveDataStructure(
             pullRequest,
@@ -413,7 +401,7 @@ export class CreateFileCommentsStage extends BasePipelineStage<CodeReviewPipelin
             discardedSuggestions,
             platformType,
             organizationAndTeamData,
-            pullRequestCommits,
+            pullRequestCommits as unknown as ICommit[],
         );
     }
 }

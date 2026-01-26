@@ -196,10 +196,6 @@ describe('CreateFileCommentsStage', () => {
         });
 
         it('should return empty line comments when no valid suggestions', async () => {
-            mockCodeManagementService.getCommitsForPullRequestForCodeReview.mockResolvedValue([
-                { sha: 'abc123' },
-            ]);
-
             mockPullRequestService.findByNumberAndRepositoryName.mockResolvedValue({
                 number: 123,
                 files: [],
@@ -208,6 +204,8 @@ describe('CreateFileCommentsStage', () => {
             const context = createBaseContext({
                 validSuggestions: [],
                 changedFiles: [{ filename: 'test.ts' } as any],
+                // prAllCommits é necessário para determinar lastAnalyzedCommit
+                prAllCommits: [{ sha: 'abc123' }] as any,
             });
 
             const result = await (stage as any).executeStage(context);
