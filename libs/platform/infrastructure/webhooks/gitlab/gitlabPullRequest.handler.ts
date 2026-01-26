@@ -46,7 +46,6 @@ export class GitLabMergeRequestHandler implements IWebhookEventHandler {
      * @returns True if this handler can process the event, false otherwise.
      */
     public canHandle(params: IWebhookEventParams): boolean {
-        console.log('params1111', params);
         return (
             params.platformType === PlatformType.GITLAB &&
             ['Merge Request Hook', 'Note Hook'].includes(params.event)

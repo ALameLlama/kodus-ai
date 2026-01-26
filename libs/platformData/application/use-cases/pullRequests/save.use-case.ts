@@ -12,6 +12,10 @@ import {
     IPullRequestsService,
     PULL_REQUESTS_SERVICE_TOKEN,
 } from '@libs/platformData/domain/pullRequests/contracts/pullRequests.service.contracts';
+import {
+    IPullRequestsRepository,
+    PULL_REQUESTS_REPOSITORY_TOKEN,
+} from '@libs/platformData/domain/pullRequests/contracts/pullRequests.repository';
 import { IPullRequests } from '@libs/platformData/domain/pullRequests/interfaces/pullRequests.interface';
 import { Inject, Injectable } from '@nestjs/common';
 
@@ -25,6 +29,9 @@ export class SavePullRequestUseCase {
 
         @Inject(PULL_REQUESTS_SERVICE_TOKEN)
         private readonly pullRequestsService: IPullRequestsService,
+
+        @Inject(PULL_REQUESTS_REPOSITORY_TOKEN)
+        private readonly pullRequestsRepository: IPullRequestsRepository,
 
         private readonly codeManagement: CodeManagementService,
     ) {}
@@ -98,16 +105,6 @@ export class SavePullRequestUseCase {
                 organizationAndTeamData =
                     organizationAndTeamDataList[0] ?? null;
 
-                const changedFiles =
-                    await this.codeManagement.getFilesByPullRequestId(
-                        {
-                            organizationAndTeamData,
-                            prNumber: pullRequest?.number,
-                            repository,
-                        },
-                        platformType,
-                    );
-
                 const relevantUsers = mappedPlatform.mapUsers({
                     payload: sanitizedPayload,
                 });
@@ -117,17 +114,60 @@ export class SavePullRequestUseCase {
                     ...relevantUsers,
                 };
 
-                const pullRequestCommits =
-                    await this.codeManagement.getCommitsForPullRequestForCodeReview(
-                        {
-                            organizationAndTeamData,
-                            repository: {
-                                id: repository.id,
-                                name: repository.name,
+                // Optimization: Only fetch files/commits from Git API when needed
+                // - For new PRs (opened) or new commits (synchronize): fetch from API
+                // - For other events (closed, reopened, etc.): use existing data from DB
+                const shouldFetchFromApi =
+                    this.shouldFetchFilesAndCommits(payload, platformType);
+
+                let changedFiles: any[] = [];
+                let pullRequestCommits: any[] = [];
+
+                if (shouldFetchFromApi) {
+                    [changedFiles, pullRequestCommits] = await Promise.all([
+                        this.codeManagement.getFilesByPullRequestId(
+                            {
+                                organizationAndTeamData,
+                                prNumber: pullRequest?.number,
+                                repository,
                             },
-                            prNumber: pullRequestWithUserData.number,
-                        },
-                    );
+                            platformType,
+                        ),
+                        this.codeManagement.getCommitsForPullRequestForCodeReview(
+                            {
+                                organizationAndTeamData,
+                                repository: {
+                                    id: repository.id,
+                                    name: repository.name,
+                                },
+                                prNumber: pullRequestWithUserData.number,
+                            },
+                        ),
+                    ]);
+                } else {
+                    // For non-critical events, try to get existing data from DB
+                    const existingPR =
+                        await this.pullRequestsRepository.findByNumberAndRepositoryId(
+                            pullRequest?.number,
+                            repository.id,
+                            organizationAndTeamData,
+                        );
+
+                    if (existingPR) {
+                        changedFiles = existingPR.files || [];
+                        pullRequestCommits = existingPR.commits || [];
+
+                        this.logger.debug({
+                            message: `Using cached files/commits for PR#${pullRequest?.number} (action: ${payload?.action || payload?.object_attributes?.action})`,
+                            context: SavePullRequestUseCase.name,
+                            metadata: {
+                                prNumber: pullRequest?.number,
+                                filesCount: changedFiles.length,
+                                commitsCount: pullRequestCommits.length,
+                            },
+                        });
+                    }
+                }
 
                 try {
                     const result =
@@ -208,5 +248,70 @@ export class SavePullRequestUseCase {
             validActions.includes(payload?.resource?.pullRequest?.status) ||
             platformType === PlatformType.BITBUCKET
         );
+    }
+
+    /**
+     * Determines if we need to fetch files and commits from the Git API.
+     * Only fetch for events that actually change the PR content:
+     * - opened: new PR, need all data
+     * - synchronize: new commits pushed, need updated data
+     * - ready_for_review: draft converted to ready, may need fresh data
+     * - open (GitLab): new MR
+     * - update with new commits (GitLab): new commits pushed
+     *
+     * For other events (closed, reopened, assigned, etc.), we can use cached data
+     * from the database since the files/commits haven't changed.
+     */
+    private shouldFetchFilesAndCommits(
+        payload: any,
+        platformType: PlatformType,
+    ): boolean {
+        // GitHub actions that require fresh data
+        const githubFetchActions = ['opened', 'synchronize', 'ready_for_review'];
+        if (githubFetchActions.includes(payload?.action)) {
+            return true;
+        }
+
+        // GitLab: open or update with new commits
+        const gitlabAction = payload?.object_attributes?.action;
+        if (gitlabAction === 'open') {
+            return true;
+        }
+        if (gitlabAction === 'update') {
+            // Check if it's a commit update (oldrev differs from last_commit)
+            const lastCommitId = payload?.object_attributes?.last_commit?.id;
+            const oldRev = payload?.object_attributes?.oldrev;
+            if (lastCommitId && oldRev && lastCommitId !== oldRev) {
+                return true;
+            }
+        }
+
+        // Azure DevOps: active status means new/updated PR
+        if (
+            payload?.resource?.status === 'active' ||
+            payload?.resource?.pullRequest?.status === 'active'
+        ) {
+            return true;
+        }
+
+        // Bitbucket: check for push events or new PRs
+        if (platformType === PlatformType.BITBUCKET) {
+            // For Bitbucket, we need to be more conservative
+            // Fetch if it looks like a new PR or has new commits
+            const isPullRequestCreated =
+                payload?.pullrequest?.state === 'OPEN' &&
+                !payload?.previous?.state;
+            const hasNewCommits = payload?.push?.changes?.length > 0;
+            if (isPullRequestCreated || hasNewCommits) {
+                return true;
+            }
+            // For other Bitbucket events, still fetch to be safe
+            // (Bitbucket webhook structure varies)
+            return true;
+        }
+
+        // For all other events (closed, merged, reopened, assigned, etc.)
+        // we don't need to fetch files/commits - they haven't changed
+        return false;
     }
 }

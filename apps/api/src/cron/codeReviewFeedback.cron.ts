@@ -99,6 +99,7 @@ export class CodeReviewFeedbackCronProvider {
                         .find({
                             team: { uuid: team.uuid },
                             automation: { uuid: automationUuid },
+                            status: true,
                         })
                         .then((automations) => ({
                             team,
