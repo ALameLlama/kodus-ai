@@ -17,6 +17,14 @@ export class GitlabController {
         const event = req.headers['x-gitlab-event'] as string;
         const payload = req.body as any;
 
+        // Filter unsupported events before enqueueing
+        const supportedEvents = ['Merge Request Hook', 'Note Hook'];
+        if (!supportedEvents.includes(event)) {
+            return res
+                .status(HttpStatus.OK)
+                .send('Webhook ignored (event not supported)');
+        }
+
         res.status(HttpStatus.OK).send('Webhook received');
 
         setImmediate(() => {

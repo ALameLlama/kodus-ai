@@ -18,14 +18,28 @@ export class GithubController {
         const event = req.headers['x-github-event'] as string;
         const payload = req.body as any;
 
+        // Filter unsupported events before enqueueing
+        const supportedEvents = [
+            'pull_request',
+            'issue_comment',
+            'pull_request_review_comment',
+        ];
+        if (!supportedEvents.includes(event)) {
+            return res
+                .status(HttpStatus.OK)
+                .send('Webhook ignored (event not supported)');
+        }
+
+        // For pull_request events, filter unsupported actions
         if (event === 'pull_request') {
-            if (
-                payload?.action !== 'opened' &&
-                payload?.action !== 'synchronize' &&
-                payload?.action !== 'closed' &&
-                payload?.action !== 'reopened' &&
-                payload?.action !== 'ready_for_review'
-            ) {
+            const allowedActions = [
+                'opened',
+                'synchronize',
+                'closed',
+                'reopened',
+                'ready_for_review',
+            ];
+            if (!allowedActions.includes(payload?.action)) {
                 return res
                     .status(HttpStatus.OK)
                     .send('Webhook ignored (action not supported)');

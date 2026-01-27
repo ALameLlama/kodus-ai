@@ -2,10 +2,10 @@ import 'source-map-support/register';
 import * as dotenv from 'dotenv';
 dotenv.config();
 
-import { initPyroscope } from '@libs/core/infrastructure/config/profiling/pyroscope';
+// import { initPyroscope } from '@libs/core/infrastructure/config/profiling/pyroscope';
 
 // Initialize profiling early (before NestJS bootstrap)
-initPyroscope({ appName: 'kodus-worker' });
+// initPyroscope({ appName: 'kodus-worker' });
 
 import { INestApplicationContext } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';

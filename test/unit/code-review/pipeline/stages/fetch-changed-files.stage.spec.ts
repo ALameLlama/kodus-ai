@@ -5,11 +5,24 @@ import { CodeReviewPipelineContext } from '@/code-review/pipeline/context/code-r
 import { PlatformType } from '@/core/domain/enums';
 import { AutomationStatus, AutomationMessage } from '@/automation/domain/automation/enum/automation-status';
 
+// Mock logger to silence logs during tests
+jest.mock('@kodus/flow', () => ({
+    createLogger: () => ({
+        log: jest.fn(),
+        error: jest.fn(),
+        warn: jest.fn(),
+        debug: jest.fn(),
+        info: jest.fn(),
+    }),
+}));
+
 describe('FetchChangedFilesStage', () => {
     let stage: FetchChangedFilesStage;
 
     const mockPullRequestHandlerService = {
         getChangedFiles: jest.fn(),
+        getChangedFilesMetadata: jest.fn(),
+        enrichFilesWithContent: jest.fn(),
     };
 
     const mockOrganizationAndTeamData = {
@@ -87,22 +100,59 @@ describe('FetchChangedFilesStage', () => {
                 },
             ];
 
-            mockPullRequestHandlerService.getChangedFiles.mockResolvedValue(mockFiles);
+            // Agora usa preliminaryFiles do context, então não precisa chamar getChangedFilesMetadata
+            // Mas se não tiver preliminaryFiles, vai chamar
+            mockPullRequestHandlerService.getChangedFilesMetadata.mockResolvedValue(mockFiles);
+            mockPullRequestHandlerService.enrichFilesWithContent.mockResolvedValue(mockFiles);
 
             const context = createBaseContext();
             const result = await (stage as any).executeStage(context);
 
-            expect(mockPullRequestHandlerService.getChangedFiles).toHaveBeenCalledWith(
+            expect(mockPullRequestHandlerService.getChangedFilesMetadata).toHaveBeenCalledWith(
                 mockOrganizationAndTeamData,
                 expect.any(Object),
                 expect.any(Object),
-                [],
                 undefined,
+            );
+            expect(mockPullRequestHandlerService.enrichFilesWithContent).toHaveBeenCalledWith(
+                mockOrganizationAndTeamData,
+                expect.any(Object),
+                expect.any(Object),
+                mockFiles,
             );
             expect(result.changedFiles).toHaveLength(2);
             expect(result.pullRequest.stats.total_files).toBe(2);
             expect(result.pullRequest.stats.total_additions).toBe(30);
             expect(result.pullRequest.stats.total_deletions).toBe(5);
+        });
+
+        it('should reuse preliminaryFiles from context when available', async () => {
+            const mockFiles = [
+                {
+                    filename: 'src/test.ts',
+                    status: 'modified',
+                    additions: 10,
+                    deletions: 5,
+                    patch: '@@ -1,5 +1,10 @@\n function test() {\n+  const x = 1;\n }',
+                },
+            ];
+
+            mockPullRequestHandlerService.enrichFilesWithContent.mockResolvedValue(mockFiles);
+
+            const context = createBaseContext({
+                preliminaryFiles: mockFiles,
+            });
+            const result = await (stage as any).executeStage(context);
+
+            // Não deve chamar getChangedFilesMetadata pois já tem preliminaryFiles
+            expect(mockPullRequestHandlerService.getChangedFilesMetadata).not.toHaveBeenCalled();
+            expect(mockPullRequestHandlerService.enrichFilesWithContent).toHaveBeenCalledWith(
+                mockOrganizationAndTeamData,
+                expect.any(Object),
+                expect.any(Object),
+                mockFiles,
+            );
+            expect(result.changedFiles).toHaveLength(1);
         });
 
         it('should skip when no config is found', async () => {
@@ -117,7 +167,7 @@ describe('FetchChangedFilesStage', () => {
         });
 
         it('should skip when no files are returned', async () => {
-            mockPullRequestHandlerService.getChangedFiles.mockResolvedValue([]);
+            mockPullRequestHandlerService.getChangedFilesMetadata.mockResolvedValue([]);
 
             const context = createBaseContext();
             const result = await (stage as any).executeStage(context);
@@ -135,7 +185,7 @@ describe('FetchChangedFilesStage', () => {
                 patch: '@@ -1,1 +1,1 @@',
             }));
 
-            mockPullRequestHandlerService.getChangedFiles.mockResolvedValue(manyFiles);
+            mockPullRequestHandlerService.getChangedFilesMetadata.mockResolvedValue(manyFiles);
 
             const context = createBaseContext();
             const result = await (stage as any).executeStage(context);
@@ -144,33 +194,46 @@ describe('FetchChangedFilesStage', () => {
             expect(result.statusInfo.message).toBe(AutomationMessage.TOO_MANY_FILES);
         });
 
-        it('should pass ignore paths to getChangedFiles', async () => {
-            mockPullRequestHandlerService.getChangedFiles.mockResolvedValue([
+        it('should filter files locally using ignorePaths', async () => {
+            const mockFiles = [
                 { filename: 'src/test.ts', status: 'modified', additions: 5, deletions: 2, patch: '' },
-            ]);
+                { filename: 'node_modules/pkg/index.js', status: 'modified', additions: 10, deletions: 0, patch: '' },
+                { filename: 'dist/bundle.js', status: 'added', additions: 100, deletions: 0, patch: '' },
+            ];
 
-            const ignorePaths = ['node_modules/**', '*.test.ts', 'dist/**'];
+            mockPullRequestHandlerService.getChangedFilesMetadata.mockResolvedValue(mockFiles);
+            // enrichFilesWithContent será chamado apenas com arquivos filtrados
+            mockPullRequestHandlerService.enrichFilesWithContent.mockImplementation((_, __, ___, files) =>
+                Promise.resolve(files)
+            );
+
+            const ignorePaths = ['node_modules/**', 'dist/**'];
             const context = createBaseContext({
                 codeReviewConfig: {
                     ignorePaths,
                 } as any,
             });
 
-            await (stage as any).executeStage(context);
+            const result = await (stage as any).executeStage(context);
 
-            expect(mockPullRequestHandlerService.getChangedFiles).toHaveBeenCalledWith(
+            // enrichFilesWithContent deve ser chamado apenas com o arquivo não ignorado
+            expect(mockPullRequestHandlerService.enrichFilesWithContent).toHaveBeenCalledWith(
                 expect.any(Object),
                 expect.any(Object),
                 expect.any(Object),
-                ignorePaths,
-                undefined,
+                [expect.objectContaining({ filename: 'src/test.ts' })],
             );
+            expect(result.changedFiles).toHaveLength(1);
+            expect(result.changedFiles[0].filename).toBe('src/test.ts');
         });
 
-        it('should pass lastAnalyzedCommit when available', async () => {
-            mockPullRequestHandlerService.getChangedFiles.mockResolvedValue([
+        it('should pass lastAnalyzedCommit when fetching from API', async () => {
+            const mockFiles = [
                 { filename: 'src/test.ts', status: 'modified', additions: 5, deletions: 2, patch: '' },
-            ]);
+            ];
+
+            mockPullRequestHandlerService.getChangedFilesMetadata.mockResolvedValue(mockFiles);
+            mockPullRequestHandlerService.enrichFilesWithContent.mockResolvedValue(mockFiles);
 
             const lastCommit = 'abc123';
             const context = createBaseContext({
@@ -181,11 +244,10 @@ describe('FetchChangedFilesStage', () => {
 
             await (stage as any).executeStage(context);
 
-            expect(mockPullRequestHandlerService.getChangedFiles).toHaveBeenCalledWith(
+            expect(mockPullRequestHandlerService.getChangedFilesMetadata).toHaveBeenCalledWith(
                 expect.any(Object),
                 expect.any(Object),
                 expect.any(Object),
-                expect.any(Array),
                 lastCommit,
             );
         });
@@ -199,7 +261,8 @@ describe('FetchChangedFilesStage', () => {
                 { filename: 'c.ts', status: 'modified', additions: 5, deletions: 20, patch: '' },
             ];
 
-            mockPullRequestHandlerService.getChangedFiles.mockResolvedValue(mockFiles);
+            mockPullRequestHandlerService.getChangedFilesMetadata.mockResolvedValue(mockFiles);
+            mockPullRequestHandlerService.enrichFilesWithContent.mockResolvedValue(mockFiles);
 
             const context = createBaseContext();
             const result = await (stage as any).executeStage(context);
@@ -218,7 +281,8 @@ describe('FetchChangedFilesStage', () => {
                 { filename: 'b.ts', status: 'modified', additions: undefined, deletions: undefined, patch: '' },
             ];
 
-            mockPullRequestHandlerService.getChangedFiles.mockResolvedValue(mockFiles);
+            mockPullRequestHandlerService.getChangedFilesMetadata.mockResolvedValue(mockFiles);
+            mockPullRequestHandlerService.enrichFilesWithContent.mockResolvedValue(mockFiles);
 
             const context = createBaseContext();
             const result = await (stage as any).executeStage(context);
@@ -241,7 +305,8 @@ describe('FetchChangedFilesStage', () => {
                 },
             ];
 
-            mockPullRequestHandlerService.getChangedFiles.mockResolvedValue(mockFiles);
+            mockPullRequestHandlerService.getChangedFilesMetadata.mockResolvedValue(mockFiles);
+            mockPullRequestHandlerService.enrichFilesWithContent.mockResolvedValue(mockFiles);
 
             const context = createBaseContext();
             const result = await (stage as any).executeStage(context);
@@ -261,7 +326,8 @@ describe('FetchChangedFilesStage', () => {
                 },
             ];
 
-            mockPullRequestHandlerService.getChangedFiles.mockResolvedValue(mockFiles);
+            mockPullRequestHandlerService.getChangedFilesMetadata.mockResolvedValue(mockFiles);
+            mockPullRequestHandlerService.enrichFilesWithContent.mockResolvedValue(mockFiles);
 
             const context = createBaseContext();
             const result = await (stage as any).executeStage(context);
@@ -280,7 +346,8 @@ describe('FetchChangedFilesStage', () => {
                 },
             ];
 
-            mockPullRequestHandlerService.getChangedFiles.mockResolvedValue(mockFiles);
+            mockPullRequestHandlerService.getChangedFilesMetadata.mockResolvedValue(mockFiles);
+            mockPullRequestHandlerService.enrichFilesWithContent.mockResolvedValue(mockFiles);
 
             const context = createBaseContext();
             // Should not throw
@@ -300,7 +367,8 @@ describe('FetchChangedFilesStage', () => {
                 patch: '',
             }));
 
-            mockPullRequestHandlerService.getChangedFiles.mockResolvedValue(files);
+            mockPullRequestHandlerService.getChangedFilesMetadata.mockResolvedValue(files);
+            mockPullRequestHandlerService.enrichFilesWithContent.mockResolvedValue(files);
 
             const context = createBaseContext();
             const result = await (stage as any).executeStage(context);
@@ -309,8 +377,8 @@ describe('FetchChangedFilesStage', () => {
             expect(result.statusInfo).toBeUndefined(); // No skip status
         });
 
-        it('should handle null returned from getChangedFiles', async () => {
-            mockPullRequestHandlerService.getChangedFiles.mockResolvedValue(null);
+        it('should handle null returned from getChangedFilesMetadata', async () => {
+            mockPullRequestHandlerService.getChangedFilesMetadata.mockResolvedValue(null);
 
             const context = createBaseContext();
             const result = await (stage as any).executeStage(context);
@@ -329,7 +397,8 @@ describe('FetchChangedFilesStage', () => {
                 },
             ];
 
-            mockPullRequestHandlerService.getChangedFiles.mockResolvedValue(mockFiles);
+            mockPullRequestHandlerService.getChangedFilesMetadata.mockResolvedValue(mockFiles);
+            mockPullRequestHandlerService.enrichFilesWithContent.mockResolvedValue(mockFiles);
 
             const context = createBaseContext();
             const result = await (stage as any).executeStage(context);
@@ -346,12 +415,35 @@ describe('FetchChangedFilesStage', () => {
                 { filename: 'deleted.ts', status: 'removed', additions: 0, deletions: 20, patch: '' },
             ];
 
-            mockPullRequestHandlerService.getChangedFiles.mockResolvedValue(mockFiles);
+            mockPullRequestHandlerService.getChangedFilesMetadata.mockResolvedValue(mockFiles);
+            mockPullRequestHandlerService.enrichFilesWithContent.mockResolvedValue(mockFiles);
 
             const context = createBaseContext();
             const result = await (stage as any).executeStage(context);
 
             expect(result.changedFiles).toHaveLength(4);
+        });
+
+        it('should skip when all files are ignored', async () => {
+            const mockFiles = [
+                { filename: 'node_modules/pkg/index.js', status: 'modified', additions: 10, deletions: 0, patch: '' },
+                { filename: 'dist/bundle.js', status: 'added', additions: 100, deletions: 0, patch: '' },
+            ];
+
+            mockPullRequestHandlerService.getChangedFilesMetadata.mockResolvedValue(mockFiles);
+
+            const context = createBaseContext({
+                codeReviewConfig: {
+                    ignorePaths: ['node_modules/**', 'dist/**'],
+                } as any,
+            });
+
+            const result = await (stage as any).executeStage(context);
+
+            expect(result.statusInfo.status).toBe(AutomationStatus.SKIPPED);
+            expect(result.statusInfo.message).toBe(AutomationMessage.NO_FILES_AFTER_IGNORE);
+            // enrichFilesWithContent não deve ser chamado pois todos os arquivos foram filtrados
+            expect(mockPullRequestHandlerService.enrichFilesWithContent).not.toHaveBeenCalled();
         });
     });
 });

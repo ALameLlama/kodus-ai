@@ -29,6 +29,7 @@ packages/**/*.js
 .env.prod
 .env.local
 _*
+!test/__mocks__/
 
 # Logs
 logs
@@ -54,7 +55,6 @@ lerna-debug.log*
 *.launch
 .settings/
 *.sublime-workspace
-.cursor/
 .specify/
 
 # IDE - VSCode
@@ -107,10 +107,13 @@ scripts/duplicate-prs
 test.json
 specs
 .cursor/rules/bmad/
-.cursor
 .specify
 .opencode
 .build_cache
+.opencode
+.cursor
+.claude
+.codex
 
 # ESLint Cache
 .eslintcache

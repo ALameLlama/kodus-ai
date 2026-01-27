@@ -42,6 +42,19 @@ export class AzureReposController {
                 .send('Unrecognized event');
         }
 
+        // Filter unsupported events before enqueueing
+        const supportedEvents = [
+            'git.pullrequest.created',
+            'git.pullrequest.updated',
+            'git.pullrequest.merge.attempted',
+            'ms.vss-code.git-pullrequest-comment-event',
+        ];
+        if (!supportedEvents.includes(eventType)) {
+            return res
+                .status(HttpStatus.OK)
+                .send('Webhook ignored (event not supported)');
+        }
+
         res.status(HttpStatus.OK).send('Webhook received');
 
         setImmediate(() => {

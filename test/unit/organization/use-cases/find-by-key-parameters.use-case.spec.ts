@@ -130,15 +130,15 @@ describe('FindByKeyParametersUseCase', () => {
             expect(result.configValue.maxSuggestions).toBe(10);
         });
 
-        it('should throw NotFoundException when parameter not found', async () => {
+        it('should return null when parameter not found', async () => {
             mockParametersService.findByKey.mockResolvedValue(null);
 
-            await expect(
-                useCase.execute(
-                    ParametersKey.CODE_REVIEW_CONFIG,
-                    MOCK_ORG_AND_TEAM_DATA,
-                ),
-            ).rejects.toThrow(NotFoundException);
+            const result = await useCase.execute(
+                ParametersKey.CODE_REVIEW_CONFIG,
+                MOCK_ORG_AND_TEAM_DATA,
+            );
+
+            expect(result).toBeNull();
         });
 
         it('should call parametersService.findByKey with correct arguments', async () => {

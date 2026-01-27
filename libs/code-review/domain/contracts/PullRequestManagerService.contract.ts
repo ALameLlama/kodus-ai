@@ -22,6 +22,28 @@ export interface IPullRequestManagerService {
         lastCommit?: string,
     ): Promise<FileChange[]>;
 
+    /**
+     * Busca apenas metadados dos arquivos alterados (sem conteúdo).
+     * Mais rápido que getChangedFiles pois não faz chamadas repos.getContent.
+     */
+    getChangedFilesMetadata(
+        organizationAndTeamData: OrganizationAndTeamData,
+        repository: { name: string; id: any; project?: { id: any } },
+        pullRequest: any,
+        lastCommit?: string,
+    ): Promise<FileChange[]>;
+
+    /**
+     * Enriquece arquivos com conteúdo.
+     * Usado para buscar conteúdo apenas dos arquivos que passaram pelo filtro ignorePaths.
+     */
+    enrichFilesWithContent(
+        organizationAndTeamData: OrganizationAndTeamData,
+        repository: { name: string; id: any; project?: { id: any } },
+        pullRequest: any,
+        files: FileChange[],
+    ): Promise<FileChange[]>;
+
     getPullRequestAuthorsWithCache(
         organizationAndTeamData: OrganizationAndTeamData,
         determineBots?: boolean,

@@ -215,6 +215,9 @@ export class GithubService
         }
 
         return new Octokit({
+            request: {
+                timeout: 60000,
+            },
             authStrategy: createAppAuth,
             auth: {
                 appId: this.configService.get<string>('API_GITHUB_APP_ID'),
@@ -4474,12 +4477,15 @@ This is an experimental feature that generates committable changes. Review the d
             viewer: { login: string; id: string };
         } = await graphQLWithAuth(query);
 
-        const allReviews = await octokit.paginate(octokit.rest.pulls.listReviews, {
-            owner: githubAuth.org,
-            repo: repository.name,
-            pull_number: prNumber,
-            per_page: 100,
-        });
+        const allReviews = await octokit.paginate(
+            octokit.rest.pulls.listReviews,
+            {
+                owner: githubAuth.org,
+                repo: repository.name,
+                pull_number: prNumber,
+                per_page: 100,
+            },
+        );
 
         if (!allReviews?.length) {
             return null;

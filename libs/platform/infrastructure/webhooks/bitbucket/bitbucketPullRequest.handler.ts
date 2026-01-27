@@ -109,6 +109,20 @@ export class BitbucketPullRequestHandler implements IWebhookEventHandler {
             String(repository.id),
         );
 
+        // If no active automation found, complete the webhook processing immediately
+        if (!orgData?.organizationAndTeamData) {
+            this.logger.log({
+                message: `No active automation found for repository, completing webhook processing`,
+                context: BitbucketPullRequestHandler.name,
+                metadata: {
+                    prId,
+                    repositoryId: repository.id,
+                    repositoryName: repository.name,
+                },
+            });
+            return;
+        }
+
         try {
             // Check if we should trigger code review based on the PR event
             const shouldTrigger = await this.shouldTriggerCodeReview(params);

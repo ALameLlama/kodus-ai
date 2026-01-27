@@ -14,6 +14,7 @@ import {
     AutomationStatus,
 } from '@libs/automation/domain/automation/enum/automation-status';
 import { CodeReviewPipelineContext } from '../context/code-review-pipeline.context';
+import { Commit } from '@libs/core/infrastructure/config/types/general/commit.type';
 
 @Injectable()
 export class ValidateNewCommitsStage extends BasePipelineStage<CodeReviewPipelineContext> {
@@ -74,18 +75,17 @@ export class ValidateNewCommitsStage extends BasePipelineStage<CodeReviewPipelin
             });
         }
 
-        // Buscar commits novos (ou todos se for primeira execução)
-        const commits =
+        // Buscar TODOS os commits do PR
+        const allCommits =
             await this.pullRequestHandlerService.getNewCommitsSinceLastExecution(
                 context.organizationAndTeamData,
                 context.repository,
                 context.pullRequest,
-                lastAnalyzedCommit,
             );
 
-        if (!commits || commits?.length === 0) {
+        if (!allCommits || allCommits?.length === 0) {
             this.logger.warn({
-                message: 'No new commits found since last execution',
+                message: 'No commits found in PR',
                 context: this.stageName,
                 metadata: {
                     organizationAndTeamData: context.organizationAndTeamData,
@@ -105,8 +105,50 @@ export class ValidateNewCommitsStage extends BasePipelineStage<CodeReviewPipelin
             });
         }
 
+        // Filtrar commits novos localmente (após lastAnalyzedCommit)
+        let newCommits = allCommits;
+        if (lastAnalyzedCommit) {
+            // lastAnalyzedCommit pode ser um objeto {sha, author, ...} ou uma string
+            const lastCommitSha =
+                typeof lastAnalyzedCommit === 'string'
+                    ? lastAnalyzedCommit
+                    : (lastAnalyzedCommit as Commit).sha;
+
+            const lastCommitIndex = allCommits.findIndex(
+                (commit) => commit.sha === lastCommitSha,
+            );
+            if (lastCommitIndex !== -1) {
+                newCommits = allCommits.slice(lastCommitIndex + 1);
+            }
+        }
+
+        if (!newCommits || newCommits.length === 0) {
+            this.logger.warn({
+                message: 'No new commits found since last execution',
+                context: this.stageName,
+                metadata: {
+                    organizationAndTeamData: context.organizationAndTeamData,
+                    repository: context.repository.name,
+                    pullRequestNumber: context.pullRequest.number,
+                    totalCommits: allCommits.length,
+                    lastAnalyzedCommit,
+                },
+            });
+
+            return this.updateContext(context, (draft) => {
+                draft.statusInfo = {
+                    status: AutomationStatus.SKIPPED,
+                    message: AutomationMessage.NO_NEW_COMMITS_SINCE_LAST,
+                };
+                draft.prAllCommits = allCommits; // Salva todos mesmo quando skip
+                if (lastExecutionResult) {
+                    draft.lastExecution = lastExecutionResult;
+                }
+            });
+        }
+
         this.logger.log({
-            message: `Fetched ${commits.length} new commits for PR#${context.pullRequest.number}`,
+            message: `Fetched ${newCommits.length} new commits for PR#${context.pullRequest.number} (${allCommits.length} total)`,
             context: this.stageName,
             metadata: {
                 organizationAndTeamData: context.organizationAndTeamData,
@@ -118,13 +160,13 @@ export class ValidateNewCommitsStage extends BasePipelineStage<CodeReviewPipelin
         // Verificar se são apenas commits de merge
         let isOnlyMerge = false;
 
-        const mergeCommits = commits.filter(
+        const mergeCommits = newCommits.filter(
             (commit) => commit.parents?.length > 1,
         );
 
         if (mergeCommits.length > 0) {
-            const allNewCommitShas = new Set(commits.map((c) => c.sha));
-            const commitMap = new Map(commits.map((c) => [c.sha, c]));
+            const allNewCommitShas = new Set(newCommits.map((c) => c.sha));
+            const commitMap = new Map(newCommits.map((c) => [c.sha, c]));
 
             const mergedCommitTracker = new Set();
 
@@ -188,6 +230,7 @@ export class ValidateNewCommitsStage extends BasePipelineStage<CodeReviewPipelin
                     status: AutomationStatus.SKIPPED,
                     message: AutomationMessage.ONLY_MERGE_COMMITS_SINCE_LAST,
                 };
+                draft.prAllCommits = allCommits;
                 if (lastExecutionResult) {
                     draft.lastExecution = lastExecutionResult;
                 }
@@ -195,7 +238,7 @@ export class ValidateNewCommitsStage extends BasePipelineStage<CodeReviewPipelin
         }
 
         this.logger.log({
-            message: `Processing ${commits.length} commits for PR#${context.pullRequest.number}`,
+            message: `Processing ${newCommits.length} new commits for PR#${context.pullRequest.number} (${allCommits.length} total)`,
             context: this.stageName,
             metadata: {
                 organizationAndTeamData: context.organizationAndTeamData,
@@ -205,6 +248,8 @@ export class ValidateNewCommitsStage extends BasePipelineStage<CodeReviewPipelin
         });
 
         return this.updateContext(context, (draft) => {
+            draft.prCommits = newCommits;
+            draft.prAllCommits = allCommits;
             if (lastExecutionResult) {
                 draft.lastExecution = lastExecutionResult;
             }

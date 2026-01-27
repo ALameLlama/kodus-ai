@@ -35,7 +35,7 @@ export class EcsTaskProtectionService implements ITaskProtectionService {
                     .pipe(
                         catchError((error: AxiosError) => {
                             this.logger.error(
-                                `Failed to enable task protection: ${error.message}`,
+                                `Failed to enable task protection. URI: ${this.ecsAgentUri}/task-protection/v1/state - Error: ${error.message}`,
                             );
                             throw error;
                         }),

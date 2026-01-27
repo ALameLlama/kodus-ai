@@ -29,6 +29,7 @@ import { GetCodeManagementMemberListUseCase } from '@libs/platform/application/u
 import { CreateIntegrationUseCase } from '@libs/platform/application/use-cases/codeManagement/create-integration.use-case';
 import { CreateRepositoriesUseCase } from '@libs/platform/application/use-cases/codeManagement/create-repositories';
 import { GetRepositoriesUseCase } from '@libs/platform/application/use-cases/codeManagement/get-repositories';
+import { GetSelectedRepositoriesUseCase } from '@libs/platform/application/use-cases/codeManagement/get-selected-repositories.use-case';
 import { GetPRsUseCase } from '@libs/platform/application/use-cases/codeManagement/get-prs.use-case';
 import { FinishOnboardingUseCase } from '@libs/platform/application/use-cases/codeManagement/finish-onboarding.use-case';
 import { DeleteIntegrationUseCase } from '@libs/platform/application/use-cases/codeManagement/delete-integration.use-case';
@@ -49,6 +50,7 @@ export class CodeManagementController {
         private readonly createIntegrationUseCase: CreateIntegrationUseCase,
         private readonly createRepositoriesUseCase: CreateRepositoriesUseCase,
         private readonly getRepositoriesUseCase: GetRepositoriesUseCase,
+        private readonly getSelectedRepositoriesUseCase: GetSelectedRepositoriesUseCase,
         private readonly getPRsUseCase: GetPRsUseCase,
         private readonly finishOnboardingUseCase: FinishOnboardingUseCase,
         private readonly deleteIntegrationUseCase: DeleteIntegrationUseCase,
@@ -82,6 +84,25 @@ export class CodeManagementController {
         },
     ) {
         return this.getRepositoriesUseCase.execute(query);
+    }
+
+    @Get('/repositories/selected')
+    @UseGuards(PolicyGuard)
+    @CheckPolicies(
+        checkPermissions({
+            action: Action.Read,
+            resource: ResourceType.CodeReviewSettings,
+        }),
+    )
+    public async getSelectedRepositories(
+        @Query()
+        query: {
+            teamId: string;
+            page?: number;
+            perPage?: number;
+        },
+    ) {
+        return this.getSelectedRepositoriesUseCase.execute(query);
     }
 
     @Post('/auth-integration')

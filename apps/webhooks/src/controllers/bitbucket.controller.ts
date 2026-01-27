@@ -18,6 +18,20 @@ export class BitbucketController {
         const event = req.headers['x-event-key'] as string;
         const payload = req.body as any;
 
+        // Filter unsupported events before enqueueing
+        const supportedEvents = [
+            'pullrequest:created',
+            'pullrequest:updated',
+            'pullrequest:fulfilled',
+            'pullrequest:rejected',
+            'pullrequest:comment_created',
+        ];
+        if (!supportedEvents.includes(event)) {
+            return res
+                .status(HttpStatus.OK)
+                .send('Webhook ignored (event not supported)');
+        }
+
         res.status(HttpStatus.OK).send('Webhook received');
 
         setImmediate(() => {

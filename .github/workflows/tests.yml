@@ -8,6 +8,7 @@ on:
 jobs:
     test:
         runs-on: ubuntu-latest
+        environment: ci
         permissions:
             contents: read
             pull-requests: write
@@ -16,8 +17,43 @@ jobs:
             - name: Checkout code
               uses: actions/checkout@v4.1.7
 
-            - name: Set up environment variables
-              run: cp .env.example .env
+            - name: Create .env from secrets
+              if: github.event.pull_request.head.repo.fork == false
+              run: |
+                  cat <<'EOF' > .env
+                  API_NODE_ENV=test
+                  API_DATABASE_ENV=test
+                  API_PG_DB_USERNAME=${{ secrets.API_PG_DB_USERNAME }}
+                  API_PG_DB_PASSWORD=${{ secrets.API_PG_DB_PASSWORD }}
+                  API_PG_DB_DATABASE=${{ secrets.API_PG_DB_DATABASE }}
+                  API_PG_DB_HOST=${{ secrets.API_PG_DB_HOST }}
+                  API_PG_DB_PORT=${{ secrets.API_PG_DB_PORT }}
+                  API_MG_DB_USERNAME=${{ secrets.API_MG_DB_USERNAME }}
+                  API_MG_DB_PASSWORD=${{ secrets.API_MG_DB_PASSWORD }}
+                  API_MG_DB_DATABASE=${{ secrets.API_MG_DB_DATABASE }}
+                  API_MG_DB_HOST=${{ secrets.API_MG_DB_HOST }}
+                  API_MG_DB_PORT=${{ secrets.API_MG_DB_PORT }}
+                  API_CRYPTO_KEY=${{ secrets.API_CRYPTO_KEY }}
+                  EOF
+
+            - name: Create .env for forks
+              if: github.event.pull_request.head.repo.fork == true
+              run: |
+                  cat <<'EOF' > .env
+                  API_NODE_ENV=test
+                  API_DATABASE_ENV=test
+                  API_PG_DB_USERNAME=kodusdev
+                  API_PG_DB_PASSWORD=123456
+                  API_PG_DB_DATABASE=kodus_db
+                  API_PG_DB_HOST=db_postgres
+                  API_PG_DB_PORT=5432
+                  API_MG_DB_USERNAME=kodusdev
+                  API_MG_DB_PASSWORD=123456
+                  API_MG_DB_DATABASE=kodus_db
+                  API_MG_DB_HOST=db_mongodb
+                  API_MG_DB_PORT=27017
+                  API_CRYPTO_KEY=0000000000000000000000000000000000000000000000000000000000000000
+                  EOF
 
             - name: Create network
               run: docker network create kodus-backend-services-test || true
@@ -46,7 +82,24 @@ jobs:
             - name: Install dependencies
               run: yarn install --frozen-lockfile
 
+            - name: Create environment.ts for tests
+              run: |
+                  cat <<'EOF' > libs/ee/configs/environment/environment.ts
+                  import { environment as devEnvironment } from './environment.dev';
+
+                  export const environment = devEnvironment;
+                  EOF
+
+            - name: Enable pgvector extension
+              if: github.event.pull_request.head.repo.fork == false
+              run: |
+                  source .env
+                  docker exec -e PGPASSWORD="$API_PG_DB_PASSWORD" postgres \
+                    psql -U "$API_PG_DB_USERNAME" -d "$API_PG_DB_DATABASE" \
+                    -c "CREATE EXTENSION IF NOT EXISTS vector;"
+
             - name: Run migrations
+              if: github.event.pull_request.head.repo.fork == false
               run: yarn migration:run
 
             - name: Run tests

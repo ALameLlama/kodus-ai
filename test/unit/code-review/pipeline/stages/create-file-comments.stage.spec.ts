@@ -10,6 +10,17 @@ import { PlatformType } from '@/core/domain/enums';
 import { DeliveryStatus } from '@/platformData/domain/pullRequests/enums/deliveryStatus.enum';
 import { ClusteringType } from '@/core/infrastructure/config/types/general/codeReview.type';
 
+// Mock logger to silence logs during tests
+jest.mock('@kodus/flow', () => ({
+    createLogger: () => ({
+        log: jest.fn(),
+        error: jest.fn(),
+        warn: jest.fn(),
+        debug: jest.fn(),
+        info: jest.fn(),
+    }),
+}));
+
 describe('CreateFileCommentsStage', () => {
     let stage: CreateFileCommentsStage;
 
@@ -25,6 +36,7 @@ describe('CreateFileCommentsStage', () => {
     const mockSuggestionService = {
         sortAndPrioritizeSuggestions: jest.fn(),
         verifyIfSuggestionsWereSent: jest.fn(),
+        resolveImplementedSuggestionsOnPlatform: jest.fn(),
     };
 
     const mockDryRunService = {
@@ -184,10 +196,6 @@ describe('CreateFileCommentsStage', () => {
         });
 
         it('should return empty line comments when no valid suggestions', async () => {
-            mockCodeManagementService.getCommitsForPullRequestForCodeReview.mockResolvedValue([
-                { sha: 'abc123' },
-            ]);
-
             mockPullRequestService.findByNumberAndRepositoryName.mockResolvedValue({
                 number: 123,
                 files: [],
@@ -196,6 +204,8 @@ describe('CreateFileCommentsStage', () => {
             const context = createBaseContext({
                 validSuggestions: [],
                 changedFiles: [{ filename: 'test.ts' } as any],
+                // prAllCommits é necessário para determinar lastAnalyzedCommit
+                prAllCommits: [{ sha: 'abc123' }] as any,
             });
 
             const result = await (stage as any).executeStage(context);
@@ -488,7 +498,9 @@ describe('CreateFileCommentsStage', () => {
             await (stage as any).executeStage(context);
 
             // Check that resolve was attempted
-            expect(mockCodeManagementService.getPullRequestReviewThreads).toHaveBeenCalled();
+            expect(
+                mockSuggestionService.resolveImplementedSuggestionsOnPlatform,
+            ).toHaveBeenCalled();
         });
     });
 

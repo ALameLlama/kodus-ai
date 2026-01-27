@@ -9,7 +9,7 @@ import {
 } from '@libs/organization/domain/organizationParameters/contracts/organizationParameters.service.contract';
 import { OrganizationParametersEntity } from '@libs/organization/domain/organizationParameters/entities/organizationParameters.entity';
 import { IOrganizationParameters } from '@libs/organization/domain/organizationParameters/interfaces/organizationParameters.interface';
-import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 
 @Injectable()
 export class FindByKeyOrganizationParametersUseCase implements IUseCase {
@@ -24,7 +24,7 @@ export class FindByKeyOrganizationParametersUseCase implements IUseCase {
     async execute(
         organizationParametersKey: OrganizationParametersKey,
         organizationAndTeamData: OrganizationAndTeamData,
-    ): Promise<IOrganizationParameters> {
+    ): Promise<IOrganizationParameters | null> {
         try {
             const parameter =
                 await this.organizationParametersService.findByKey(
@@ -33,9 +33,7 @@ export class FindByKeyOrganizationParametersUseCase implements IUseCase {
                 );
 
             if (!parameter) {
-                throw new NotFoundException(
-                    'Organization parameter config does not exist',
-                );
+                return null;
             }
 
             // Process BYOK configuration by masking API keys

@@ -9,6 +9,7 @@ import { SuggestionService } from '@/code-review/infrastructure/adapters/service
 import { LLM_ANALYSIS_SERVICE_TOKEN } from '@/code-review/infrastructure/adapters/services/llmAnalysis.service';
 import { PULL_REQUESTS_SERVICE_TOKEN } from '@/platformData/domain/pullRequests/contracts/pullRequests.service.contracts';
 import { COMMENT_MANAGER_SERVICE_TOKEN } from '@/code-review/domain/contracts/CommentManagerService.contract';
+import { CodeManagementService } from '@/platform/infrastructure/adapters/services/codeManagement.service';
 import { ClusteringType, CodeSuggestion } from '@/core/infrastructure/config/types/general/codeReview.type';
 import { PriorityStatus } from '@/platformData/domain/pullRequests/enums/priorityStatus.enum';
 
@@ -37,6 +38,12 @@ describe('Map-based Lookup Optimizations - Integration Tests', () => {
         enrichParentSuggestionsWithRelated: jest.fn(),
     };
 
+    const mockCodeManagementService = {
+        getPullRequestReviewThreads: jest.fn(),
+        getPullRequestReviewComments: jest.fn(),
+        markReviewCommentAsResolved: jest.fn(),
+    };
+
     beforeEach(async () => {
         const module: TestingModule = await Test.createTestingModule({
             providers: [
@@ -44,6 +51,7 @@ describe('Map-based Lookup Optimizations - Integration Tests', () => {
                 { provide: LLM_ANALYSIS_SERVICE_TOKEN, useValue: mockAIAnalysisService },
                 { provide: PULL_REQUESTS_SERVICE_TOKEN, useValue: mockPullRequestService },
                 { provide: COMMENT_MANAGER_SERVICE_TOKEN, useValue: mockCommentManagerService },
+                { provide: CodeManagementService, useValue: mockCodeManagementService },
             ],
         }).compile();
 

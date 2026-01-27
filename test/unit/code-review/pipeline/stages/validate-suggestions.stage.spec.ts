@@ -5,6 +5,17 @@ import { CodeReviewPipelineContext } from '@/code-review/pipeline/context/code-r
 import { PlatformType } from '@/core/domain/enums';
 import { TaskStatus } from '@/ee/kodyAST/interfaces/code-ast-analysis.interface';
 
+// Mock logger to silence logs during tests
+jest.mock('@kodus/flow', () => ({
+    createLogger: () => ({
+        log: jest.fn(),
+        error: jest.fn(),
+        warn: jest.fn(),
+        debug: jest.fn(),
+        info: jest.fn(),
+    }),
+}));
+
 // Mock posthog
 jest.mock('@libs/common/utils/posthog', () => ({
     __esModule: true,

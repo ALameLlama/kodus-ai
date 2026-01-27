@@ -9,6 +9,7 @@ import { GetCodeManagementMemberListUseCase } from './get-code-management-member
 import { GetPRsByRepoUseCase } from './get-prs-repo.use-case';
 import { GetPRsUseCase } from './get-prs.use-case';
 import { GetRepositoriesUseCase } from './get-repositories';
+import { GetSelectedRepositoriesUseCase } from './get-selected-repositories.use-case';
 import { GetRepositoryTreeByDirectoryUseCase } from './get-repository-tree-by-directory.use-case';
 import { GetWebhookStatusUseCase } from './get-webhook-status.use-case';
 import { GetCurrentCodeManagementUserUseCase } from './get-current-code-management-user.use-case';
@@ -21,6 +22,7 @@ export default [
     CreateIntegrationUseCase,
     CreateRepositoriesUseCase,
     GetRepositoriesUseCase,
+    GetSelectedRepositoriesUseCase,
     ChatWithKodyFromGitUseCase,
     ReceiveWebhookUseCase,
     GetPRsUseCase,
