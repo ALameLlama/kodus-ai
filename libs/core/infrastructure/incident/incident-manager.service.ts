@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, OnModuleDestroy } from '@nestjs/common';
 import { createLogger } from '@kodus/flow';
 import { BetterStackClient } from './betterstack.client';
 
@@ -12,13 +12,23 @@ interface ReportParams {
 }
 
 @Injectable()
-export class IncidentManagerService {
+export class IncidentManagerService implements OnModuleDestroy {
     private readonly logger = createLogger(IncidentManagerService.name);
     private readonly deduplicationMap = new Map<string, number>();
+    private readonly cleanupInterval: ReturnType<typeof setInterval>;
 
     private static readonly DEDUP_WINDOW_MS = 5 * 60 * 1000; // 5 minutes
 
-    constructor(private readonly betterStackClient: BetterStackClient) {}
+    constructor(private readonly betterStackClient: BetterStackClient) {
+        this.cleanupInterval = setInterval(
+            () => this.cleanupExpiredEntries(),
+            IncidentManagerService.DEDUP_WINDOW_MS,
+        );
+    }
+
+    onModuleDestroy() {
+        clearInterval(this.cleanupInterval);
+    }
 
     async pingHeartbeat(envKey: string): Promise<void> {
         const url = process.env[envKey];
@@ -119,5 +129,14 @@ export class IncidentManagerService {
         }
 
         return true;
+    }
+
+    private cleanupExpiredEntries(): void {
+        const now = Date.now();
+        for (const [key, lastReported] of this.deduplicationMap.entries()) {
+            if (now - lastReported >= IncidentManagerService.DEDUP_WINDOW_MS) {
+                this.deduplicationMap.delete(key);
+            }
+        }
     }
 }
