@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { Cron } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -20,12 +21,13 @@ export class WebhookFailureMonitorService {
         @InjectRepository(WorkflowJobModel)
         private readonly jobRepository: Repository<WorkflowJobModel>,
         private readonly incidentManager: IncidentManagerService,
+        private readonly configService: ConfigService,
     ) {
-        this.thresholdPercent = this.parseEnvNumber(
+        this.thresholdPercent = this.configService.get<number>(
             'WEBHOOK_FAILURE_THRESHOLD_PERCENT',
             10,
         );
-        this.windowMinutes = this.parseEnvNumber(
+        this.windowMinutes = this.configService.get<number>(
             'WEBHOOK_FAILURE_WINDOW_MINUTES',
             30,
         );
@@ -81,14 +83,12 @@ export class WebhookFailureMonitorService {
                 message: 'Failed to check webhook failure rate',
                 context: WebhookFailureMonitorService.name,
                 error: error instanceof Error ? error : undefined,
+                metadata: {
+                    windowMinutes: this.windowMinutes,
+                    thresholdPercent: this.thresholdPercent,
+                },
             });
         }
     }
 
-    private parseEnvNumber(envKey: string, fallback: number): number {
-        const raw = process.env[envKey];
-        if (!raw) return fallback;
-        const parsed = Number(raw);
-        return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
-    }
 }

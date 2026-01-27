@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
@@ -20,16 +21,17 @@ export class ErrorRateMonitorService {
         private readonly metricsModel: Model<MetricsEventModel>,
         private readonly incidentManager: IncidentManagerService,
         private readonly metricsCollector: MetricsCollectorService,
+        private readonly configService: ConfigService,
     ) {
-        this.thresholdPercent = this.parseEnvNumber(
+        this.thresholdPercent = this.configService.get<number>(
             'METRICS_ERROR_RATE_THRESHOLD_PERCENT',
             10,
         );
-        this.criticalPercent = this.parseEnvNumber(
+        this.criticalPercent = this.configService.get<number>(
             'METRICS_ERROR_RATE_CRITICAL_PERCENT',
             25,
         );
-        this.windowMinutes = this.parseEnvNumber(
+        this.windowMinutes = this.configService.get<number>(
             'METRICS_ERROR_RATE_WINDOW_MINUTES',
             5,
         );
@@ -84,14 +86,12 @@ export class ErrorRateMonitorService {
                 message: 'Failed to check error rate',
                 context: ErrorRateMonitorService.name,
                 error: error instanceof Error ? error : undefined,
+                metadata: {
+                    windowMinutes: this.windowMinutes,
+                    thresholdPercent: this.thresholdPercent,
+                },
             });
         }
     }
 
-    private parseEnvNumber(envKey: string, fallback: number): number {
-        const raw = process.env[envKey];
-        if (!raw) return fallback;
-        const parsed = Number(raw);
-        return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
-    }
 }

@@ -1,3 +1,5 @@
+import { Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import axios, { AxiosInstance } from 'axios';
 import { createLogger } from '@kodus/flow';
 
@@ -17,6 +19,7 @@ export interface BetterStackIncident {
     };
 }
 
+@Injectable()
 export class BetterStackClient {
     private readonly logger = createLogger(BetterStackClient.name);
     private readonly client: AxiosInstance | null;
@@ -26,8 +29,8 @@ export class BetterStackClient {
     private static readonly MAX_FAILURES = 3;
     private static readonly CIRCUIT_OPEN_DURATION_MS = 60_000;
 
-    constructor() {
-        const token = process.env.API_BETTERSTACK_API_TOKEN;
+    constructor(private readonly configService: ConfigService) {
+        const token = this.configService.get<string>('API_BETTERSTACK_API_TOKEN');
 
         if (!token) {
             this.logger.warn({

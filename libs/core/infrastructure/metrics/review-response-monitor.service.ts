@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { Cron } from '@nestjs/schedule';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
@@ -21,12 +22,13 @@ export class ReviewResponseMonitorService {
         private readonly metricsModel: Model<MetricsEventModel>,
         private readonly incidentManager: IncidentManagerService,
         private readonly metricsCollector: MetricsCollectorService,
+        private readonly configService: ConfigService,
     ) {
-        this.p95ThresholdMs = this.parseEnvNumber(
+        this.p95ThresholdMs = this.configService.get<number>(
             'REVIEW_RESPONSE_P95_THRESHOLD_MS',
             600_000, // 10 minutes
         );
-        this.p95CriticalMs = this.parseEnvNumber(
+        this.p95CriticalMs = this.configService.get<number>(
             'REVIEW_RESPONSE_P95_CRITICAL_MS',
             1_200_000, // 20 minutes
         );
@@ -81,6 +83,9 @@ export class ReviewResponseMonitorService {
                 message: 'Failed to check review response times',
                 context: ReviewResponseMonitorService.name,
                 error: error instanceof Error ? error : undefined,
+                metadata: {
+                    p95ThresholdMs: this.p95ThresholdMs,
+                },
             });
         }
     }
@@ -97,10 +102,4 @@ export class ReviewResponseMonitorService {
         return `${(ms / 60_000).toFixed(1)}min`;
     }
 
-    private parseEnvNumber(envKey: string, fallback: number): number {
-        const raw = process.env[envKey];
-        if (!raw) return fallback;
-        const parsed = Number(raw);
-        return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
-    }
 }

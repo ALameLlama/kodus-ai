@@ -230,7 +230,13 @@ export class OutboxRelayService
         // Ping heartbeat to signal outbox relay is alive
         this.incidentManager
             ?.pingHeartbeat('API_BETTERSTACK_HEARTBEAT_OUTBOX_URL')
-            .catch(() => {});
+            .catch((err) => {
+                this.logger.error({
+                    message: 'Failed to ping outbox heartbeat',
+                    context: OutboxRelayService.name,
+                    error: err instanceof Error ? err : undefined,
+                });
+            });
     }
 
     /**
@@ -313,7 +319,14 @@ export class OutboxRelayService
                                     'API_BETTERSTACK_HEARTBEAT_OUTBOX_URL',
                                     `High inbox reclaim rate for ${consumerId}: ${reclaimed} stale messages reclaimed. Possible cause: worker crashes, memory issues, or job timeouts.`,
                                 )
-                                .catch(() => {});
+                                .catch((err) => {
+                                    this.logger.error({
+                                        message: 'Failed to report outbox heartbeat failure',
+                                        context: OutboxRelayService.name,
+                                        error: err instanceof Error ? err : undefined,
+                                        metadata: { consumerId, reclaimed },
+                                    });
+                                });
                         }
                     }
                 }
@@ -515,7 +528,14 @@ export class OutboxRelayService
                                 'API_BETTERSTACK_HEARTBEAT_OUTBOX_URL',
                                 `Outbox message permanently failed: ${message.uuid} (job: ${jobId || 'N/A'}) after ${this.maxAttemptsOutbox} attempts. Exchange: ${message.exchange}, Routing: ${message.routingKey}. Error: ${error.message}`,
                             )
-                            .catch(() => {});
+                            .catch((err) => {
+                                this.logger.error({
+                                    message: 'Failed to report outbox heartbeat failure',
+                                    context: OutboxRelayService.name,
+                                    error: err instanceof Error ? err : undefined,
+                                    metadata: { messageId: message.uuid, jobId },
+                                });
+                            });
                     } else {
                         // Schedule for retry using centralized backoff
                         const delayMs = calculateBackoffInterval(

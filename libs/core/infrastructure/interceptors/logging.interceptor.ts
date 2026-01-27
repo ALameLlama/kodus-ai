@@ -5,7 +5,9 @@ import {
     ExecutionContext,
     Injectable,
     NestInterceptor,
+    Optional,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { ObservabilityService } from '@libs/core/log/observability.service';
 import { MetricsCollectorService } from '@libs/core/infrastructure/metrics/metrics-collector.service';
 import { Observable } from 'rxjs';
@@ -15,10 +17,15 @@ import { v4 as uuidv4 } from 'uuid';
 @Injectable()
 export class LoggingInterceptor implements NestInterceptor {
     private readonly logService = createLogger(LoggingInterceptor.name);
+    private readonly componentType: string;
+
     constructor(
         private readonly observability: ObservabilityService,
-        private readonly metricsCollector: MetricsCollectorService,
-    ) {}
+        private readonly configService: ConfigService,
+        @Optional() private readonly metricsCollector?: MetricsCollectorService,
+    ) {
+        this.componentType = this.configService.get<string>('COMPONENT_TYPE', 'unknown');
+    }
 
     intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
         const shouldSkip = isRabbitContext(context);
@@ -64,10 +71,10 @@ export class LoggingInterceptor implements NestInterceptor {
         });
 
         // Record request counter for error rate calculation
-        this.metricsCollector.recordCounter('http_request_total', 1, {
+        this.metricsCollector?.recordCounter('http_request_total', 1, {
             method: req.method,
             path: req.url,
-            component: process.env.COMPONENT_TYPE || 'unknown',
+            component: this.componentType,
         });
 
         return next.handle().pipe(
@@ -75,13 +82,13 @@ export class LoggingInterceptor implements NestInterceptor {
                 const durationMs = Date.now() - now;
 
                 // Record request duration histogram
-                this.metricsCollector.recordHistogram(
+                this.metricsCollector?.recordHistogram(
                     'http_request_duration_ms',
                     durationMs,
                     {
                         method: req.method,
                         path: req.url,
-                        component: process.env.COMPONENT_TYPE || 'unknown',
+                        component: this.componentType,
                     },
                 );
 
