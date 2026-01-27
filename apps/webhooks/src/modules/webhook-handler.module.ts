@@ -4,10 +4,13 @@ import { EventEmitterModule } from '@nestjs/event-emitter';
 
 import { SharedCoreModule } from '@libs/shared/infrastructure/shared-core.module';
 import { RabbitMQWrapperModule } from '@libs/core/infrastructure/queue/rabbitmq.module';
+import { SharedMongoModule } from '@libs/shared/database/shared-mongo.module';
 import { SharedPostgresModule } from '@libs/shared/database/shared-postgres.module';
 import { SharedConfigModule } from '@libs/shared/infrastructure/shared-config.module';
 import { SharedLogModule } from '@libs/shared/infrastructure/shared-log.module';
 import { SharedObservabilityModule } from '@libs/shared/infrastructure/shared-observability.module';
+import { IncidentModule } from '@libs/core/infrastructure/incident/incident.module';
+import { MetricsModule } from '@libs/core/infrastructure/metrics/metrics.module';
 import { WebhookEnqueueModule } from './webhook-enqueue.module';
 
 import { AzureReposController } from '../controllers/azureRepos.controller';
@@ -31,7 +34,10 @@ import { ConfigService } from '@nestjs/config';
         SharedConfigModule,
         SharedLogModule,
         SharedObservabilityModule,
+        IncidentModule,
+        MetricsModule,
         SharedPostgresModule.forRoot({ poolSize: 8 }),
+        SharedMongoModule.forRoot(),
 
         EventEmitterModule.forRoot(),
         RabbitMQWrapperModule.register({ enableConsumers: false }),

@@ -35,7 +35,6 @@ export class HealthController {
                 },
             };
 
-            // If unhealthy, return HTTP 503
             const statusCode = overallHealthy
                 ? HttpStatus.OK
                 : HttpStatus.SERVICE_UNAVAILABLE;

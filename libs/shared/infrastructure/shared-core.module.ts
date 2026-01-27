@@ -4,6 +4,7 @@ import { JwtAuthGuard } from '@libs/identity/infrastructure/adapters/services/au
 import { ExceptionsFilter } from '@libs/core/infrastructure/filters/exceptions.filter';
 import { LoggingInterceptor } from '@libs/core/infrastructure/interceptors/logging.interceptor';
 import { TransformInterceptor } from '@libs/core/infrastructure/interceptors/transform.interceptor';
+import { MetricsCollectorService } from '@libs/core/infrastructure/metrics/metrics-collector.service';
 
 @Module({
     providers: [
@@ -13,7 +14,10 @@ import { TransformInterceptor } from '@libs/core/infrastructure/interceptors/tra
         },
         {
             provide: APP_FILTER,
-            useClass: ExceptionsFilter,
+            useFactory: (metrics: MetricsCollectorService) => {
+                return new ExceptionsFilter(metrics);
+            },
+            inject: [MetricsCollectorService],
         },
         {
             provide: APP_INTERCEPTOR,

@@ -1,5 +1,5 @@
 import { createLogger } from '@kodus/flow';
-import { Injectable, Inject } from '@nestjs/common';
+import { Injectable, Inject, Optional } from '@nestjs/common';
 
 import { PlatformType } from '@libs/core/domain/enums/platform-type.enum';
 
@@ -16,6 +16,7 @@ import {
     IWorkflowJobRepository,
     WORKFLOW_JOB_REPOSITORY_TOKEN,
 } from '@libs/core/workflow/domain/contracts/workflow-job.repository.contract';
+import { IncidentManagerService } from '@libs/core/infrastructure/incident/incident-manager.service';
 
 /**
  * Processor for WEBHOOK_PROCESSING jobs
@@ -44,6 +45,8 @@ export class WebhookProcessingJobProcessorService implements IJobProcessorServic
         @Inject('AZURE_REPOS_WEBHOOK_HANDLER')
         private readonly azureReposPullRequestHandler: IWebhookEventHandler,
         private readonly observability?: ObservabilityService,
+        @Optional()
+        private readonly incidentManager?: IncidentManagerService,
     ) {
         // Initialize handlers map
         this.webhookHandlersMap = new Map<PlatformType, IWebhookEventHandler>([
@@ -154,6 +157,10 @@ export class WebhookProcessingJobProcessorService implements IJobProcessorServic
                         result: 'Processed',
                     },
                 });
+
+                this.incidentManager
+                    ?.pingHeartbeat('API_BETTERSTACK_HEARTBEAT_WEBHOOK_URL')
+                    .catch(() => {});
             } catch (error) {
                 const errorMessage =
                     error instanceof Error ? error.message : String(error);
@@ -175,6 +182,13 @@ export class WebhookProcessingJobProcessorService implements IJobProcessorServic
                     errorClassification: ErrorClassification.PERMANENT,
                     lastError: errorMessage,
                 });
+
+                this.incidentManager
+                    ?.failHeartbeat(
+                        'API_BETTERSTACK_HEARTBEAT_WEBHOOK_URL',
+                        `Webhook job ${jobId} failed: ${errorMessage}`,
+                    )
+                    .catch(() => {});
 
                 throw error;
             }

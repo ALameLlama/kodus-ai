@@ -1,5 +1,5 @@
 import { createLogger } from '@kodus/flow';
-import { Injectable, Inject } from '@nestjs/common';
+import { Injectable, Inject, Optional } from '@nestjs/common';
 
 import { JobStatus } from '@libs/core/workflow/domain/enums/job-status.enum';
 import {
@@ -9,6 +9,7 @@ import {
 import { IJobProcessorService } from '@libs/core/workflow/domain/contracts/job-processor.service.contract';
 import { ErrorClassification } from '@libs/core/workflow/domain/enums/error-classification.enum';
 import { RunCodeReviewAutomationUseCase } from '@libs/ee/automation/runCodeReview.use-case';
+import { MetricsCollectorService } from '@libs/core/infrastructure/metrics/metrics-collector.service';
 
 @Injectable()
 export class CodeReviewJobProcessorService implements IJobProcessorService {
@@ -18,6 +19,8 @@ export class CodeReviewJobProcessorService implements IJobProcessorService {
         @Inject(WORKFLOW_JOB_REPOSITORY_TOKEN)
         private readonly jobRepository: IWorkflowJobRepository,
         private readonly runCodeReviewAutomationUseCase: RunCodeReviewAutomationUseCase,
+        @Optional()
+        private readonly metricsCollector?: MetricsCollectorService,
     ) {}
 
     async process(jobId: string): Promise<void> {
@@ -37,6 +40,8 @@ export class CodeReviewJobProcessorService implements IJobProcessorService {
             context: CodeReviewJobProcessorService.name,
             metadata: { jobId, correlationId },
         });
+
+        const startTime = Date.now();
 
         try {
             await this.jobRepository.update(jobId, {
@@ -59,6 +64,13 @@ export class CodeReviewJobProcessorService implements IJobProcessorService {
             });
 
             await this.markCompleted(jobId);
+
+            const durationMs = Date.now() - startTime;
+            this.metricsCollector?.recordHistogram(
+                'code_review_duration_ms',
+                durationMs,
+                { status: 'success' },
+            );
 
             this.logger.log({
                 message: `Job ${jobId} completed successfully`,
@@ -88,6 +100,10 @@ export class CodeReviewJobProcessorService implements IJobProcessorService {
     }
 
     async handleFailure(jobId: string, error: Error): Promise<void> {
+        this.metricsCollector?.recordCounter('code_review_errors_total', 1, {
+            errorType: error.name || 'UnknownError',
+        });
+
         await this.jobRepository.update(jobId, {
             status: JobStatus.FAILED,
             errorClassification: ErrorClassification.PERMANENT,

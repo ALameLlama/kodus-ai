@@ -13,6 +13,10 @@ import { CodeReviewFeedbackModule } from '@libs/code-review/modules/codeReviewFe
 import { PlatformModule } from '@libs/platform/modules/platform.module';
 
 import { SharedObservabilityModule } from '@libs/shared/infrastructure/shared-observability.module';
+import { IncidentModule } from '@libs/core/infrastructure/incident/incident.module';
+import { MetricsModule } from '@libs/core/infrastructure/metrics/metrics.module';
+import { ErrorRateMonitorService } from '@libs/core/infrastructure/metrics/error-rate-monitor.service';
+import { ReviewResponseMonitorService } from '@libs/core/infrastructure/metrics/review-response-monitor.service';
 import { WorkflowModule } from '@libs/core/workflow/modules/workflow.module';
 import { OutboxRelayService } from '@libs/core/workflow/infrastructure/outbox-relay.service';
 import { ScheduleModule } from '@nestjs/schedule';
@@ -34,6 +38,8 @@ import { ConfigService } from '@nestjs/config';
         SharedConfigModule,
         SharedLogModule,
         SharedObservabilityModule,
+        IncidentModule,
+        MetricsModule,
         SharedPostgresModule.forRoot({ poolSize: 12 }),
         SharedMongoModule.forRoot(),
         RabbitMQWrapperModule.register({ enableConsumers: true }),
@@ -48,6 +54,11 @@ import { ConfigService } from '@nestjs/config';
         AutomationModule,
         PlatformModule,
     ],
-    providers: [OutboxRelayService, WorkerDrainService],
+    providers: [
+        OutboxRelayService,
+        WorkerDrainService,
+        ErrorRateMonitorService,
+        ReviewResponseMonitorService,
+    ],
 })
 export class WorkerModule {}
