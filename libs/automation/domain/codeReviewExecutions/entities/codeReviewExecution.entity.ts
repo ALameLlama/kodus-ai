@@ -11,6 +11,7 @@ export class CodeReviewExecutionEntity<T> implements Entity<
 
     private readonly _automationExecution: CodeReviewExecution<T>['automationExecution'];
     private readonly _status: CodeReviewExecution<T>['status'];
+    private readonly _stageName?: CodeReviewExecution<T>['stageName'];
     private readonly _message?: CodeReviewExecution<T>['message'];
 
     constructor(codeReviewExecution: CodeReviewExecution<T>) {
@@ -19,6 +20,7 @@ export class CodeReviewExecutionEntity<T> implements Entity<
         this._updatedAt = codeReviewExecution.updatedAt;
         this._automationExecution = codeReviewExecution.automationExecution;
         this._status = codeReviewExecution.status;
+        this._stageName = codeReviewExecution.stageName;
         this._message = codeReviewExecution.message;
     }
 
@@ -29,6 +31,7 @@ export class CodeReviewExecutionEntity<T> implements Entity<
             updatedAt: this.updatedAt,
             automationExecution: this.automationExecution,
             status: this.status,
+            stageName: this.stageName,
             message: this.message,
         };
     }
@@ -61,6 +64,10 @@ export class CodeReviewExecutionEntity<T> implements Entity<
 
     get status(): CodeReviewExecution<T>['status'] {
         return this._status;
+    }
+
+    get stageName(): CodeReviewExecution<T>['stageName'] {
+        return this._stageName;
     }
 
     get message(): CodeReviewExecution<T>['message'] {

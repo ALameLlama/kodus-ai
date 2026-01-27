@@ -2,7 +2,6 @@ import { Module, Global } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
 // Engine
-import { DurablePipelineExecutor } from '../engine/executor/durable-pipeline-executor.service';
 import { PipelineStateManager } from '../engine/state/pipeline-state-manager.service';
 import { EventBufferService } from '../engine/event-buffer.service';
 
@@ -46,7 +45,6 @@ const coreProviders = [
     },
 
     // Engine
-    DurablePipelineExecutor,
     PipelineStateManager,
     EventBufferService,
 ];

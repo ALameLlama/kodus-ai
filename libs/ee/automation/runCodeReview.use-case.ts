@@ -26,7 +26,6 @@ import { createLogger } from '@kodus/flow';
 import { EnqueueCodeReviewJobInput } from '@libs/core/workflow/application/use-cases/enqueue-code-review-job.use-case';
 import { CodeManagementService } from '@libs/platform/infrastructure/adapters/services/codeManagement.service';
 import { WebhookContextService } from '@libs/platform/application/services/webhook-context.service';
-import { OrganizationAndTeamData } from '@libs/core/infrastructure/config/types/general/organizationAndTeamData';
 
 @Injectable()
 export class RunCodeReviewAutomationUseCase implements IUseCase {
@@ -222,10 +221,6 @@ export class RunCodeReviewAutomationUseCase implements IUseCase {
                     ...params.organizationAndTeamData,
                 },
             });
-
-            // if (params.throwOnError) {
-            //     throw error;
-            // }
         }
     }
 
@@ -267,81 +262,5 @@ export class RunCodeReviewAutomationUseCase implements IUseCase {
         }
 
         return true;
-    }
-
-    private async getAutomation() {
-        const automation = (
-            await this.automationService.find({
-                automationType: AutomationType.AUTOMATION_CODE_REVIEW,
-            })
-        )[0];
-
-        if (!automation) {
-            this.logger.warn({
-                message: 'No automation found',
-                context: RunCodeReviewAutomationUseCase.name,
-                metadata: {
-                    automationName: 'Code Review',
-                },
-            });
-            throw new Error('No automation found');
-        }
-
-        return automation;
-    }
-
-    private async getTeamAutomations(automationUuid: string, teamId: string) {
-        const teamAutomations = await this.teamAutomationService.find({
-            automation: { uuid: automationUuid },
-            status: true,
-            team: { uuid: teamId },
-        });
-
-        if (!teamAutomations || teamAutomations?.length <= 0) {
-            this.logger.warn({
-                message: 'No active team automation found',
-                context: RunCodeReviewAutomationUseCase.name,
-                metadata: {
-                    automation: automationUuid,
-                    teamId: teamId,
-                },
-            });
-            return null;
-        }
-
-        return teamAutomations;
-    }
-
-    async findTeamWithActiveCodeReview(params: {
-        repository: { id: string; name: string };
-        platformType: PlatformType;
-        userGitId?: string;
-        prNumber?: number;
-        triggerCommentId?: string | number;
-    }): Promise<{
-        organizationAndTeamData: OrganizationAndTeamData;
-        automationId: string;
-    } | null> {
-        const context = await this.webhookContextService.getContext(
-            params.platformType,
-            params.repository.id,
-        );
-
-        if (!context) {
-            this.logger.warn({
-                message: 'No active automation context found for repository',
-                context: RunCodeReviewAutomationUseCase.name,
-                metadata: {
-                    repository: params.repository,
-                    platformType: params.platformType,
-                },
-            });
-            return null;
-        }
-
-        return {
-            organizationAndTeamData: context.organizationAndTeamData,
-            automationId: context.teamAutomationId,
-        };
     }
 }

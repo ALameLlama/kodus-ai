@@ -1,4 +1,4 @@
-import { OrganizationAndTeamData } from '@libs/core/domain/types/organization-and-team-data.type';
+import { OrganizationAndTeamData } from '@libs/core/infrastructure/config/types/general/organizationAndTeamData';
 
 export class CheckImplementationEvent {
     constructor(

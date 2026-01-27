@@ -131,6 +131,7 @@ export class AutomationExecutionService implements IAutomationExecutionService {
     async createCodeReview(
         automationExecution: Omit<IAutomationExecution, 'uuid'>,
         message: string,
+        stageName?: string,
     ): Promise<AutomationExecutionEntity | null> {
         try {
             if (
@@ -141,7 +142,7 @@ export class AutomationExecutionService implements IAutomationExecutionService {
                 this.logger.warn({
                     message: 'Invalid parameters provided to createCodeReview',
                     context: AutomationExecutionService.name,
-                    metadata: { automationExecution, message },
+                    metadata: { automationExecution, message, stageName },
                 });
                 return null;
             }
@@ -156,7 +157,7 @@ export class AutomationExecutionService implements IAutomationExecutionService {
                     message:
                         'Failed to create automation execution before creating code review',
                     context: AutomationExecutionService.name,
-                    metadata: { automationExecution, message },
+                    metadata: { automationExecution, message, stageName },
                 });
                 return null;
             }
@@ -167,6 +168,7 @@ export class AutomationExecutionService implements IAutomationExecutionService {
                 },
                 status: automationExecution.status,
                 message,
+                stageName,
             });
 
             return newAutomationExecution;
@@ -175,7 +177,7 @@ export class AutomationExecutionService implements IAutomationExecutionService {
                 message: 'Error creating automation execution with code review',
                 error,
                 context: AutomationExecutionService.name,
-                metadata: { automationExecution, message },
+                metadata: { automationExecution, message, stageName },
             });
             return null;
         }
@@ -187,6 +189,7 @@ export class AutomationExecutionService implements IAutomationExecutionService {
             Omit<IAutomationExecution, 'uuid' | 'createdAt' | 'updatedAt'>
         >,
         message: string,
+        stageName?: string,
     ): Promise<AutomationExecutionEntity | null> {
         try {
             if (
@@ -198,7 +201,12 @@ export class AutomationExecutionService implements IAutomationExecutionService {
                 this.logger.warn({
                     message: 'Invalid parameters provided to updateCodeReview',
                     context: AutomationExecutionService.name,
-                    metadata: { filter, message, automationExecution },
+                    metadata: {
+                        filter,
+                        message,
+                        automationExecution,
+                        stageName,
+                    },
                 });
                 return null;
             }
@@ -214,7 +222,12 @@ export class AutomationExecutionService implements IAutomationExecutionService {
                     message:
                         'Failed to update automation execution before updating code review',
                     context: AutomationExecutionService.name,
-                    metadata: { filter, message, automationExecution },
+                    metadata: {
+                        filter,
+                        message,
+                        automationExecution,
+                        stageName,
+                    },
                 });
                 return null;
             }
@@ -225,6 +238,7 @@ export class AutomationExecutionService implements IAutomationExecutionService {
                 },
                 status: automationExecution.status,
                 message,
+                stageName,
             });
 
             return updatedAutomationExecution;
@@ -233,7 +247,12 @@ export class AutomationExecutionService implements IAutomationExecutionService {
                 message: 'Error updating automation execution with code review',
                 error,
                 context: AutomationExecutionService.name,
-                metadata: { filter, message, automationExecution },
+                metadata: {
+                    filter,
+                    message,
+                    automationExecution,
+                    stageName,
+                },
             });
             return null;
         }

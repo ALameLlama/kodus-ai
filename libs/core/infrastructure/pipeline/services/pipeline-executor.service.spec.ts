@@ -1,0 +1,103 @@
+import { PipelineExecutor } from './pipeline-executor.service';
+import { IPipelineObserver } from '../interfaces/pipeline-observer.interface';
+import { PipelineContext } from '../interfaces/pipeline-context.interface';
+import { PipelineStage } from '../interfaces/pipeline.interface';
+import { AutomationStatus } from '@libs/automation/domain/automation/enum/automation-status';
+
+describe('PipelineExecutor', () => {
+    let executor: PipelineExecutor<PipelineContext>;
+    let mockObserver: jest.Mocked<IPipelineObserver>;
+    let mockStage: jest.Mocked<PipelineStage<PipelineContext>>;
+
+    beforeEach(() => {
+        executor = new PipelineExecutor();
+        mockObserver = {
+            onStageStart: jest.fn().mockResolvedValue(undefined),
+            onStageFinish: jest.fn().mockResolvedValue(undefined),
+            onStageError: jest.fn().mockResolvedValue(undefined),
+            onStageSkipped: jest.fn().mockResolvedValue(undefined),
+        };
+        mockStage = {
+            stageName: 'TestStage',
+            execute: jest.fn(),
+        } as any;
+    });
+
+    it('should notify observer on stage start and finish', async () => {
+        const context: PipelineContext = {
+            statusInfo: { status: AutomationStatus.IN_PROGRESS },
+        } as any;
+
+        mockStage.execute.mockResolvedValue(context);
+
+        await executor.execute(
+            context,
+            [mockStage],
+            'TestPipeline',
+            undefined,
+            undefined,
+            [mockObserver],
+        );
+
+        expect(mockObserver.onStageStart).toHaveBeenCalledWith(
+            'TestStage',
+            expect.anything(),
+        );
+        expect(mockObserver.onStageFinish).toHaveBeenCalledWith(
+            'TestStage',
+            expect.anything(),
+        );
+    });
+
+    it('should notify observer on stage error', async () => {
+        const context: PipelineContext = {
+            statusInfo: { status: AutomationStatus.IN_PROGRESS },
+        } as any;
+
+        const error = new Error('Stage Failed');
+        mockStage.execute.mockRejectedValue(error);
+
+        await executor.execute(
+            context,
+            [mockStage],
+            'TestPipeline',
+            undefined,
+            undefined,
+            [mockObserver],
+        );
+
+        expect(mockObserver.onStageStart).toHaveBeenCalled();
+        expect(mockObserver.onStageError).toHaveBeenCalledWith(
+            'TestStage',
+            error,
+            expect.anything(),
+        );
+    });
+
+    it('should notify observer on stage skipped', async () => {
+        const context: PipelineContext = {
+            statusInfo: {
+                status: AutomationStatus.SKIPPED,
+                jumpToStage: 'AnotherStage',
+            },
+        } as any;
+
+        mockStage.stageName = 'TestStage'; // Not the target
+        // execute should not be called
+
+        await executor.execute(
+            context,
+            [mockStage],
+            'TestPipeline',
+            undefined,
+            undefined,
+            [mockObserver],
+        );
+
+        expect(mockObserver.onStageSkipped).toHaveBeenCalledWith(
+            'TestStage',
+            expect.stringContaining('Skipping'),
+            expect.anything(),
+        );
+    });
+});

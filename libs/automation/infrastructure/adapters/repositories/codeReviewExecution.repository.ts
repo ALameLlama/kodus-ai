@@ -199,6 +199,7 @@ export class CodeReviewExecutionRepository<
                     createdAt: true,
                     updatedAt: true,
                     status: true,
+                    stageName: true,
                     message: true,
                     automationExecution: {
                         uuid: true,
@@ -213,7 +214,8 @@ export class CodeReviewExecutionRepository<
             return mapSimpleModelsToEntities(found, CodeReviewExecutionEntity);
         } catch (error) {
             this.logger.error({
-                message: 'Error finding code review executions by automation ids',
+                message:
+                    'Error finding code review executions by automation ids',
                 error,
                 context: CodeReviewExecutionRepository.name,
                 metadata: { uuids },

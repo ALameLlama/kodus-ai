@@ -112,7 +112,7 @@ export class GitLabMergeRequestHandler implements IWebhookEventHandler {
         );
 
         // If no active automation found, complete the webhook processing immediately
-        if (!orgData?.organizationAndTeamData) {
+        if (!context?.organizationAndTeamData) {
             this.logger.log({
                 message: `No active automation found for repository, completing webhook processing`,
                 context: GitLabMergeRequestHandler.name,

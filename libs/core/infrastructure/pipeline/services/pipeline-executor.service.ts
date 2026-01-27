@@ -4,6 +4,7 @@ import { PipelineContext } from '../interfaces/pipeline-context.interface';
 import { createLogger } from '@kodus/flow';
 import { PipelineStage } from '../interfaces/pipeline.interface';
 import { AutomationStatus } from '@libs/automation/domain/automation/enum/automation-status';
+import { IPipelineObserver } from '../interfaces/pipeline-observer.interface';
 
 type SkipDecision = 'EXECUTE_STAGE' | 'SKIP_STAGE' | 'ABORT_PIPELINE';
 
@@ -18,6 +19,7 @@ export class PipelineExecutor<TContext extends PipelineContext> {
         pipelineName = 'UnnamedPipeline',
         parentPipelineId?: string,
         rootPipelineId?: string,
+        observers: IPipelineObserver[] = [],
     ): Promise<TContext> {
         const pipelineId = uuid();
 
@@ -45,11 +47,12 @@ export class PipelineExecutor<TContext extends PipelineContext> {
         for (const stage of stages) {
             // Check if we need to handle skip/jump logic
             if (context.statusInfo.status === AutomationStatus.SKIPPED) {
-                const result = this.handleSkipOrJump(
+                const result = await this.handleSkipOrJump(
                     context,
                     stage,
                     pipelineName,
                     pipelineId,
+                    observers,
                 );
 
                 context = result.newContext;
@@ -65,8 +68,20 @@ export class PipelineExecutor<TContext extends PipelineContext> {
 
             const start = Date.now();
 
+            await this.notifyObservers(
+                observers,
+                (obs) => obs.onStageStart(stage.stageName, context),
+                'onStageStart',
+            );
+
             try {
                 context = await stage.execute(context);
+
+                await this.notifyObservers(
+                    observers,
+                    (obs) => obs.onStageFinish(stage.stageName, context),
+                    'onStageFinish',
+                );
 
                 this.logger.log({
                     message: `Stage '${stage.stageName}' completed in ${
@@ -85,6 +100,12 @@ export class PipelineExecutor<TContext extends PipelineContext> {
                     },
                 });
             } catch (error) {
+                await this.notifyObservers(
+                    observers,
+                    (obs) => obs.onStageError(stage.stageName, error, context),
+                    'onStageError',
+                );
+
                 this.logger.error({
                     message: `Stage '${stage.stageName}' failed: ${error.message}`,
                     context: PipelineExecutor.name,
@@ -143,12 +164,32 @@ export class PipelineExecutor<TContext extends PipelineContext> {
         return context;
     }
 
-    private handleSkipOrJump(
+    private async notifyObservers(
+        observers: IPipelineObserver[],
+        callback: (observer: IPipelineObserver) => Promise<void>,
+        actionName: string,
+    ): Promise<void> {
+        for (const observer of observers) {
+            try {
+                await callback(observer);
+            } catch (error) {
+                this.logger.error({
+                    message: `Observer ${actionName} failed`,
+                    error: error as Error,
+                    context: PipelineExecutor.name,
+                    serviceName: PipelineExecutor.name,
+                });
+            }
+        }
+    }
+
+    private async handleSkipOrJump(
         context: TContext,
         stage: PipelineStage<TContext>,
         pipelineName: string,
         pipelineId: string,
-    ): { decision: SkipDecision; newContext: TContext } {
+        observers: IPipelineObserver[],
+    ): Promise<{ decision: SkipDecision; newContext: TContext }> {
         const targetStage = context.statusInfo.jumpToStage;
 
         if (!targetStage) {
@@ -170,6 +211,17 @@ export class PipelineExecutor<TContext extends PipelineContext> {
         }
 
         if (stage.stageName !== targetStage) {
+            await this.notifyObservers(
+                observers,
+                (obs) =>
+                    obs.onStageSkipped(
+                        stage.stageName,
+                        `Skipping stage '${stage.stageName}' while looking for '${targetStage}'`,
+                        context,
+                    ),
+                'onStageSkipped',
+            );
+
             this.logger.log({
                 message: `Skipping stage '${stage.stageName}' while looking for '${targetStage}'`,
                 context: PipelineExecutor.name,

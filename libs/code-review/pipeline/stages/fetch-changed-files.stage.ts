@@ -1,6 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 
 import { BasePipelineStage } from '@libs/core/infrastructure/pipeline/abstracts/base-stage.abstract';
+import { IStageValidationResult } from '@libs/core/infrastructure/pipeline/interfaces/stage-result.interface';
 import {
     IPullRequestManagerService,
     PULL_REQUEST_MANAGER_SERVICE_TOKEN,
@@ -82,28 +83,34 @@ export class FetchChangedFilesStage extends BasePipelineStage<CodeReviewPipeline
             (file) => !isFileMatchingGlob(file.filename, ignorePaths),
         );
 
-        if (
-            !filteredFiles?.length ||
-            filteredFiles.length > this.maxFilesToAnalyze
-        ) {
-            const msg = !filteredFiles?.length
-                ? AutomationMessage.NO_FILES_AFTER_IGNORE
-                : AutomationMessage.TOO_MANY_FILES;
+        const validation = this.validateFiles(
+            filesToProcess,
+            filteredFiles,
+            ignorePaths,
+        );
+
+        if (!validation.canProceed) {
+            const { message, reasonCode, technicalReason, metadata } =
+                validation.details || {};
 
             this.logger.warn({
-                message: `Skipping code review for PR#${context.pullRequest.number} - ${msg}`,
+                message: `Skipping code review for PR#${context.pullRequest.number} - ${message}`,
                 context: FetchChangedFilesStage.name,
                 metadata: {
                     organizationAndTeamData: context?.organizationAndTeamData,
                     filesCount: filteredFiles?.length || 0,
                     totalFilesBeforeFilter: filesToProcess?.length || 0,
                     ignorePaths,
+                    technicalReason,
+                    ...metadata,
                 },
             });
+
             return this.updateContext(context, (draft) => {
                 draft.statusInfo = {
                     status: AutomationStatus.SKIPPED,
-                    message: msg,
+                    message:
+                        reasonCode || AutomationMessage.NO_FILES_AFTER_IGNORE,
                     jumpToStage: 'FinalizeGithubCheckStage',
                 };
             });
@@ -144,6 +151,51 @@ export class FetchChangedFilesStage extends BasePipelineStage<CodeReviewPipeline
             };
             draft.pullRequest.stats = stats;
         });
+    }
+
+    private validateFiles(
+        filesToProcess: FileChange[],
+        filteredFiles: FileChange[],
+        ignorePaths: string[],
+    ): IStageValidationResult {
+        if (!filesToProcess || filesToProcess.length === 0) {
+            return {
+                canProceed: false,
+                details: {
+                    reasonCode: AutomationMessage.NO_FILES_IN_PR,
+                    message: 'No files changed in PR',
+                },
+            };
+        }
+
+        if (!filteredFiles || filteredFiles.length === 0) {
+            return {
+                canProceed: false,
+                details: {
+                    reasonCode: AutomationMessage.NO_FILES_AFTER_IGNORE,
+                    message: 'All files ignored by patterns',
+                    technicalReason: `Patterns: [${ignorePaths.join(', ')}]`,
+                    metadata: { ignorePaths },
+                },
+            };
+        }
+
+        if (filteredFiles.length > this.maxFilesToAnalyze) {
+            return {
+                canProceed: false,
+                details: {
+                    reasonCode: AutomationMessage.TOO_MANY_FILES,
+                    message: 'Too many files',
+                    technicalReason: `Count: ${filteredFiles.length}, Limit: ${this.maxFilesToAnalyze}`,
+                    metadata: {
+                        count: filteredFiles.length,
+                        limit: this.maxFilesToAnalyze,
+                    },
+                },
+            };
+        }
+
+        return { canProceed: true };
     }
 
     private prepareFilesWithLineNumbers(files: FileChange[]): FileChange[] {

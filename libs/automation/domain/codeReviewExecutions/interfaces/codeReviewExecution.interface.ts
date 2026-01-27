@@ -7,5 +7,6 @@ export type CodeReviewExecution<TAutomationExecution> = {
 
     automationExecution: Partial<TAutomationExecution>;
     status: AutomationStatus;
+    stageName?: string;
     message?: string | undefined;
 };

@@ -49,6 +49,7 @@ import { LOAD_EXTERNAL_CONTEXT_STAGE_TOKEN } from './stages/contracts/loadExtern
 import { ValidateSuggestionsStage } from './stages/validate-suggestions.stage';
 import { CodeReviewPipelineStrategy } from './strategy/code-review-pipeline.strategy';
 import { ImplementationVerificationProcessor } from '../workflow/implementation-verification.processor';
+import { CodeReviewPipelineObserver } from '../infrastructure/observers/code-review-pipeline.observer';
 
 @Module({
     imports: [
@@ -112,11 +113,15 @@ import { ImplementationVerificationProcessor } from '../workflow/implementation-
 
         // Implementation Verification
         ImplementationVerificationProcessor,
+
+        // Observers
+        CodeReviewPipelineObserver,
     ],
     exports: [
         CodeReviewPipelineStrategyEE,
         CodeReviewPipelineStrategy,
         CodeReviewJobProcessorService,
+        CodeReviewPipelineObserver,
         // Export stages if needed by tests or other modules
         CreateFileCommentsStage,
         CreatePrLevelCommentsStage,

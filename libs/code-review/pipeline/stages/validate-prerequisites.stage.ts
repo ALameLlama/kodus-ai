@@ -5,6 +5,7 @@ import {
     AutomationMessage,
     AutomationStatus,
 } from '@libs/automation/domain/automation/enum/automation-status';
+import { IStageValidationResult } from '@libs/core/infrastructure/pipeline/interfaces/stage-result.interface';
 import { CodeReviewPipelineContext } from '../context/code-review-pipeline.context';
 import {
     PermissionValidationService,
@@ -75,6 +76,28 @@ export class ValidatePrerequisitesStage extends BasePipelineStage<CodeReviewPipe
             platformType,
             triggerCommentId,
         } = context;
+
+        const prerequisitesResult = this.validatePrerequisites(context);
+
+        if (!prerequisitesResult.canProceed) {
+            this.logger.log({
+                message: prerequisitesResult.details?.message,
+                context: this.stageName,
+                metadata: {
+                    ...prerequisitesResult.details?.metadata,
+                    reason: prerequisitesResult.details?.reasonCode,
+                },
+            });
+
+            return this.updateContext(context, (draft) => {
+                draft.statusInfo = {
+                    status: AutomationStatus.SKIPPED,
+                    message:
+                        prerequisitesResult.details?.message ||
+                        AutomationMessage.VALIDATION_FAILED,
+                };
+            });
+        }
 
         // Check if user is ignored BEFORE validation
         const isIgnored = await this.isUserIgnored(
@@ -384,5 +407,59 @@ export class ValidatePrerequisitesStage extends BasePipelineStage<CodeReviewPipe
             'Please configure your API keys in [Settings > BYOK Configuration](https://app.kodus.io/organization/byok).\n\n' +
             '<!-- kody-codereview -->'
         );
+    }
+
+    private validatePrerequisites(
+        context: CodeReviewPipelineContext,
+    ): IStageValidationResult {
+        const { pullRequest, repository } = context;
+
+        if (!repository || !repository.id) {
+            return {
+                canProceed: false,
+                details: {
+                    message: 'Missing repository metadata',
+                    reasonCode: AutomationMessage.VALIDATION_FAILED,
+                },
+            };
+        }
+
+        if (!pullRequest) {
+            return {
+                canProceed: false,
+                details: {
+                    message: 'Missing pull request metadata',
+                    reasonCode: AutomationMessage.VALIDATION_FAILED,
+                },
+            };
+        }
+
+        if (pullRequest.state === 'closed' || pullRequest.state === 'merged') {
+            return {
+                canProceed: false,
+                details: {
+                    message: `PR is closed (State: ${pullRequest.state})`,
+                    reasonCode: AutomationMessage.VALIDATION_FAILED,
+                    metadata: {
+                        prState: pullRequest.state,
+                    },
+                },
+            };
+        }
+
+        if (pullRequest.locked) {
+            return {
+                canProceed: false,
+                details: {
+                    message: 'PR is locked',
+                    reasonCode: AutomationMessage.VALIDATION_FAILED,
+                    metadata: {
+                        isLocked: true,
+                    },
+                },
+            };
+        }
+
+        return { canProceed: true };
     }
 }

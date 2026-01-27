@@ -35,19 +35,6 @@ export class EnqueueCodeReviewJobUseCase implements IUseCase {
             const correlationId =
                 input.correlationId || IdGenerator.correlationId();
 
-            this.logger.log({
-                message: 'Enqueuing code review job',
-                context: EnqueueCodeReviewJobUseCase.name,
-                metadata: {
-                    correlationId,
-                    platformType: input.platformType,
-                    repositoryId: input.codeManagementPayload.repositoryId,
-                    pullRequestNumber:
-                        input.codeManagementPayload.pullRequestNumber,
-                    teamAutomationId: input.teamAutomationId,
-                },
-            });
-
             // TODO: Documentar melhor aqui que esse payload é o que precisa para executar o processo de review.
             const jobPayload = {
                 event: input.event,

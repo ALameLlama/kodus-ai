@@ -1,5 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { BasePipelineStage } from '@libs/core/infrastructure/pipeline/abstracts/base-stage.abstract';
+import { IStageValidationResult } from '@libs/core/infrastructure/pipeline/interfaces/stage-result.interface';
 import {
     AUTOMATION_EXECUTION_SERVICE_TOKEN,
     IAutomationExecutionService,
@@ -162,10 +163,14 @@ export class ValidateConfigStage extends BasePipelineStage<CodeReviewPipelineCon
             config.baseBranchDefault, // API base branch from repository
         );
 
-        if (!basicValidation) {
+        if (!basicValidation.canProceed) {
+            const message = basicValidation.details
+                ? `${basicValidation.details.message} (${basicValidation.details.technicalReason || ''})`
+                : AutomationMessage.SKIPPED_BY_BASIC_RULES;
+
             return {
                 shouldProcess: false,
-                reason: AutomationMessage.SKIPPED_BY_BASIC_RULES,
+                reason: message,
                 shouldSaveSkipped: false,
             };
         }
@@ -461,9 +466,9 @@ export class ValidateConfigStage extends BasePipelineStage<CodeReviewPipelineCon
         platformType: PlatformType,
         organizationAndTeamData: OrganizationAndTeamData,
         apiBaseBranch?: string,
-    ): boolean {
+    ): IStageValidationResult {
         if (origin === 'command') {
-            return true;
+            return { canProceed: true };
         }
 
         const {
@@ -474,7 +479,13 @@ export class ValidateConfigStage extends BasePipelineStage<CodeReviewPipelineCon
         } = config || {};
 
         if (!automatedReviewActive) {
-            return false;
+            return {
+                canProceed: false,
+                details: {
+                    message: 'Automated review is disabled in configuration',
+                    reasonCode: AutomationMessage.SKIPPED_BY_BASIC_RULES,
+                },
+            };
         }
 
         const lowerTitle = title?.toLowerCase() || '';
@@ -483,27 +494,43 @@ export class ValidateConfigStage extends BasePipelineStage<CodeReviewPipelineCon
                 lowerTitle.includes(keyword.toLowerCase()),
             )
         ) {
-            return false;
+            const matchedKeyword = ignoredTitleKeywords.find((keyword) =>
+                lowerTitle.includes(keyword.toLowerCase()),
+            );
+            return {
+                canProceed: false,
+                details: {
+                    message: 'PR title contains ignored keyword',
+                    technicalReason: `Title matches ignored keyword: "${matchedKeyword}"`,
+                    reasonCode: AutomationMessage.SKIPPED_BY_BASIC_RULES,
+                },
+            };
         }
 
-        if (
-            !this._isBranchLogicValid(
-                sourceBranch,
-                targetBranch,
-                baseBranches,
-                apiBaseBranch,
-                platformType,
-                organizationAndTeamData,
-            )
-        ) {
-            return false;
+        const branchValidation = this._isBranchLogicValid(
+            sourceBranch,
+            targetBranch,
+            baseBranches,
+            apiBaseBranch,
+            platformType,
+            organizationAndTeamData,
+        );
+
+        if (!branchValidation.canProceed) {
+            return branchValidation;
         }
 
         if (isDraft && !runOnDraft) {
-            return false;
+            return {
+                canProceed: false,
+                details: {
+                    message: 'PR is a draft and runOnDraft is disabled',
+                    reasonCode: AutomationMessage.SKIPPED_BY_BASIC_RULES,
+                },
+            };
         }
 
-        return true;
+        return { canProceed: true };
     }
 
     private _isBranchLogicValid(
@@ -513,13 +540,13 @@ export class ValidateConfigStage extends BasePipelineStage<CodeReviewPipelineCon
         apiBaseBranch: string | undefined,
         platformType: PlatformType,
         organizationAndTeamData: OrganizationAndTeamData,
-    ): boolean {
+    ): IStageValidationResult {
         if (
             !configBaseBranches ||
             !Array.isArray(configBaseBranches) ||
             configBaseBranches.length === 0
         ) {
-            return true;
+            return { canProceed: true };
         }
 
         const mergedBranches = mergeBaseBranches(
@@ -557,7 +584,18 @@ export class ValidateConfigStage extends BasePipelineStage<CodeReviewPipelineCon
             },
         });
 
-        return isValid;
+        if (isValid) {
+            return { canProceed: true };
+        }
+
+        return {
+            canProceed: false,
+            details: {
+                message: 'Branch mismatch',
+                technicalReason: `Target branch '${targetBranch}' does not match configured patterns: [${expression}]`,
+                reasonCode: AutomationMessage.SKIPPED_BY_BASIC_RULES,
+            },
+        };
     }
 
     /**

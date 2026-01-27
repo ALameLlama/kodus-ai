@@ -127,7 +127,7 @@ export class AzureReposPullRequestHandler implements IWebhookEventHandler {
         );
 
         // If no active automation found, complete the webhook processing immediately
-        if (!orgData?.organizationAndTeamData) {
+        if (!context?.organizationAndTeamData) {
             this.logger.log({
                 message: `No active automation found for repository, completing webhook processing`,
                 context: AzureReposPullRequestHandler.name,

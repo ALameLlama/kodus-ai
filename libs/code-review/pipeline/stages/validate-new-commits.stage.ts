@@ -15,6 +15,7 @@ import {
 } from '@libs/automation/domain/automation/enum/automation-status';
 import { CodeReviewPipelineContext } from '../context/code-review-pipeline.context';
 import { Commit } from '@libs/core/infrastructure/config/types/general/commit.type';
+import { IStageValidationResult } from '@libs/core/infrastructure/pipeline/interfaces/stage-result.interface';
 
 @Injectable()
 export class ValidateNewCommitsStage extends BasePipelineStage<CodeReviewPipelineContext> {
@@ -83,37 +84,14 @@ export class ValidateNewCommitsStage extends BasePipelineStage<CodeReviewPipelin
                 context.pullRequest,
             );
 
-        if (!allCommits || allCommits?.length === 0) {
-            this.logger.warn({
-                message: 'No commits found in PR',
-                context: this.stageName,
-                metadata: {
-                    organizationAndTeamData: context.organizationAndTeamData,
-                    repository: context.repository.name,
-                    pullRequestNumber: context.pullRequest.number,
-                },
-            });
-
-            return this.updateContext(context, (draft) => {
-                draft.statusInfo = {
-                    status: AutomationStatus.SKIPPED,
-                    message: AutomationMessage.NO_NEW_COMMITS_SINCE_LAST,
-                };
-                if (lastExecutionResult) {
-                    draft.lastExecution = lastExecutionResult;
-                }
-            });
-        }
-
         // Filtrar commits novos localmente (após lastAnalyzedCommit)
-        let newCommits = allCommits;
-        if (lastAnalyzedCommit) {
-            // lastAnalyzedCommit pode ser um objeto {sha, author, ...} ou uma string
-            const lastCommitSha =
-                typeof lastAnalyzedCommit === 'string'
-                    ? lastAnalyzedCommit
-                    : (lastAnalyzedCommit as Commit).sha;
+        let newCommits = allCommits || [];
+        const lastCommitSha =
+            typeof lastAnalyzedCommit === 'string'
+                ? lastAnalyzedCommit
+                : (lastAnalyzedCommit as Commit)?.sha;
 
+        if (lastCommitSha && allCommits?.length > 0) {
             const lastCommitIndex = allCommits.findIndex(
                 (commit) => commit.sha === lastCommitSha,
             );
@@ -122,114 +100,58 @@ export class ValidateNewCommitsStage extends BasePipelineStage<CodeReviewPipelin
             }
         }
 
-        if (!newCommits || newCommits.length === 0) {
-            this.logger.warn({
-                message: 'No new commits found since last execution',
-                context: this.stageName,
-                metadata: {
-                    organizationAndTeamData: context.organizationAndTeamData,
-                    repository: context.repository.name,
-                    pullRequestNumber: context.pullRequest.number,
-                    totalCommits: allCommits.length,
-                    lastAnalyzedCommit,
-                },
-            });
-
-            return this.updateContext(context, (draft) => {
-                draft.statusInfo = {
-                    status: AutomationStatus.SKIPPED,
-                    message: AutomationMessage.NO_NEW_COMMITS_SINCE_LAST,
-                };
-                draft.prAllCommits = allCommits; // Salva todos mesmo quando skip
-                if (lastExecutionResult) {
-                    draft.lastExecution = lastExecutionResult;
-                }
-            });
-        }
-
-        this.logger.log({
-            message: `Fetched ${newCommits.length} new commits for PR#${context.pullRequest.number} (${allCommits.length} total)`,
-            context: this.stageName,
-            metadata: {
-                organizationAndTeamData: context.organizationAndTeamData,
-                repository: context.repository.name,
-                pullRequestNumber: context.pullRequest.number,
-            },
-        });
-
-        // Verificar se são apenas commits de merge
-        let isOnlyMerge = false;
-
-        const mergeCommits = newCommits.filter(
-            (commit) => commit.parents?.length > 1,
+        const validationResult = this.validateCommits(
+            context,
+            newCommits,
+            allCommits || [],
+            lastCommitSha,
         );
 
-        if (mergeCommits.length > 0) {
-            const allNewCommitShas = new Set(newCommits.map((c) => c.sha));
-            const commitMap = new Map(newCommits.map((c) => [c.sha, c]));
+        if (!validationResult.canProceed) {
+            const details = validationResult.details;
+            const message = details?.message || 'Skipped validation';
+            const reasonCode =
+                details?.reasonCode ||
+                AutomationMessage.NO_NEW_COMMITS_SINCE_LAST;
 
-            const mergedCommitTracker = new Set();
-
-            const stack: string[] = [];
-
-            for (const commit of mergeCommits) {
-                mergedCommitTracker.add(commit.sha);
-
-                for (let i = 1; i < (commit.parents?.length || 0); i++) {
-                    const parentSha = commit.parents[i]?.sha;
-
-                    if (parentSha) {
-                        stack.push(parentSha);
-                    }
-                }
-            }
-
-            while (stack.length > 0) {
-                const sha = stack.pop();
-
-                if (
-                    !sha ||
-                    !allNewCommitShas.has(sha) ||
-                    mergedCommitTracker.has(sha)
-                ) {
-                    continue;
-                }
-
-                mergedCommitTracker.add(sha);
-
-                const commit = commitMap.get(sha);
-                if (!commit || !commit.parents || commit.parents.length === 0) {
-                    continue;
-                }
-
-                commit.parents.forEach((parent) => {
-                    if (parent.sha) {
-                        stack.push(parent.sha);
-                    }
-                });
-            }
-
-            if (mergedCommitTracker.size === allNewCommitShas.size) {
-                isOnlyMerge = true;
-            }
-        }
-
-        if (isOnlyMerge) {
             this.logger.warn({
-                message: `Skipping code review for PR#${context.pullRequest.number} - Only merge commits found`,
+                message: `Skipping code review for PR#${context.pullRequest.number} - ${message}`,
                 context: this.stageName,
                 metadata: {
                     organizationAndTeamData: context.organizationAndTeamData,
                     repository: context.repository.name,
                     pullRequestNumber: context.pullRequest.number,
+                    reason: details?.technicalReason,
+                    metadata: details?.metadata,
                 },
             });
 
             return this.updateContext(context, (draft) => {
                 draft.statusInfo = {
                     status: AutomationStatus.SKIPPED,
-                    message: AutomationMessage.ONLY_MERGE_COMMITS_SINCE_LAST,
+                    message: reasonCode,
                 };
+                // Ensure detailed message is logged if possible, but statusInfo.message is strictly AutomationMessage enum usually.
+                // However, the plan implies we want detailed user-facing reasons.
+                // The interface IStageValidationResult has `message` (string) and `reasonCode` (AutomationMessage).
+                // `CodeReviewPipelineContext` `statusInfo.message` is typed as `AutomationMessage | string` (implied by usage, but actually it is AutomationMessage enum in definition).
+                // Let's check `AutomationStatus` file again. `message` is `AutomationMessage`.
+                // So I should assign reasonCode to message, and maybe log the detailed message elsewhere or if message accepts string.
+                // The `statusInfo` type in `PipelineContext` (from base) might be more flexible?
+                // `CodeReviewPipelineContext` inherits `PipelineContext`.
+                // Checking `PipelineContext` definition would be good, but I assume for now I should stick to the Enum for `message` field to be safe with type checks,
+                // OR cast if I really want to pass a string.
+                // But the plan says: "Instead of setting `statusInfo` directly with generic messages... Return rich results... populate `context.statusInfo.message` with `${details.message} (${details.technicalReason})`"
+                // This suggests `statusInfo.message` CAN be a string.
+                // Let's re-read `libs/core/infrastructure/pipeline/interfaces/pipeline-context.interface.ts` if possible, or assume string is allowed.
+                // In `CodeReviewPipelineContext` file, it doesn't redefine `statusInfo`.
+                // I will try to assign the string. If typescript fails, I will see.
+                // Actually, I'll check `libs/core/infrastructure/pipeline/interfaces/pipeline-context.interface.ts` quickly.
+
+                draft.statusInfo.message = details?.technicalReason
+                    ? `${message} (${details.technicalReason})`
+                    : message;
+
                 draft.prAllCommits = allCommits;
                 if (lastExecutionResult) {
                     draft.lastExecution = lastExecutionResult;
@@ -238,7 +160,7 @@ export class ValidateNewCommitsStage extends BasePipelineStage<CodeReviewPipelin
         }
 
         this.logger.log({
-            message: `Processing ${newCommits.length} new commits for PR#${context.pullRequest.number} (${allCommits.length} total)`,
+            message: `Processing ${newCommits.length} new commits for PR#${context.pullRequest.number} (${allCommits?.length} total)`,
             context: this.stageName,
             metadata: {
                 organizationAndTeamData: context.organizationAndTeamData,
@@ -254,5 +176,119 @@ export class ValidateNewCommitsStage extends BasePipelineStage<CodeReviewPipelin
                 draft.lastExecution = lastExecutionResult;
             }
         });
+    }
+
+    private validateCommits(
+        context: CodeReviewPipelineContext,
+        newCommits: Commit[],
+        allCommits: Commit[],
+        lastAnalyzedCommitSha?: string,
+    ): IStageValidationResult {
+        // 1. Force Re-review (Manual)
+        if (context.origin === 'command') {
+            return {
+                canProceed: true,
+                details: {
+                    message: 'Proceeding due to manual re-review request',
+                    reasonCode: AutomationMessage.PROCESSING_MANUAL,
+                },
+            };
+        }
+
+        // 2. No commits found at all
+        if (!allCommits || allCommits.length === 0) {
+            return {
+                canProceed: false,
+                details: {
+                    message: 'No commits found in PR',
+                    technicalReason: 'PR has 0 commits',
+                    reasonCode: AutomationMessage.NO_NEW_COMMITS_SINCE_LAST,
+                },
+            };
+        }
+
+        // 3. No new commits found
+        if (!newCommits || newCommits.length === 0) {
+            const headSha = context.pullRequest.head?.sha || 'unknown';
+            return {
+                canProceed: false,
+                details: {
+                    message: `No new commits found since last review (Head SHA: ${headSha}, Last Analyzed: ${lastAnalyzedCommitSha || 'none'})`,
+                    technicalReason: 'newCommits array is empty',
+                    reasonCode: AutomationMessage.NO_NEW_COMMITS_SINCE_LAST,
+                    metadata: {
+                        totalCommits: allCommits.length,
+                        lastAnalyzedCommit: lastAnalyzedCommitSha,
+                    },
+                },
+            };
+        }
+
+        // 4. Only merge commits found
+        const isOnlyMerge = this.checkIfOnlyMergeCommits(newCommits);
+        if (isOnlyMerge) {
+            return {
+                canProceed: false,
+                details: {
+                    message:
+                        'Skipped because all new commits are merge commits',
+                    technicalReason:
+                        'All new commits identified as merge commits',
+                    reasonCode: AutomationMessage.ONLY_MERGE_COMMITS_SINCE_LAST,
+                },
+            };
+        }
+
+        return { canProceed: true };
+    }
+
+    private checkIfOnlyMergeCommits(commits: Commit[]): boolean {
+        const mergeCommits = commits.filter(
+            (commit) => commit.parents?.length > 1,
+        );
+
+        if (mergeCommits.length === 0) {
+            return false;
+        }
+
+        const allNewCommitShas = new Set(commits.map((c) => c.sha));
+        const commitMap = new Map(commits.map((c) => [c.sha, c]));
+        const mergedCommitTracker = new Set<string>();
+        const stack: string[] = [];
+
+        for (const commit of mergeCommits) {
+            mergedCommitTracker.add(commit.sha);
+            for (let i = 1; i < (commit.parents?.length || 0); i++) {
+                const parentSha = commit.parents[i]?.sha;
+                if (parentSha) {
+                    stack.push(parentSha);
+                }
+            }
+        }
+
+        while (stack.length > 0) {
+            const sha = stack.pop();
+            if (
+                !sha ||
+                !allNewCommitShas.has(sha) ||
+                mergedCommitTracker.has(sha)
+            ) {
+                continue;
+            }
+
+            mergedCommitTracker.add(sha);
+            const commit = commitMap.get(sha);
+            if (!commit || !commit.parents || commit.parents.length === 0) {
+                continue;
+            }
+
+            commit.parents.forEach((parent) => {
+                if (parent.sha) {
+                    stack.push(parent.sha);
+                }
+            });
+        }
+
+        return mergedCommitTracker.size === allNewCommitShas.size;
     }
 }

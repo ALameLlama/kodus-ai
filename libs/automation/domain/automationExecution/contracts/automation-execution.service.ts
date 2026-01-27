@@ -18,6 +18,7 @@ export interface IAutomationExecutionService extends IAutomationExecutionReposit
             'uuid' | 'createdAt' | 'updatedAt' | 'codeReviewExecutions'
         >,
         message: string,
+        stageName?: string,
     ): Promise<AutomationExecutionEntity | null>;
 
     updateCodeReview(
@@ -29,5 +30,6 @@ export interface IAutomationExecutionService extends IAutomationExecutionReposit
             >
         >,
         message: string,
+        stageName?: string,
     ): Promise<AutomationExecutionEntity | null>;
 }
