@@ -1469,22 +1469,26 @@ export class GitlabService implements Omit<
             prNumber,
         );
 
-        const changedFiles = [];
+        const filesMap = new Map<string, any>();
 
         const newCommits = commits.filter(
             (commit) =>
                 new Date(commit.created_at) > new Date(lastCommit.created_at),
         );
 
+        // Commits are sorted ascending by date, so later iterations overwrite
+        // earlier entries, keeping the most recent version of each file.
         for (const commit of newCommits) {
             const commitDiff = await gitlabAPI.Commits.showDiff(
                 repository.id,
                 commit.id,
             );
-            changedFiles.push(...commitDiff);
+            for (const file of commitDiff) {
+                filesMap.set(file.new_path, file);
+            }
         }
 
-        return changedFiles.map((file) => {
+        return Array.from(filesMap.values()).map((file) => {
             const changeCount = this.countChanges(file.diff);
 
             return {

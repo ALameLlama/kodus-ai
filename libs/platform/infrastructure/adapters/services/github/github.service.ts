@@ -2615,7 +2615,7 @@ export class GithubService
             pull_number: prNumber,
         });
 
-        const changedFiles = [];
+        const filesMap = new Map<string, any>();
 
         // 2. Filter commits that occurred after the date of the last saved commit
         const newCommits = commits.filter(
@@ -2625,6 +2625,8 @@ export class GithubService
         );
 
         // 3. Iterate over the filtered commits and retrieve the differences
+        // Commits are sorted ascending by date, so later iterations overwrite
+        // earlier entries, keeping the most recent version of each file.
         for (const commit of newCommits) {
             const { data: commitData } = await octokit.repos.getCommit({
                 owner: githubAuthDetail?.org,
@@ -2633,11 +2635,13 @@ export class GithubService
             });
 
             const commitFiles = commitData.files || [];
-            changedFiles.push(...commitFiles);
+            for (const file of commitFiles) {
+                filesMap.set(file.filename, file);
+            }
         }
 
-        // 4. Map the changes to the desired format
-        return changedFiles.map((file) => {
+        // 4. Map the deduplicated changes to the desired format
+        return Array.from(filesMap.values()).map((file) => {
             return {
                 filename: file.filename,
                 status: file.status,
