@@ -117,8 +117,10 @@ export class SavePullRequestUseCase {
                 // Optimization: Only fetch files/commits from Git API when needed
                 // - For new PRs (opened) or new commits (synchronize): fetch from API
                 // - For other events (closed, reopened, etc.): use existing data from DB
-                const shouldFetchFromApi =
-                    this.shouldFetchFilesAndCommits(payload, platformType);
+                const shouldFetchFromApi = this.shouldFetchFilesAndCommits(
+                    payload,
+                    platformType,
+                );
 
                 let changedFiles: any[] = [];
                 let pullRequestCommits: any[] = [];
@@ -166,8 +168,7 @@ export class SavePullRequestUseCase {
                                 patch: f.patch ?? '',
                                 sha: f.sha ?? '',
                                 status: f.status ?? '',
-                                previous_filename:
-                                    f.previousName ?? '',
+                                previous_filename: f.previousName ?? '',
                             }),
                         );
                         pullRequestCommits = existingPR.commits || [];
@@ -179,8 +180,8 @@ export class SavePullRequestUseCase {
                                 prNumber: pullRequest?.number,
                                 filesCount: changedFiles.length,
                                 commitsCount: pullRequestCommits.length,
+                                organizationAndTeamData,
                             },
-                            organizationAndTeamData,
                         });
                     }
                 }
@@ -283,7 +284,11 @@ export class SavePullRequestUseCase {
         platformType: PlatformType,
     ): boolean {
         // GitHub actions that require fresh data
-        const githubFetchActions = ['opened', 'synchronize', 'ready_for_review'];
+        const githubFetchActions = [
+            'opened',
+            'synchronize',
+            'ready_for_review',
+        ];
         if (githubFetchActions.includes(payload?.action)) {
             return true;
         }
