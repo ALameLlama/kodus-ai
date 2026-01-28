@@ -18,6 +18,8 @@ import {
 } from '@libs/common/utils/patch';
 import { isFileMatchingGlob } from '@libs/common/utils/glob-utils';
 import { CodeReviewPipelineContext } from '../context/code-review-pipeline.context';
+import { PipelineReasons } from '@libs/core/infrastructure/pipeline/constants/pipeline-reasons.const';
+import { StageMessageHelper } from '@libs/core/infrastructure/pipeline/utils/stage-message.helper';
 
 @Injectable()
 export class FetchChangedFilesStage extends BasePipelineStage<CodeReviewPipelineContext> {
@@ -109,8 +111,7 @@ export class FetchChangedFilesStage extends BasePipelineStage<CodeReviewPipeline
             return this.updateContext(context, (draft) => {
                 draft.statusInfo = {
                     status: AutomationStatus.SKIPPED,
-                    message:
-                        reasonCode || AutomationMessage.NO_FILES_AFTER_IGNORE,
+                    message: message,
                     jumpToStage: 'FinalizeGithubCheckStage',
                 };
             });
@@ -163,7 +164,9 @@ export class FetchChangedFilesStage extends BasePipelineStage<CodeReviewPipeline
                 canProceed: false,
                 details: {
                     reasonCode: AutomationMessage.NO_FILES_IN_PR,
-                    message: 'No files changed in PR',
+                    message: StageMessageHelper.skippedWithReason(
+                        PipelineReasons.FILES.NO_CHANGES,
+                    ),
                 },
             };
         }
@@ -173,7 +176,10 @@ export class FetchChangedFilesStage extends BasePipelineStage<CodeReviewPipeline
                 canProceed: false,
                 details: {
                     reasonCode: AutomationMessage.NO_FILES_AFTER_IGNORE,
-                    message: 'All files ignored by patterns',
+                    message: StageMessageHelper.skippedWithReason(
+                        PipelineReasons.FILES.ALL_IGNORED,
+                        `Patterns: [${ignorePaths.join(', ')}]`,
+                    ),
                     technicalReason: `Patterns: [${ignorePaths.join(', ')}]`,
                     metadata: { ignorePaths },
                 },
@@ -185,7 +191,10 @@ export class FetchChangedFilesStage extends BasePipelineStage<CodeReviewPipeline
                 canProceed: false,
                 details: {
                     reasonCode: AutomationMessage.TOO_MANY_FILES,
-                    message: 'Too many files',
+                    message: StageMessageHelper.skippedWithReason(
+                        PipelineReasons.FILES.TOO_MANY,
+                        `Count: ${filteredFiles.length}, Limit: ${this.maxFilesToAnalyze}`,
+                    ),
                     technicalReason: `Count: ${filteredFiles.length}, Limit: ${this.maxFilesToAnalyze}`,
                     metadata: {
                         count: filteredFiles.length,

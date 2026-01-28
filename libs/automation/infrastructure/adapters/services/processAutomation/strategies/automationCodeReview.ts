@@ -264,22 +264,25 @@ export class AutomationCodeReviewService implements Omit<
         } = payload;
 
         try {
-            return await this.automationExecutionService.createCodeReview(
-                {
-                    status,
-                    dataExecution: {
-                        platformType,
-                        organizationAndTeamData,
+            const result =
+                await this.automationExecutionService.createCodeReview(
+                    {
+                        status,
+                        dataExecution: {
+                            platformType,
+                            organizationAndTeamData,
+                            pullRequestNumber: pullRequest?.number,
+                            repositoryId: repository?.id,
+                        },
+                        teamAutomation: { uuid: teamAutomationId },
+                        origin: origin || 'System',
                         pullRequestNumber: pullRequest?.number,
                         repositoryId: repository?.id,
                     },
-                    teamAutomation: { uuid: teamAutomationId },
-                    origin: origin || 'System',
-                    pullRequestNumber: pullRequest?.number,
-                    repositoryId: repository?.id,
-                },
-                message,
-            );
+                    message,
+                    'PipelineInitialization',
+                );
+            return result?.execution;
         } catch (error) {
             // Check for unique constraint violation (PostgreSQL error code 23505)
             const isDuplicateError =
@@ -316,6 +319,7 @@ export class AutomationCodeReviewService implements Omit<
         status: AutomationStatus,
         message: string,
         data: any,
+        stageName?: string,
     ) {
         try {
             const errorMessage = [
@@ -333,6 +337,7 @@ export class AutomationCodeReviewService implements Omit<
                     errorMessage,
                 },
                 message,
+                stageName,
             );
         } catch (error) {
             this.logger.error({
@@ -370,6 +375,7 @@ export class AutomationCodeReviewService implements Omit<
             finalStatus,
             finalMessage,
             newData,
+            'PipelineCompletion',
         );
 
         this.logger.log({

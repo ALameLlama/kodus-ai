@@ -8,6 +8,8 @@ import {
 import { IAutomationExecutionService } from '@libs/automation/domain/automationExecution/contracts/automation-execution.service';
 import { AutomationExecutionEntity } from '@libs/automation/domain/automationExecution/entities/automation-execution.entity';
 import { IAutomationExecution } from '@libs/automation/domain/automationExecution/interfaces/automation-execution.interface';
+import { CodeReviewExecution } from '@libs/automation/domain/codeReviewExecutions/interfaces/codeReviewExecution.interface';
+import { CodeReviewExecutionEntity } from '@libs/automation/domain/codeReviewExecutions/entities/codeReviewExecution.entity';
 import {
     CODE_REVIEW_EXECUTION_SERVICE,
     ICodeReviewExecutionService,
@@ -132,7 +134,11 @@ export class AutomationExecutionService implements IAutomationExecutionService {
         automationExecution: Omit<IAutomationExecution, 'uuid'>,
         message: string,
         stageName?: string,
-    ): Promise<AutomationExecutionEntity | null> {
+        metadata?: Record<string, any>,
+    ): Promise<{
+        execution: AutomationExecutionEntity;
+        stageLog?: CodeReviewExecutionEntity<IAutomationExecution>;
+    } | null> {
         try {
             if (
                 !automationExecution ||
@@ -162,16 +168,20 @@ export class AutomationExecutionService implements IAutomationExecutionService {
                 return null;
             }
 
-            await this.codeReviewExecutionService.create({
+            const stageLog = await this.codeReviewExecutionService.create({
                 automationExecution: {
                     uuid: newAutomationExecution.uuid,
                 },
                 status: automationExecution.status,
                 message,
                 stageName,
+                metadata,
             });
 
-            return newAutomationExecution;
+            return {
+                execution: newAutomationExecution,
+                stageLog: stageLog || undefined,
+            };
         } catch (error) {
             this.logger.error({
                 message: 'Error creating automation execution with code review',
@@ -190,7 +200,11 @@ export class AutomationExecutionService implements IAutomationExecutionService {
         >,
         message: string,
         stageName?: string,
-    ): Promise<AutomationExecutionEntity | null> {
+        metadata?: Record<string, any>,
+    ): Promise<{
+        execution: AutomationExecutionEntity;
+        stageLog?: CodeReviewExecutionEntity<IAutomationExecution>;
+    } | null> {
         try {
             if (
                 !filter ||
@@ -232,16 +246,20 @@ export class AutomationExecutionService implements IAutomationExecutionService {
                 return null;
             }
 
-            await this.codeReviewExecutionService.create({
+            const stageLog = await this.codeReviewExecutionService.create({
                 automationExecution: {
                     uuid: updatedAutomationExecution.uuid,
                 },
                 status: automationExecution.status,
                 message,
                 stageName,
+                metadata,
             });
 
-            return updatedAutomationExecution;
+            return {
+                execution: updatedAutomationExecution,
+                stageLog: stageLog || undefined,
+            };
         } catch (error) {
             this.logger.error({
                 message: 'Error updating automation execution with code review',
@@ -256,5 +274,36 @@ export class AutomationExecutionService implements IAutomationExecutionService {
             });
             return null;
         }
+    }
+
+    async updateStageLog(
+        uuid: string,
+        data: Partial<
+            Omit<
+                CodeReviewExecution<IAutomationExecution>,
+                'uuid' | 'createdAt' | 'updatedAt'
+            >
+        >,
+    ): Promise<void> {
+        try {
+            await this.codeReviewExecutionService.updateById(uuid, data);
+        } catch (error) {
+            this.logger.error({
+                message: 'Error updating stage log',
+                error,
+                context: AutomationExecutionService.name,
+                metadata: { uuid, data },
+            });
+        }
+    }
+
+    async findLatestStageLog(
+        executionId: string,
+        stageName: string,
+    ): Promise<CodeReviewExecutionEntity<IAutomationExecution> | null> {
+        return this.codeReviewExecutionService.findLatestInProgress(
+            executionId,
+            stageName,
+        );
     }
 }

@@ -1,4 +1,5 @@
 import { BasePipelineStage } from '@libs/core/infrastructure/pipeline/abstracts/base-stage.abstract';
+import { StageVisibility } from '@libs/core/infrastructure/pipeline/enums/stage-visibility.enum';
 import { Inject, Injectable } from '@nestjs/common';
 import { createLogger } from '@kodus/flow';
 import {
@@ -51,6 +52,7 @@ const NO_LICENSE_REACTION_MAP = {
 @Injectable()
 export class ValidatePrerequisitesStage extends BasePipelineStage<CodeReviewPipelineContext> {
     readonly stageName = 'ValidatePrerequisitesStage';
+    readonly visibility = StageVisibility.SECONDARY;
     private readonly logger = createLogger(ValidatePrerequisitesStage.name);
 
     constructor(

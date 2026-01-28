@@ -28,11 +28,13 @@ import {
 } from '@libs/automation/domain/automation/enum/automation-status';
 import { IPullRequestMessages } from '@libs/code-review/domain/pullRequestMessages/interfaces/pullRequestMessages.interface';
 import { ConfigLevel } from '@libs/core/infrastructure/config/types/general/pullRequestMessages.type';
+import { StageVisibility } from '@libs/core/infrastructure/pipeline/enums/stage-visibility.enum';
 import { CodeReviewPipelineContext } from '../context/code-review-pipeline.context';
 
 @Injectable()
 export class ResolveConfigStage extends BasePipelineStage<CodeReviewPipelineContext> {
     readonly stageName = 'ResolveConfigStage';
+    readonly visibility = StageVisibility.SECONDARY;
 
     private readonly logger = createLogger(ResolveConfigStage.name);
 

@@ -26,6 +26,8 @@ import {
     ReviewCadenceType,
 } from '@libs/core/infrastructure/config/types/general/codeReview.type';
 import { OrganizationAndTeamData } from '@libs/core/infrastructure/config/types/general/organizationAndTeamData';
+import { StageMessageHelper } from '@libs/core/infrastructure/pipeline/utils/stage-message.helper';
+import { PipelineReasons } from '@libs/core/infrastructure/pipeline/constants/pipeline-reasons.const';
 
 import { CodeReviewPipelineContext } from '../context/code-review-pipeline.context';
 import {
@@ -164,9 +166,9 @@ export class ValidateConfigStage extends BasePipelineStage<CodeReviewPipelineCon
         );
 
         if (!basicValidation.canProceed) {
-            const message = basicValidation.details
-                ? `${basicValidation.details.message} (${basicValidation.details.technicalReason || ''})`
-                : AutomationMessage.SKIPPED_BY_BASIC_RULES;
+            const message =
+                basicValidation.details?.message ||
+                AutomationMessage.SKIPPED_BY_BASIC_RULES;
 
             return {
                 shouldProcess: false,
@@ -482,7 +484,10 @@ export class ValidateConfigStage extends BasePipelineStage<CodeReviewPipelineCon
             return {
                 canProceed: false,
                 details: {
-                    message: 'Automated review is disabled in configuration',
+                    message: StageMessageHelper.skippedWithReason(
+                        PipelineReasons.CONFIG.DISABLED,
+                        'automatedReviewActive is false',
+                    ),
                     reasonCode: AutomationMessage.SKIPPED_BY_BASIC_RULES,
                 },
             };
@@ -500,8 +505,10 @@ export class ValidateConfigStage extends BasePipelineStage<CodeReviewPipelineCon
             return {
                 canProceed: false,
                 details: {
-                    message: 'PR title contains ignored keyword',
-                    technicalReason: `Title matches ignored keyword: "${matchedKeyword}"`,
+                    message: StageMessageHelper.skippedWithReason(
+                        PipelineReasons.CONFIG.IGNORED_TITLE,
+                        `Title matches ignored keyword: "${matchedKeyword}"`,
+                    ),
                     reasonCode: AutomationMessage.SKIPPED_BY_BASIC_RULES,
                 },
             };
@@ -524,7 +531,10 @@ export class ValidateConfigStage extends BasePipelineStage<CodeReviewPipelineCon
             return {
                 canProceed: false,
                 details: {
-                    message: 'PR is a draft and runOnDraft is disabled',
+                    message: StageMessageHelper.skippedWithReason(
+                        PipelineReasons.CONFIG.DRAFT,
+                        'runOnDraft=false',
+                    ),
                     reasonCode: AutomationMessage.SKIPPED_BY_BASIC_RULES,
                 },
             };
@@ -591,8 +601,10 @@ export class ValidateConfigStage extends BasePipelineStage<CodeReviewPipelineCon
         return {
             canProceed: false,
             details: {
-                message: 'Branch mismatch',
-                technicalReason: `Target branch '${targetBranch}' does not match configured patterns: [${expression}]`,
+                message: StageMessageHelper.skippedWithReason(
+                    PipelineReasons.CONFIG.BRANCH_MISMATCH,
+                    `Target branch '${targetBranch}' does not match configured patterns: [${expression}]`,
+                ),
                 reasonCode: AutomationMessage.SKIPPED_BY_BASIC_RULES,
             },
         };

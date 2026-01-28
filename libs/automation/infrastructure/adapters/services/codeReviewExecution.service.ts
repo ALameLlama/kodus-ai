@@ -8,6 +8,7 @@ import {
 import { ICodeReviewExecutionService } from '@libs/automation/domain/codeReviewExecutions/contracts/codeReviewExecution.service.contract';
 import { CodeReviewExecutionEntity } from '@libs/automation/domain/codeReviewExecutions/entities/codeReviewExecution.entity';
 import { CodeReviewExecution } from '@libs/automation/domain/codeReviewExecutions/interfaces/codeReviewExecution.interface';
+import { AutomationStatus } from '@libs/automation/domain/automation/enum/automation-status';
 
 @Injectable()
 export class CodeReviewExecutionService<
@@ -26,6 +27,15 @@ export class CodeReviewExecutionService<
         >,
     ): Promise<CodeReviewExecutionEntity<T> | null> {
         return this.codeReviewExecutionRepository.create(codeReviewExecution);
+    }
+
+    updateById(
+        uuid: string,
+        data: Partial<
+            Omit<CodeReviewExecution<T>, 'uuid' | 'createdAt' | 'updatedAt'>
+        >,
+    ): Promise<CodeReviewExecutionEntity<T> | null> {
+        return this.codeReviewExecutionRepository.update({ uuid } as any, data);
     }
 
     update(
@@ -62,5 +72,28 @@ export class CodeReviewExecutionService<
 
     delete(uuid: string): Promise<boolean> {
         return this.codeReviewExecutionRepository.delete(uuid);
+    }
+
+    async findLatestInProgress(
+        executionId: string,
+        stageName: string,
+    ): Promise<CodeReviewExecutionEntity<T> | null> {
+        const found = await this.codeReviewExecutionRepository.find({
+            automationExecution: { uuid: executionId } as any,
+            stageName,
+            status: AutomationStatus.IN_PROGRESS,
+        });
+
+        if (!found || found.length === 0) {
+            return null;
+        }
+
+        found.sort((a, b) => {
+            const dateA = new Date(a.createdAt).getTime();
+            const dateB = new Date(b.createdAt).getTime();
+            return dateB - dateA;
+        });
+
+        return found[0];
     }
 }

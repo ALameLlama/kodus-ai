@@ -8,6 +8,7 @@ import { CodeReviewPipelineContext } from '@libs/code-review/pipeline/context/co
 import { AutomationStatus } from '@libs/automation/domain/automation/enum/automation-status';
 import { createLogger } from '@kodus/flow';
 import { IAutomationExecution } from '@libs/automation/domain/automationExecution/interfaces/automation-execution.interface';
+import { StageVisibility } from '@libs/core/infrastructure/pipeline/enums/stage-visibility.enum';
 
 @Injectable()
 export class CodeReviewPipelineObserver implements IPipelineObserver {
@@ -21,12 +22,14 @@ export class CodeReviewPipelineObserver implements IPipelineObserver {
     async onStageStart(
         stageName: string,
         context: CodeReviewPipelineContext,
+        visibility?: StageVisibility,
     ): Promise<void> {
         await this.logStage(
             stageName,
             AutomationStatus.IN_PROGRESS,
             `Starting stage ${stageName}`,
             context,
+            visibility,
         );
     }
 
@@ -73,8 +76,9 @@ export class CodeReviewPipelineObserver implements IPipelineObserver {
         status: AutomationStatus,
         message: string,
         context: CodeReviewPipelineContext,
+        visibility?: StageVisibility,
     ): Promise<void> {
-        const executionUuid = context.pipelineMetadata?.lastExecution?.uuid;
+        let executionUuid = context.pipelineMetadata?.lastExecution?.uuid;
         const pullRequestNumber = context.pullRequest?.number;
         const repositoryId = context.repository?.id;
 
@@ -93,21 +97,82 @@ export class CodeReviewPipelineObserver implements IPipelineObserver {
             return;
         }
 
+        const metadata = visibility ? { visibility } : undefined;
+
+        if (status === AutomationStatus.IN_PROGRESS) {
+            const filter: Partial<IAutomationExecution> = executionUuid
+                ? { uuid: executionUuid }
+                : { pullRequestNumber, repositoryId };
+
+            await this.automationExecutionService.updateCodeReview(
+                filter,
+                { status },
+                message,
+                stageName,
+                metadata,
+            );
+            return;
+        }
+
+        if (!executionUuid) {
+            const found =
+                await this.automationExecutionService.findLatestExecutionByFilters(
+                    {
+                        pullRequestNumber,
+                        repositoryId,
+                        status: AutomationStatus.IN_PROGRESS,
+                    },
+                );
+
+            if (found) {
+                executionUuid = found.uuid;
+            }
+        }
+
+        if (executionUuid) {
+            const found =
+                await this.automationExecutionService.findLatestStageLog(
+                    executionUuid,
+                    stageName,
+                );
+
+            if (found) {
+                const updateData: any = { status, message };
+                if (
+                    [
+                        AutomationStatus.SUCCESS,
+                        AutomationStatus.ERROR,
+                        AutomationStatus.SKIPPED,
+                    ].includes(status)
+                ) {
+                    updateData.finishedAt = new Date();
+                }
+
+                if (metadata) {
+                    updateData.metadata = {
+                        ...updateData.metadata,
+                        ...metadata,
+                    };
+                }
+
+                await this.automationExecutionService.updateStageLog(
+                    found.uuid,
+                    updateData,
+                );
+                return;
+            }
+        }
+
         const filter: Partial<IAutomationExecution> = executionUuid
             ? { uuid: executionUuid }
             : { pullRequestNumber, repositoryId };
 
         await this.automationExecutionService.updateCodeReview(
             filter,
-            {
-                // We keep the parent status as IN_PROGRESS unless it's a failure
-                status:
-                    status === AutomationStatus.ERROR
-                        ? AutomationStatus.ERROR
-                        : AutomationStatus.IN_PROGRESS,
-            },
+            { status },
             message,
             stageName,
+            metadata,
         );
     }
 }

@@ -16,6 +16,8 @@ import {
 import { CodeReviewPipelineContext } from '../context/code-review-pipeline.context';
 import { Commit } from '@libs/core/infrastructure/config/types/general/commit.type';
 import { IStageValidationResult } from '@libs/core/infrastructure/pipeline/interfaces/stage-result.interface';
+import { PipelineReasons } from '@libs/core/infrastructure/pipeline/constants/pipeline-reasons.const';
+import { StageMessageHelper } from '@libs/core/infrastructure/pipeline/utils/stage-message.helper';
 
 @Injectable()
 export class ValidateNewCommitsStage extends BasePipelineStage<CodeReviewPipelineContext> {
@@ -131,26 +133,9 @@ export class ValidateNewCommitsStage extends BasePipelineStage<CodeReviewPipelin
                     status: AutomationStatus.SKIPPED,
                     message: reasonCode,
                 };
-                // Ensure detailed message is logged if possible, but statusInfo.message is strictly AutomationMessage enum usually.
-                // However, the plan implies we want detailed user-facing reasons.
-                // The interface IStageValidationResult has `message` (string) and `reasonCode` (AutomationMessage).
-                // `CodeReviewPipelineContext` `statusInfo.message` is typed as `AutomationMessage | string` (implied by usage, but actually it is AutomationMessage enum in definition).
-                // Let's check `AutomationStatus` file again. `message` is `AutomationMessage`.
-                // So I should assign reasonCode to message, and maybe log the detailed message elsewhere or if message accepts string.
-                // The `statusInfo` type in `PipelineContext` (from base) might be more flexible?
-                // `CodeReviewPipelineContext` inherits `PipelineContext`.
-                // Checking `PipelineContext` definition would be good, but I assume for now I should stick to the Enum for `message` field to be safe with type checks,
-                // OR cast if I really want to pass a string.
-                // But the plan says: "Instead of setting `statusInfo` directly with generic messages... Return rich results... populate `context.statusInfo.message` with `${details.message} (${details.technicalReason})`"
-                // This suggests `statusInfo.message` CAN be a string.
-                // Let's re-read `libs/core/infrastructure/pipeline/interfaces/pipeline-context.interface.ts` if possible, or assume string is allowed.
-                // In `CodeReviewPipelineContext` file, it doesn't redefine `statusInfo`.
-                // I will try to assign the string. If typescript fails, I will see.
-                // Actually, I'll check `libs/core/infrastructure/pipeline/interfaces/pipeline-context.interface.ts` quickly.
 
-                draft.statusInfo.message = details?.technicalReason
-                    ? `${message} (${details.technicalReason})`
-                    : message;
+                // Use the pre-formatted message from details if available
+                draft.statusInfo.message = message;
 
                 draft.prAllCommits = allCommits;
                 if (lastExecutionResult) {
@@ -200,7 +185,10 @@ export class ValidateNewCommitsStage extends BasePipelineStage<CodeReviewPipelin
             return {
                 canProceed: false,
                 details: {
-                    message: 'No commits found in PR',
+                    message: StageMessageHelper.skippedWithReason(
+                        PipelineReasons.COMMITS.NO_NEW,
+                        'PR has 0 commits',
+                    ),
                     technicalReason: 'PR has 0 commits',
                     reasonCode: AutomationMessage.NO_NEW_COMMITS_SINCE_LAST,
                 },
@@ -213,12 +201,16 @@ export class ValidateNewCommitsStage extends BasePipelineStage<CodeReviewPipelin
             return {
                 canProceed: false,
                 details: {
-                    message: `No new commits found since last review (Head SHA: ${headSha}, Last Analyzed: ${lastAnalyzedCommitSha || 'none'})`,
+                    message: StageMessageHelper.skippedWithReason(
+                        PipelineReasons.COMMITS.NO_NEW,
+                        'newCommits array is empty',
+                    ),
                     technicalReason: 'newCommits array is empty',
                     reasonCode: AutomationMessage.NO_NEW_COMMITS_SINCE_LAST,
                     metadata: {
                         totalCommits: allCommits.length,
                         lastAnalyzedCommit: lastAnalyzedCommitSha,
+                        headSha,
                     },
                 },
             };
@@ -230,8 +222,10 @@ export class ValidateNewCommitsStage extends BasePipelineStage<CodeReviewPipelin
             return {
                 canProceed: false,
                 details: {
-                    message:
-                        'Skipped because all new commits are merge commits',
+                    message: StageMessageHelper.skippedWithReason(
+                        PipelineReasons.COMMITS.ONLY_MERGE,
+                        'All new commits identified as merge commits',
+                    ),
                     technicalReason:
                         'All new commits identified as merge commits',
                     reasonCode: AutomationMessage.ONLY_MERGE_COMMITS_SINCE_LAST,

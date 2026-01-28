@@ -1,7 +1,12 @@
 import { PipelineContext } from './pipeline-context.interface';
+import { StageVisibility } from '../enums/stage-visibility.enum';
 
 export interface IPipelineObserver {
-    onStageStart(stageName: string, context: PipelineContext): Promise<void>;
+    onStageStart(
+        stageName: string,
+        context: PipelineContext,
+        visibility?: StageVisibility,
+    ): Promise<void>;
     onStageFinish(stageName: string, context: PipelineContext): Promise<void>;
     onStageError(
         stageName: string,

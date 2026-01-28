@@ -70,7 +70,12 @@ export class PipelineExecutor<TContext extends PipelineContext> {
 
             await this.notifyObservers(
                 observers,
-                (obs) => obs.onStageStart(stage.stageName, context),
+                (obs) =>
+                    obs.onStageStart(
+                        stage.stageName,
+                        context,
+                        stage.visibility,
+                    ),
                 'onStageStart',
             );
 
