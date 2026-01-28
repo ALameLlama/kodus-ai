@@ -2606,55 +2606,47 @@ export class GithubService
 
         const octokit = await this.instanceOctokit(organizationAndTeamData);
 
-        // 1. Retrieve all commits in the Pull Request
+        // 1. Get the SHA of the last analyzed commit
+        const baseSha = lastCommit?.sha;
+
+        // 2. Get all commits in the PR and find the most recent one (head)
         const commits = await octokit.paginate(octokit.pulls.listCommits, {
             owner: githubAuthDetail?.org,
             repo: repository?.name,
-            sort: 'created',
-            direction: 'asc',
             pull_number: prNumber,
         });
 
-        const filesMap = new Map<string, any>();
-
-        // 2. Filter commits that occurred after the date of the last saved commit
-        const newCommits = commits.filter(
-            (commit) =>
-                new Date(commit.commit.author.date) >
-                new Date(lastCommit.created_at),
+        const sortedCommits = [...commits].sort(
+            (a, b) =>
+                new Date(b.commit.author.date).getTime() -
+                new Date(a.commit.author.date).getTime(),
         );
 
-        // 3. Fetch all commit diffs in parallel for better performance
-        // Commits are sorted ascending by date, so later iterations overwrite
-        // earlier entries, keeping the most recent version of each file.
-        const commitDatas = await Promise.all(
-            newCommits.map((commit) =>
-                octokit.repos.getCommit({
-                    owner: githubAuthDetail?.org,
-                    repo: repository.name,
-                    ref: commit.sha,
-                }),
-            ),
-        );
+        const headSha = sortedCommits[0]?.sha;
 
-        for (const { data: commitData } of commitDatas) {
-            const commitFiles = commitData.files || [];
-            for (const file of commitFiles) {
-                filesMap.set(file.filename, file);
-            }
+        if (!headSha || baseSha === headSha) {
+            return [];
         }
 
-        // 4. Map the deduplicated changes to the desired format
-        return Array.from(filesMap.values()).map((file) => {
-            return {
-                filename: file.filename,
-                status: file.status,
-                additions: file.additions,
-                deletions: file.deletions,
-                changes: file.changes,
-                patch: file.patch,
-            };
-        });
+        // 3. Compare the two commits to get only the new changes
+        // This returns the diff between the last reviewed commit and the latest commit
+        const { data: comparison } =
+            await octokit.repos.compareCommitsWithBasehead({
+                owner: githubAuthDetail?.org,
+                repo: repository.name,
+                basehead: `${baseSha}...${headSha}`,
+            });
+
+        const files = comparison.files || [];
+
+        return files.map((file) => ({
+            filename: file.filename,
+            status: file.status,
+            additions: file.additions,
+            deletions: file.deletions,
+            changes: file.changes,
+            patch: file.patch,
+        }));
     }
 
     async getPullRequestsForRTTM(

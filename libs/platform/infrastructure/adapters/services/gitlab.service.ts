@@ -1464,34 +1464,38 @@ export class GitlabService implements Omit<
 
         const gitlabAPI = this.instanceGitlabApi(gitlabAuthDetail);
 
+        // 1. Get the SHA of the last analyzed commit
+        const baseSha = lastCommit?.sha;
+
+        // 2. Get all commits in the MR and find the most recent one (head)
         const commits = await gitlabAPI.MergeRequests.allCommits(
             repository.id,
             prNumber,
         );
 
-        const filesMap = new Map<string, any>();
-
-        const newCommits = commits.filter(
-            (commit) =>
-                new Date(commit.created_at) > new Date(lastCommit.created_at),
+        const sortedCommits = [...commits].sort(
+            (a, b) =>
+                new Date(b.created_at).getTime() -
+                new Date(a.created_at).getTime(),
         );
 
-        // Commits are sorted ascending by date, so later iterations overwrite
-        // earlier entries, keeping the most recent version of each file.
-        // Fetch all commit diffs in parallel for better performance
-        const commitDiffs = await Promise.all(
-            newCommits.map((commit) =>
-                gitlabAPI.Commits.showDiff(repository.id, commit.id),
-            ),
-        );
+        const headSha = sortedCommits[0]?.id;
 
-        for (const commitDiff of commitDiffs) {
-            for (const file of commitDiff) {
-                filesMap.set(file.new_path, file);
-            }
+        if (!headSha || baseSha === headSha) {
+            return [];
         }
 
-        return Array.from(filesMap.values()).map((file) => {
+        // 3. Compare the two commits to get only the new changes
+        // This returns the diff between the last reviewed commit and the latest commit
+        const comparison = await gitlabAPI.Repositories.compare(
+            repository.id,
+            baseSha,
+            headSha,
+        );
+
+        const diffs = comparison.diffs || [];
+
+        return diffs.map((file) => {
             const changeCount = this.countChanges(file.diff);
 
             return {
