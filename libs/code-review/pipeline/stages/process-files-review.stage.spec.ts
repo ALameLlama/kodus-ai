@@ -1,0 +1,138 @@
+import { Test, TestingModule } from '@nestjs/testing';
+import { ProcessFilesReview } from './process-files-review.stage';
+import { SUGGESTION_SERVICE_TOKEN } from '@libs/code-review/domain/contracts/SuggestionService.contract';
+import { PULL_REQUEST_MANAGER_SERVICE_TOKEN } from '@libs/code-review/domain/contracts/PullRequestManagerService.contract';
+import { PULL_REQUESTS_SERVICE_TOKEN } from '@libs/platformData/domain/pullRequests/contracts/pullRequests.service.contracts';
+import { FILE_REVIEW_CONTEXT_PREPARATION_TOKEN } from '@libs/core/domain/interfaces/file-review-context-preparation.interface';
+import { KODY_FINE_TUNING_CONTEXT_PREPARATION_TOKEN } from '@libs/core/domain/interfaces/kody-fine-tuning-context-preparation.interface';
+import { KODY_AST_ANALYZE_CONTEXT_PREPARATION_TOKEN } from '@libs/core/domain/interfaces/kody-ast-analyze-context-preparation.interface';
+import { CodeAnalysisOrchestrator } from '@libs/ee/codeBase/codeAnalysisOrchestrator.service';
+import { CodeReviewPipelineContext } from '../context/code-review-pipeline.context';
+import { FileChange } from '@libs/core/infrastructure/config/types/general/codeReview.type';
+
+describe('ProcessFilesReview', () => {
+    let stage: ProcessFilesReview;
+    let context: CodeReviewPipelineContext;
+    let codeAnalysisOrchestrator: CodeAnalysisOrchestrator;
+    let fileReviewContextPreparation: any;
+
+    beforeEach(async () => {
+        const mockSuggestionService = {
+            analyzeSuggestionsSeverity: jest.fn(),
+            filterCodeSuggestionsByReviewOptions: jest.fn(),
+            filterSuggestionsCodeDiff: jest.fn(),
+            getDiscardedSuggestions: jest.fn(),
+            calculateSuggestionRankScore: jest.fn(),
+            filterSuggestionsSafeGuard: jest.fn(),
+            filterSuggestionsBySeverityLevel: jest.fn(),
+        };
+
+        const mockPullRequestService = {
+            findSuggestionsByPRAndFilename: jest.fn(),
+        };
+
+        fileReviewContextPreparation = {
+            prepareFileContext: jest.fn(),
+        };
+
+        const mockKodyFineTuningContextPreparation = {
+            prepareKodyFineTuningContext: jest.fn(),
+        };
+
+        const mockKodyAstAnalyzeContextPreparation = {
+            prepareKodyASTAnalyzeContext: jest.fn(),
+        };
+
+        const mockCodeAnalysisOrchestrator = {
+            executeStandardAnalysis: jest.fn(),
+            executeKodyRulesAnalysis: jest.fn(),
+        };
+
+        const module: TestingModule = await Test.createTestingModule({
+            providers: [
+                ProcessFilesReview,
+                {
+                    provide: SUGGESTION_SERVICE_TOKEN,
+                    useValue: mockSuggestionService,
+                },
+                {
+                    provide: PULL_REQUESTS_SERVICE_TOKEN,
+                    useValue: mockPullRequestService,
+                },
+                {
+                    provide: FILE_REVIEW_CONTEXT_PREPARATION_TOKEN,
+                    useValue: fileReviewContextPreparation,
+                },
+                {
+                    provide: KODY_FINE_TUNING_CONTEXT_PREPARATION_TOKEN,
+                    useValue: mockKodyFineTuningContextPreparation,
+                },
+                {
+                    provide: KODY_AST_ANALYZE_CONTEXT_PREPARATION_TOKEN,
+                    useValue: mockKodyAstAnalyzeContextPreparation,
+                },
+                {
+                    provide: CodeAnalysisOrchestrator,
+                    useValue: mockCodeAnalysisOrchestrator,
+                },
+            ],
+        }).compile();
+
+        stage = module.get<ProcessFilesReview>(ProcessFilesReview);
+        codeAnalysisOrchestrator = module.get<CodeAnalysisOrchestrator>(
+            CodeAnalysisOrchestrator,
+        );
+
+        context = {
+            pullRequest: { number: 1 } as any,
+            repository: { id: 'repo-1', name: 'repo' } as any,
+            organizationAndTeamData: {
+                organizationId: 'org-1',
+                teamId: 'team-1',
+            } as any,
+            changedFiles: [{ filename: 'test-file.ts' } as FileChange],
+            tasks: { astAnalysis: {} } as any,
+            errors: [],
+        } as CodeReviewPipelineContext;
+    });
+
+    it('should capture errors in executeFileAnalysis', async () => {
+        const error = new Error('Analysis failed');
+        (
+            codeAnalysisOrchestrator.executeStandardAnalysis as jest.Mock
+        ).mockRejectedValue(error);
+
+        // Mock prepareFileContext to return a context so executeFileAnalysis is called
+        (
+            fileReviewContextPreparation.prepareFileContext as jest.Mock
+        ).mockResolvedValue({
+            fileContext: {
+                fileChangeContext: {
+                    file: { filename: 'test-file.ts' },
+                    relevantContent: 'content',
+                    patchWithLinesStr: 'patch',
+                    hasRelevantContent: true,
+                },
+                organizationAndTeamData: context.organizationAndTeamData,
+                pullRequest: context.pullRequest,
+            },
+        });
+
+        await stage.execute(context);
+
+        expect(
+            fileReviewContextPreparation.prepareFileContext,
+        ).toHaveBeenCalled();
+        expect(context.errors).toHaveLength(1);
+        expect(context.errors[0]).toEqual(
+            expect.objectContaining({
+                stage: 'FileAnalysisStage',
+                substage: 'test-file.ts',
+                error: error,
+                metadata: {
+                    filename: 'test-file.ts',
+                },
+            }),
+        );
+    });
+});

@@ -60,13 +60,13 @@ export class CodeReviewHandlerService {
         userGitId?: string,
         workflowJobId?: string, // Optional: ID of workflow job (for pausing/resuming)
         lastExecutionData?: any, // Data from the last successful execution
+        correlationId?: string,
     ) {
         let initialContext: CodeReviewPipelineContext;
 
         try {
-            this.observabilityService.setContext(executionId);
-
             initialContext = {
+                correlationId,
                 workflowJobId,
                 dryRun: {
                     enabled: false,
@@ -75,7 +75,7 @@ export class CodeReviewHandlerService {
                     status: AutomationStatus.IN_PROGRESS,
                     message: 'Pipeline started',
                 },
-                pipelineVersion: '1.0.0',
+                pipelineVersion: '1.0.1',
                 errors: [],
                 organizationAndTeamData,
                 repository,
@@ -88,7 +88,10 @@ export class CodeReviewHandlerService {
                 triggerCommentId,
                 userGitId,
                 pipelineMetadata: {
-                    lastExecution: lastExecutionData || null,
+                    lastExecution: {
+                        ...(lastExecutionData || null),
+                        uuid: executionId,
+                    },
                 },
                 batches: [],
                 preparedFileContexts: [],
@@ -105,20 +108,7 @@ export class CodeReviewHandlerService {
                 },
                 externalPromptContext: {},
                 externalPromptLayers: undefined,
-                correlationId: executionId,
             };
-
-            this.logger.log({
-                message: `Starting code review pipeline for PR#${pullRequest.number}`,
-                context: CodeReviewHandlerService.name,
-                serviceName: CodeReviewHandlerService.name,
-                metadata: {
-                    organizationId: organizationAndTeamData.organizationId,
-                    teamId: organizationAndTeamData.teamId,
-                    pullRequestNumber: pullRequest.number,
-                    executionId,
-                },
-            });
 
             // Add START reaction before pipeline
             await this.addStatusReaction(

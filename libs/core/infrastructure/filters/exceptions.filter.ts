@@ -4,9 +4,12 @@ import {
     ExceptionFilter,
     ExecutionContext,
     HttpException,
+    Optional,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import * as Sentry from '@sentry/nestjs';
 import { StatusCodes, getReasonPhrase } from 'http-status-codes';
+import { MetricsCollectorService } from '@libs/core/infrastructure/metrics/metrics-collector.service';
 
 interface ExceptionResponse {
     statusCode?: number;
@@ -18,7 +21,13 @@ interface ExceptionResponse {
 @Catch()
 export class ExceptionsFilter implements ExceptionFilter {
     private readonly loggerService = createLogger(ExceptionsFilter.name);
-    constructor() {}
+    private readonly componentType: string;
+    constructor(
+        private readonly configService: ConfigService,
+        @Optional() private readonly metricsCollector?: MetricsCollectorService,
+    ) {
+        this.componentType = this.configService.get<string>('COMPONENT_TYPE', 'unknown');
+    }
 
     catch(exception: unknown, context: ExecutionContext): void {
         const response = context.switchToHttp().getResponse();
@@ -80,6 +89,16 @@ export class ExceptionsFilter implements ExceptionFilter {
                 exceptionType: exception.constructor.name,
             },
         });
+
+        // Record metrics for 5xx errors
+        if (status >= 500) {
+            const component = this.componentType;
+            this.metricsCollector?.recordCounter('http_errors_total', 1, {
+                component,
+                path: request.url,
+                statusCode: String(status),
+            });
+        }
 
         response.status(status).json({
             statusCode: status,

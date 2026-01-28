@@ -53,7 +53,7 @@ export class WorkflowJobRepository implements IWorkflowJobRepository {
 
             const saved = await repo.save(model);
 
-            this.logger.log({
+            this.logger.debug({
                 message: 'Workflow job created',
                 context: WorkflowJobRepository.name,
                 metadata: {

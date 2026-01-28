@@ -2,6 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import { v4 as uuidv4 } from 'uuid';
 import pLimit from 'p-limit';
 import { BasePipelineStage } from '@libs/core/infrastructure/pipeline/abstracts/base-stage.abstract';
+import { PipelineError } from '@libs/core/infrastructure/pipeline/interfaces/pipeline-context.interface';
 
 import {
     ISuggestionService,
@@ -42,6 +43,15 @@ import {
     CodeReviewPipelineContext,
     FileContextAgentResult,
 } from '../context/code-review-pipeline.context';
+
+interface FileProcessingResult {
+    file: FileChange;
+    validSuggestionsToAnalyze: Partial<CodeSuggestion>[];
+    discardedSuggestionsBySafeGuard: Partial<CodeSuggestion>[];
+    error?: PipelineError;
+    reviewMode?: any;
+    codeReviewModelUsed?: any;
+}
 
 @Injectable()
 export class ProcessFilesReview extends BasePipelineStage<CodeReviewPipelineContext> {
@@ -88,6 +98,7 @@ export class ProcessFilesReview extends BasePipelineStage<CodeReviewPipelineCont
                 discardedSuggestions,
                 fileMetadata,
                 tasks,
+                errors,
             } = await this.analyzeChangedFilesInBatches(context);
 
             return this.updateContext(context, (draft) => {
@@ -95,6 +106,9 @@ export class ProcessFilesReview extends BasePipelineStage<CodeReviewPipelineCont
                 draft.discardedSuggestions = discardedSuggestions;
                 draft.fileMetadata = fileMetadata;
                 draft.tasks = tasks;
+                if (errors?.length > 0) {
+                    draft.errors.push(...errors);
+                }
             });
         } catch (error) {
             this.logger.error({
@@ -125,6 +139,7 @@ export class ProcessFilesReview extends BasePipelineStage<CodeReviewPipelineCont
         fileMetadata: Map<string, any>;
         validCrossFileSuggestions: CodeSuggestion[];
         tasks: AnalysisContext['tasks'];
+        errors: PipelineError[];
     }> {
         const { organizationAndTeamData, pullRequest, changedFiles } = context;
         const analysisContext =
@@ -143,34 +158,51 @@ export class ProcessFilesReview extends BasePipelineStage<CodeReviewPipelineCont
 
             const batches = this.createOptimizedBatches(changedFiles);
 
-            // Criar um novo Map para esta execução
-            const fileMetadata = new Map<string, any>();
-
-            const execution = await this.runBatches(
+            const { results, tasks } = await this.runBatches(
                 batches,
                 analysisContext,
-                fileMetadata,
-                context.prAnalysisResults?.validCrossFileSuggestions,
             );
+
+            // Create collections
+            const validSuggestions: Partial<CodeSuggestion>[] = [];
+            const discardedSuggestions: Partial<CodeSuggestion>[] = [];
+            const fileMetadata = new Map<string, any>();
+            const errors: PipelineError[] = [];
+
+            // Process results
+            results.forEach((result) => {
+                if (result.error) {
+                    errors.push(result.error);
+                }
+
+                this.collectFileProcessingResult(
+                    result,
+                    validSuggestions,
+                    discardedSuggestions,
+                    fileMetadata,
+                );
+            });
 
             this.logger.log({
                 message: `Finished all batches - Analysis complete for PR#${pullRequest.number}`,
                 context: ProcessFilesReview.name,
                 metadata: {
-                    validSuggestionsCount: execution.validSuggestions.length,
-                    discardedCount: execution.discardedSuggestions.length,
-                    tasks: execution.tasks,
+                    validSuggestionsCount: validSuggestions.length,
+                    discardedCount: discardedSuggestions.length,
+                    tasks: tasks,
                     organizationAndTeamData: organizationAndTeamData,
                 },
             });
 
             // Retornar apenas os dados analisados sem criar comentários
             return {
-                validSuggestions: execution.validSuggestions,
-                discardedSuggestions: execution.discardedSuggestions,
+                validSuggestions: validSuggestions,
+                discardedSuggestions: discardedSuggestions,
                 fileMetadata: fileMetadata,
-                validCrossFileSuggestions: execution.validCrossFileSuggestions,
-                tasks: execution.tasks,
+                validCrossFileSuggestions:
+                    analysisContext.validCrossFileSuggestions || [],
+                tasks: tasks,
+                errors: errors,
             };
         } catch (error) {
             this.logProcessingError(
@@ -184,6 +216,7 @@ export class ProcessFilesReview extends BasePipelineStage<CodeReviewPipelineCont
                 fileMetadata: new Map(),
                 validCrossFileSuggestions: [],
                 tasks: { ...context.tasks },
+                errors: [],
             };
         }
     }
@@ -214,36 +247,24 @@ export class ProcessFilesReview extends BasePipelineStage<CodeReviewPipelineCont
     private async runBatches(
         batches: FileChange[][],
         context: AnalysisContext,
-        fileMetadata: Map<string, any>,
-        validCrossFileSuggestions: CodeSuggestion[],
     ): Promise<{
-        validSuggestions: Partial<CodeSuggestion>[];
-        discardedSuggestions: Partial<CodeSuggestion>[];
-        validCrossFileSuggestions: CodeSuggestion[];
+        results: FileProcessingResult[];
         tasks: AnalysisContext['tasks'];
     }> {
-        const validSuggestions: Partial<CodeSuggestion>[] = [];
-        const discardedSuggestions: Partial<CodeSuggestion>[] = [];
         const tasks: AnalysisContext['tasks'] = {
             astAnalysis: {
                 ...context.tasks.astAnalysis,
             },
         };
 
-        await this.processBatchesSequentially(
+        const results = await this.processBatchesSequentially(
             batches,
             context,
-            validSuggestions,
-            discardedSuggestions,
-            fileMetadata,
-            validCrossFileSuggestions,
             tasks,
         );
 
         return {
-            validSuggestions,
-            discardedSuggestions,
-            validCrossFileSuggestions,
+            results,
             tasks,
         };
     }
@@ -299,12 +320,10 @@ export class ProcessFilesReview extends BasePipelineStage<CodeReviewPipelineCont
     private async processBatchesSequentially(
         batches: FileChange[][],
         context: AnalysisContext,
-        validSuggestionsToAnalyze: Partial<CodeSuggestion>[],
-        discardedSuggestionsBySafeGuard: Partial<CodeSuggestion>[],
-        fileMetadata: Map<string, any>,
-        validCrossFileSuggestions: CodeSuggestion[],
         tasks: AnalysisContext['tasks'],
-    ): Promise<void> {
+    ): Promise<FileProcessingResult[]> {
+        const allResults: FileProcessingResult[] = [];
+
         for (const [index, batch] of batches.entries()) {
             this.logger.log({
                 message: `Processing batch ${index + 1}/${batches.length} with ${batch.length} files`,
@@ -312,15 +331,13 @@ export class ProcessFilesReview extends BasePipelineStage<CodeReviewPipelineCont
             });
 
             try {
-                await this.processSingleBatch(
+                const batchResults = await this.processSingleBatch(
                     batch,
                     context,
-                    validSuggestionsToAnalyze,
-                    discardedSuggestionsBySafeGuard,
                     index,
-                    fileMetadata,
                     tasks,
                 );
+                allResults.push(...batchResults);
             } catch (error) {
                 this.logger.error({
                     message: `Error processing batch ${index + 1}`,
@@ -335,17 +352,16 @@ export class ProcessFilesReview extends BasePipelineStage<CodeReviewPipelineCont
                 // Continuamos processando os próximos lotes mesmo se um falhar
             }
         }
+
+        return allResults;
     }
 
     private async processSingleBatch(
         batch: FileChange[],
         context: AnalysisContext,
-        validSuggestions: Partial<CodeSuggestion>[],
-        discardedSuggestions: Partial<CodeSuggestion>[],
         batchIndex: number,
-        fileMetadata: Map<string, any>,
         tasks: AnalysisContext['tasks'],
-    ): Promise<void> {
+    ): Promise<FileProcessingResult[]> {
         const { organizationAndTeamData, pullRequest } = context;
 
         // TESTAR
@@ -368,14 +384,11 @@ export class ProcessFilesReview extends BasePipelineStage<CodeReviewPipelineCont
             ),
         );
 
+        const batchResults: FileProcessingResult[] = [];
+
         results.forEach((result) => {
             if (result.status === 'fulfilled') {
-                this.collectFileProcessingResult(
-                    result.value,
-                    validSuggestions,
-                    discardedSuggestions,
-                    fileMetadata,
-                );
+                batchResults.push(result.value);
             } else {
                 this.logger.error({
                     message: `Error processing file in batch ${batchIndex + 1}`,
@@ -390,6 +403,8 @@ export class ProcessFilesReview extends BasePipelineStage<CodeReviewPipelineCont
                 });
             }
         });
+
+        return batchResults;
     }
 
     /**
@@ -475,7 +490,7 @@ export class ProcessFilesReview extends BasePipelineStage<CodeReviewPipelineCont
 
     private async executeFileAnalysis(
         baseContext: AnalysisContext,
-    ): Promise<IFinalAnalysisResult & { file: FileChange }> {
+    ): Promise<FileProcessingResult> {
         const { reviewModeResponse } = baseContext;
         const { file, relevantContent, patchWithLinesStr, hasRelevantContent } =
             baseContext.fileChangeContext;
@@ -530,6 +545,17 @@ export class ProcessFilesReview extends BasePipelineStage<CodeReviewPipelineCont
                 validSuggestionsToAnalyze: [],
                 discardedSuggestionsBySafeGuard: [],
                 file,
+                error: {
+                    stage: this.stageName,
+                    substage: file.filename,
+                    error:
+                        error instanceof Error
+                            ? error
+                            : new Error(String(error)),
+                    metadata: {
+                        filename: file.filename,
+                    },
+                },
             };
         }
     }

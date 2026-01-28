@@ -78,16 +78,6 @@ export class EnqueueWebhookUseCase implements IUseCase {
                 retryCount: 0,
                 maxRetries: 1,
             });
-
-            this.logger.log({
-                message: 'Raw webhook payload enqueued successfully',
-                context: EnqueueWebhookUseCase.name,
-                metadata: {
-                    correlationId,
-                    platformType,
-                    event: input.event,
-                },
-            });
         } catch (error) {
             this.logger.error({
                 message: 'Failed to enqueue raw webhook payload',

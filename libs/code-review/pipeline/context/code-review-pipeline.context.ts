@@ -148,7 +148,7 @@ export interface CodeReviewPipelineContext extends PipelineContext {
 
     fileContextMap?: Record<string, FileContextAgentResult>;
 
-    correlationId: string;
+    correlationId?: string;
 }
 
 export interface FileContextAgentResult {

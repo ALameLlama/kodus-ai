@@ -41,6 +41,7 @@ describe('CodeReviewPipelineObserver', () => {
             pullRequest: { number: 123 } as any,
             repository: { id: 'repo-1' } as any,
             organizationAndTeamData: { organizationId: 'org-1' } as any,
+            correlationId: 'exec-1',
         };
     });
 
@@ -205,6 +206,7 @@ describe('CodeReviewPipelineObserver', () => {
 
     it('should attempt to recover execution UUID if missing on stage finish', async () => {
         context.pipelineMetadata!.lastExecution = undefined;
+        context.correlationId = undefined as any;
         // Mock recovery success
         mockService.findLatestExecutionByFilters.mockResolvedValue({
             uuid: 'recovered-exec-uuid',
@@ -245,6 +247,7 @@ describe('CodeReviewPipelineObserver', () => {
 
     it('should fallback to default behavior if recovery fails', async () => {
         context.pipelineMetadata!.lastExecution = undefined;
+        context.correlationId = undefined as any;
         // Mock recovery failure
         mockService.findLatestExecutionByFilters.mockResolvedValue(null);
 
@@ -267,6 +270,26 @@ describe('CodeReviewPipelineObserver', () => {
             }),
             expect.objectContaining({ status: AutomationStatus.SUCCESS }),
             'Completed stage TestStage',
+            'TestStage',
+            undefined,
+        );
+    });
+
+    it('should use correlationId as executionUuid if available', async () => {
+        context.pipelineMetadata!.lastExecution = undefined;
+        context.correlationId = 'correlation-uuid';
+
+        await observer.onStageStart(
+            'TestStage',
+            context as CodeReviewPipelineContext,
+        );
+
+        expect(mockService.updateCodeReview).toHaveBeenCalledWith(
+            expect.objectContaining({
+                uuid: 'correlation-uuid',
+            }),
+            expect.objectContaining({ status: AutomationStatus.IN_PROGRESS }),
+            'Starting stage TestStage',
             'TestStage',
             undefined,
         );

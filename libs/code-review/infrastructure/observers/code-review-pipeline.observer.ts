@@ -29,7 +29,7 @@ export class CodeReviewPipelineObserver implements IPipelineObserver {
             AutomationStatus.IN_PROGRESS,
             `Starting stage ${stageName}`,
             context,
-            visibility,
+            { visibility },
         );
     }
 
@@ -37,11 +37,26 @@ export class CodeReviewPipelineObserver implements IPipelineObserver {
         stageName: string,
         context: CodeReviewPipelineContext,
     ): Promise<void> {
+        const errors =
+            context.errors?.filter((e) => e.stage === stageName) || [];
+        let additionalMetadata: Record<string, any> | undefined;
+
+        if (errors.length > 0) {
+            additionalMetadata = {
+                partialErrors: errors.map((e) => ({
+                    file: e.substage || 'unknown',
+                    message: e.error?.message || String(e.error),
+                    ...e.metadata,
+                })),
+            };
+        }
+
         await this.logStage(
             stageName,
             AutomationStatus.SUCCESS,
             `Completed stage ${stageName}`,
             context,
+            { additionalMetadata },
         );
     }
 
@@ -76,7 +91,10 @@ export class CodeReviewPipelineObserver implements IPipelineObserver {
         status: AutomationStatus,
         message: string,
         context: CodeReviewPipelineContext,
-        visibility?: StageVisibility,
+        options?: {
+            visibility?: StageVisibility;
+            additionalMetadata?: Record<string, any>;
+        },
     ): Promise<void> {
         let executionUuid = context.pipelineMetadata?.lastExecution?.uuid;
         const pullRequestNumber = context.pullRequest?.number;
@@ -97,7 +115,15 @@ export class CodeReviewPipelineObserver implements IPipelineObserver {
             return;
         }
 
-        const metadata = visibility ? { visibility } : undefined;
+        const { visibility, additionalMetadata } = options || {};
+        const metadata = visibility ? { visibility } : {};
+
+        if (additionalMetadata) {
+            Object.assign(metadata, additionalMetadata);
+        }
+
+        const metadataToSend =
+            Object.keys(metadata).length > 0 ? metadata : undefined;
 
         if (status === AutomationStatus.IN_PROGRESS) {
             const filter: Partial<IAutomationExecution> = executionUuid
@@ -109,7 +135,7 @@ export class CodeReviewPipelineObserver implements IPipelineObserver {
                 { status },
                 message,
                 stageName,
-                metadata,
+                metadataToSend,
             );
             return;
         }
@@ -148,10 +174,10 @@ export class CodeReviewPipelineObserver implements IPipelineObserver {
                     updateData.finishedAt = new Date();
                 }
 
-                if (metadata) {
+                if (metadataToSend) {
                     updateData.metadata = {
                         ...updateData.metadata,
-                        ...metadata,
+                        ...metadataToSend,
                     };
                 }
 
@@ -172,7 +198,7 @@ export class CodeReviewPipelineObserver implements IPipelineObserver {
             { status },
             message,
             stageName,
-            metadata,
+            metadataToSend,
         );
     }
 }

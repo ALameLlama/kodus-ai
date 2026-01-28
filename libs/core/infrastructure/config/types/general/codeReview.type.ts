@@ -102,6 +102,7 @@ export type AnalysisContext<TPullRequest = any> = {
     platformType: string;
     action?: string;
     baseDir?: string;
+    correlationId?: string;
     impactASTAnalysis?: GetImpactAnalysisResponse;
     reviewModeResponse?: ReviewModeResponse;
     kodyFineTuningConfig?: KodyFineTuningConfig;
@@ -114,12 +115,10 @@ export type AnalysisContext<TPullRequest = any> = {
             status?: TaskStatus;
             hasRelevantContent?: boolean;
         };
-    };
-    /** External file content and metadata loaded by PromptContextLoader. */
+    }; /** External file content and metadata loaded by PromptContextLoader. */
     externalPromptContext?: any;
     /** Set of layers ready for ContextPack composition (files, instructions). */
     externalPromptLayers?: ContextLayer[];
-    correlationId: string;
     /** Shared ContextPack with instructions and external layers for analysis stages. */
     sharedContextPack?: ContextPack;
     /** Overrides resolved per file, used in context preparation by file. */

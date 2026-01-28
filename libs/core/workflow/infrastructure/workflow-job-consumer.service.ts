@@ -319,17 +319,6 @@ export class WorkflowJobConsumer implements OnApplicationShutdown {
                         consumerId,
                     );
 
-                    this.logger.log({
-                        message: 'Workflow job processed successfully',
-                        context: WorkflowJobConsumer.name,
-                        metadata: {
-                            messageId,
-                            jobId: unwrappedMessage.jobId,
-                            correlationId,
-                            queueName,
-                        },
-                    });
-
                     span.setAttributes({
                         'workflow.job.processed': true,
                     });
@@ -354,14 +343,19 @@ export class WorkflowJobConsumer implements OnApplicationShutdown {
 
                     // CRITICAL: Always mark job as FAILED to prevent stuck PENDING jobs
                     try {
-                        await this.jobRepository.update(unwrappedMessage.jobId, {
-                            status: JobStatus.FAILED,
-                            errorClassification: ErrorClassification.PERMANENT,
-                            lastError: error.message,
-                        });
+                        await this.jobRepository.update(
+                            unwrappedMessage.jobId,
+                            {
+                                status: JobStatus.FAILED,
+                                errorClassification:
+                                    ErrorClassification.PERMANENT,
+                                lastError: error.message,
+                            },
+                        );
 
                         this.logger.log({
-                            message: 'Job marked as FAILED after processing error',
+                            message:
+                                'Job marked as FAILED after processing error',
                             context: WorkflowJobConsumer.name,
                             metadata: {
                                 jobId: unwrappedMessage.jobId,

@@ -4,6 +4,7 @@ import { PipelineContext } from '../interfaces/pipeline-context.interface';
 import { createLogger } from '@kodus/flow';
 import { PipelineStage } from '../interfaces/pipeline.interface';
 import { AutomationStatus } from '@libs/automation/domain/automation/enum/automation-status';
+import { MetricsCollectorService } from '@libs/core/infrastructure/metrics/metrics-collector.service';
 import { IPipelineObserver } from '../interfaces/pipeline-observer.interface';
 
 type SkipDecision = 'EXECUTE_STAGE' | 'SKIP_STAGE' | 'ABORT_PIPELINE';
@@ -11,7 +12,7 @@ type SkipDecision = 'EXECUTE_STAGE' | 'SKIP_STAGE' | 'ABORT_PIPELINE';
 export class PipelineExecutor<TContext extends PipelineContext> {
     private readonly logger = createLogger(PipelineExecutor.name);
 
-    constructor() {}
+    constructor(private readonly metricsCollector?: MetricsCollectorService) {}
 
     async execute(
         context: TContext,
@@ -88,14 +89,18 @@ export class PipelineExecutor<TContext extends PipelineContext> {
                     'onStageFinish',
                 );
 
+                const stageDurationMs = Date.now() - start;
+                this.metricsCollector?.recordHistogram(
+                    'pipeline_stage_duration_ms',
+                    stageDurationMs,
+                    { pipeline: pipelineName, stage: stage.stageName },
+                );
+
                 this.logger.log({
-                    message: `Stage '${stage.stageName}' completed in ${
-                        Date.now() - start
-                    }ms: ${pipelineId}`,
+                    message: `Stage '${stage.stageName}' completed in ${stageDurationMs}ms: ${pipelineId}`,
                     context: PipelineExecutor.name,
                     serviceName: PipelineExecutor.name,
                     metadata: {
-                        task: (context as any)?.tasks ?? null,
                         ...context?.pipelineMetadata,
                         stage: stage.stageName,
                         correlationId: (context as any)?.correlationId ?? null,
@@ -109,6 +114,12 @@ export class PipelineExecutor<TContext extends PipelineContext> {
                     observers,
                     (obs) => obs.onStageError(stage.stageName, error, context),
                     'onStageError',
+                );
+
+                this.metricsCollector?.recordCounter(
+                    'pipeline_stage_errors_total',
+                    1,
+                    { pipeline: pipelineName, stage: stage.stageName },
                 );
 
                 this.logger.error({
@@ -240,18 +251,6 @@ export class PipelineExecutor<TContext extends PipelineContext> {
             });
             return { decision: 'SKIP_STAGE', newContext: context };
         }
-
-        this.logger.log({
-            message: `Resuming pipeline execution at stage: ${stage.stageName}`,
-            context: PipelineExecutor.name,
-            serviceName: PipelineExecutor.name,
-            metadata: {
-                ...context?.pipelineMetadata,
-                stage: stage.stageName,
-                correlationId: (context as any)?.correlationId ?? null,
-                status: context.statusInfo,
-            },
-        });
 
         const newContext = produce(context, (draft) => {
             draft.statusInfo.skippedReason = {

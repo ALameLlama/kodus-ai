@@ -44,14 +44,6 @@ export class ProcessWorkflowJobUseCase implements IUseCase {
                     span.setAttributes({
                         'workflow.job.processed': true,
                     });
-
-                    this.logger.log({
-                        message: 'Workflow job processed successfully',
-                        context: ProcessWorkflowJobUseCase.name,
-                        metadata: {
-                            jobId: input.jobId,
-                        },
-                    });
                 } catch (error) {
                     span.setAttributes({
                         'error': true,

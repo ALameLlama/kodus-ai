@@ -1,4 +1,4 @@
-import { createLogger } from '@kodus/flow';
+import { createLogger, getObservability } from '@kodus/flow';
 import { Inject, Injectable } from '@nestjs/common';
 import { MoreThanOrEqual } from 'typeorm';
 
@@ -77,6 +77,9 @@ export class AutomationCodeReviewService implements Omit<
     }
 
     async run?(payload?: any): Promise<any> {
+        const obs = getObservability();
+        const correlationId = obs.getContext()?.correlationId;
+
         const {
             organizationAndTeamData,
             repository,
@@ -208,6 +211,7 @@ export class AutomationCodeReviewService implements Omit<
                     userGitId,
                     undefined, // workflowJobId
                     lastExecution?.dataExecution, // Pass last execution data
+                    correlationId,
                 );
 
             await this._handleExecutionCompletion(execution, result, payload);

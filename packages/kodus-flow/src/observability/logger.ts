@@ -141,6 +141,11 @@ export class SimpleLogger {
         const contextStr = this.extractContextInfo(context);
         const baseLogger = getPinoLogger();
 
+        // Respect API_LOG_LEVEL for both stdout and processors (Mongo exporter).
+        if (!baseLogger.isLevelEnabled(level)) {
+            return;
+        }
+
         const childLogger = baseLogger.child({
             serviceName: effectiveServiceName,
             context: contextStr,

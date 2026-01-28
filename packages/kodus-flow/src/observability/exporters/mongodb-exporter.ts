@@ -635,6 +635,23 @@ export class MongoDBExporter implements LogProcessor, ObservabilityExporter {
             'tenantId',
         ];
 
+        // Normalize context for bucketing (e.g. flatten organizationAndTeamData)
+        const normalizedContext: Record<string, any> = {
+            ...(context || {}),
+        };
+        const orgTeam = (context as any)?.organizationAndTeamData;
+        if (orgTeam && typeof orgTeam === 'object') {
+            if (!normalizedContext.organizationId && orgTeam.organizationId) {
+                normalizedContext.organizationId = orgTeam.organizationId;
+            }
+            if (!normalizedContext.teamId && orgTeam.teamId) {
+                normalizedContext.teamId = orgTeam.teamId;
+            }
+            if (!normalizedContext.tenantId && orgTeam.tenantId) {
+                normalizedContext.tenantId = orgTeam.tenantId;
+            }
+        }
+
         // Metadata: Only contains Low-Cardinality fields for grouping
         const metadata: Record<string, any> = {
             component,
@@ -643,8 +660,8 @@ export class MongoDBExporter implements LogProcessor, ObservabilityExporter {
 
         // Attributes: Contains high-cardinality details (Payload)
         const attributes = {
-            ...context,
-            originalCorrelationId: context?.correlationId,
+            ...normalizedContext,
+            originalCorrelationId: normalizedContext?.correlationId,
         };
 
         // Extract configured bucket keys from context
@@ -652,7 +669,7 @@ export class MongoDBExporter implements LogProcessor, ObservabilityExporter {
             // Skip already set basic fields
             if (key === 'component' || key === 'level') continue;
 
-            const value = (context as any)?.[key];
+            const value = normalizedContext?.[key];
             if (value) {
                 metadata[key] = value;
             } else {
@@ -663,11 +680,12 @@ export class MongoDBExporter implements LogProcessor, ObservabilityExporter {
 
         // Ensure correlationId always exists (Index Key)
         const correlationId =
-            (context?.correlationId as string) || randomUUID();
+            (normalizedContext?.correlationId as string) || randomUUID();
 
         // Ensure tenantId exists in metadata (common requirement)
         if (!metadata.tenantId) {
-            metadata.tenantId = (context?.tenantId as string) || 'unknown';
+            metadata.tenantId =
+                (normalizedContext?.tenantId as string) || 'unknown';
         }
 
         const logItem: MongoDBLogItem = {
@@ -677,8 +695,8 @@ export class MongoDBExporter implements LogProcessor, ObservabilityExporter {
             component,
             correlationId, // Guaranteed UUID
             tenantId: metadata.tenantId,
-            executionId: context?.executionId as string | undefined,
-            sessionId: context?.sessionId as string | undefined,
+            executionId: normalizedContext?.executionId as string | undefined,
+            sessionId: normalizedContext?.sessionId as string | undefined,
             metadata, // Clean bucket key
             attributes, // Detailed payload (schema-less)
             error: error

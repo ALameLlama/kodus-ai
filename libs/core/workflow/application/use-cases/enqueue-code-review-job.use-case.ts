@@ -57,15 +57,6 @@ export class EnqueueCodeReviewJobUseCase implements IUseCase {
                 maxRetries: 1,
             });
 
-            this.logger.log({
-                message: 'Code review job enqueued successfully',
-                context: EnqueueCodeReviewJobUseCase.name,
-                metadata: {
-                    jobId,
-                    correlationId,
-                },
-            });
-
             return jobId;
         } catch (error) {
             this.logger.error({

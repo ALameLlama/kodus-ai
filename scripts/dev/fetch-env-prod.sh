@@ -159,6 +159,12 @@ KEYS=(
     "/prod/kodus-orchestrator/API_CEREBRAS_API_KEY"
 
     "/prod/kodus-orchestrator/API_MORPHLLM_API_KEY"
+
+    "/prod/kodus-orchestrator/API_BETTERSTACK_API_TOKEN"
+    "/prod/kodus-orchestrator/API_BETTERSTACK_HEARTBEAT_ERROR_RATE_URL"
+    "/prod/kodus-orchestrator/API_BETTERSTACK_HEARTBEAT_REVIEW_MONITOR_URL"
+    "/prod/kodus-orchestrator/API_BETTERSTACK_HEARTBEAT_OUTBOX_URL"
+    "/prod/kodus-orchestrator/API_BETTERSTACK_HEARTBEAT_WEBHOOK_URL"
 )
 
 # Lista de todas as chaves que você precisa

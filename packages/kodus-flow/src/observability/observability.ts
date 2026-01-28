@@ -102,7 +102,11 @@ export class ObservabilitySystem {
         try {
             setObservabilityContextProvider(() => {
                 const ctx = this.getContext();
-                if (!ctx) return undefined;
+
+                if (!ctx) {
+                    return undefined;
+                }
+
                 return {
                     correlationId: ctx.correlationId,
                     tenantId: ctx.tenantId,

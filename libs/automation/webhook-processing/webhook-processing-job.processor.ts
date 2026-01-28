@@ -76,7 +76,7 @@ export class WebhookProcessingJobProcessorService implements IJobProcessorServic
                 });
             }
 
-            this.logger.log({
+            this.logger.debug({
                 message: `Processing WEBHOOK_PROCESSING job ${jobId}`,
                 context: WebhookProcessingJobProcessorService.name,
                 metadata: {
@@ -99,9 +99,7 @@ export class WebhookProcessingJobProcessorService implements IJobProcessorServic
 
                 const event = job.metadata?.event as string | undefined;
                 if (!event) {
-                    throw new Error(
-                        `Job ${jobId} missing event in metadata`,
-                    );
+                    throw new Error(`Job ${jobId} missing event in metadata`);
                 }
 
                 // Get handler for platform

@@ -87,7 +87,7 @@ export class WorkflowJobQueueService implements IJobQueueService {
                             transactionManager,
                         );
 
-                        this.logger.log({
+                        this.logger.debug({
                             message:
                                 'Workflow job and outbox message created (Transactional)',
                             context: WorkflowJobQueueService.name,

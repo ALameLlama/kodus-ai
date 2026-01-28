@@ -5,7 +5,10 @@ export interface CodeReviewExecutionTimeline {
     createdAt: Date;
     updatedAt: Date;
     status: AutomationStatus;
+    stageName?: string;
     message?: string;
+    metadata?: Record<string, any>;
+    finishedAt?: Date;
 }
 
 export interface EnrichedPullRequestResponse {
@@ -32,6 +35,10 @@ export interface EnrichedPullRequestResponse {
     };
     isDraft: boolean;
     suggestionsCount: { sent: number; filtered: number };
+    reviewedCommitSha?: string;
+    reviewedCommitUrl?: string;
+    compareUrl?: string;
+    executionId?: string;
 
     // Dados da execução de automação (do PostgreSQL)
     automationExecution: {

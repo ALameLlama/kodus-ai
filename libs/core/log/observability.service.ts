@@ -143,7 +143,7 @@ export class ObservabilityService implements OnModuleInit {
         options: ObservabilityConfig,
     ) {
         const correlationId =
-            options.correlationId || this.generateCorrelationId();
+            options.correlationId || IdGenerator.correlationId();
         const key = this.makeKey(config, options.serviceName);
 
         let obs = this.instances.get(key);
@@ -578,10 +578,6 @@ export class ObservabilityService implements OnModuleInit {
         });
     }
 
-    generateCorrelationId(): string {
-        return IdGenerator.correlationId();
-    }
-
     async ensureContext(
         config: DatabaseConnection,
         serviceName: string,
@@ -589,7 +585,7 @@ export class ObservabilityService implements OnModuleInit {
     ) {
         await this.initializeObservability(config, {
             serviceName,
-            correlationId: correlationId || this.generateCorrelationId(),
+            correlationId: correlationId || IdGenerator.correlationId(),
         });
     }
 }
