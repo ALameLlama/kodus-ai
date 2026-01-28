@@ -4,13 +4,16 @@ import { PipelineContext } from '../interfaces/pipeline-context.interface';
 import { createLogger } from '@kodus/flow';
 import { PipelineStage } from '../interfaces/pipeline.interface';
 import { AutomationStatus } from '@libs/automation/domain/automation/enum/automation-status';
+import { MetricsCollectorService } from '@libs/core/infrastructure/metrics/metrics-collector.service';
 
 type SkipDecision = 'EXECUTE_STAGE' | 'SKIP_STAGE' | 'ABORT_PIPELINE';
 
 export class PipelineExecutor<TContext extends PipelineContext> {
     private readonly logger = createLogger(PipelineExecutor.name);
 
-    constructor() {}
+    constructor(
+        private readonly metricsCollector?: MetricsCollectorService,
+    ) {}
 
     async execute(
         context: TContext,
@@ -68,10 +71,15 @@ export class PipelineExecutor<TContext extends PipelineContext> {
             try {
                 context = await stage.execute(context);
 
+                const stageDurationMs = Date.now() - start;
+                this.metricsCollector?.recordHistogram(
+                    'pipeline_stage_duration_ms',
+                    stageDurationMs,
+                    { pipeline: pipelineName, stage: stage.stageName },
+                );
+
                 this.logger.log({
-                    message: `Stage '${stage.stageName}' completed in ${
-                        Date.now() - start
-                    }ms: ${pipelineId}`,
+                    message: `Stage '${stage.stageName}' completed in ${stageDurationMs}ms: ${pipelineId}`,
                     context: PipelineExecutor.name,
                     serviceName: PipelineExecutor.name,
                     metadata: {
@@ -85,6 +93,12 @@ export class PipelineExecutor<TContext extends PipelineContext> {
                     },
                 });
             } catch (error) {
+                this.metricsCollector?.recordCounter(
+                    'pipeline_stage_errors_total',
+                    1,
+                    { pipeline: pipelineName, stage: stage.stageName },
+                );
+
                 this.logger.error({
                     message: `Stage '${stage.stageName}' failed: ${error.message}`,
                     context: PipelineExecutor.name,

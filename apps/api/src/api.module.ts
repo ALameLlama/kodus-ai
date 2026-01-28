@@ -10,6 +10,9 @@ import { CodebaseModule } from '@libs/code-review/modules/codebase.module';
 import { PullRequestsModule } from '@libs/code-review/modules/pull-requests.module';
 import { PullRequestMessagesModule } from '@libs/code-review/modules/pullRequestMessages.module';
 import { HealthModule } from '@libs/core/health/health.module';
+import { IncidentModule } from '@libs/core/infrastructure/incident/incident.module';
+import { MetricsModule } from '@libs/core/infrastructure/metrics/metrics.module';
+import { MetricsController } from '@libs/core/infrastructure/metrics/metrics.controller';
 import { RabbitMQWrapperModule } from '@libs/core/infrastructure/queue/rabbitmq.module';
 import { WorkflowModule } from '@libs/core/workflow/modules/workflow.module';
 import { DryRunModule } from '@libs/dryRun/dry-run.module';
@@ -84,6 +87,8 @@ import { ConfigService } from '@nestjs/config';
         SharedConfigModule,
         SharedLogModule,
         SharedObservabilityModule,
+        IncidentModule,
+        MetricsModule,
         SharedPostgresModule.forRoot({ poolSize: 25 }),
         SharedMongoModule.forRoot(),
         RabbitMQWrapperModule.register({ enableConsumers: false }),
@@ -151,6 +156,7 @@ import { ConfigService } from '@nestjs/config';
         UsersController,
         CliReviewController,
         SSOConfigController,
+        MetricsController,
     ],
 })
 export class ApiModule {}
