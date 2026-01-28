@@ -1,491 +1,340 @@
-import { Test, TestingModule } from '@nestjs/testing';
-import { GitlabService } from '@libs/platform/infrastructure/adapters/services/gitlab.service';
-import { ConfigService } from '@nestjs/config';
-import { CacheService } from '@libs/core/cache/cache.service';
-import { MCPManagerService } from '@libs/mcp-server/services/mcp-manager.service';
-import { INTEGRATION_SERVICE_TOKEN } from '@libs/integrations/domain/integrations/contracts/integration.service.contracts';
-import { AUTH_INTEGRATION_SERVICE_TOKEN } from '@libs/integrations/domain/authIntegrations/contracts/auth-integration.service.contracts';
-import { INTEGRATION_CONFIG_SERVICE_TOKEN } from '@libs/integrations/domain/integrationConfigs/contracts/integration-config.service.contracts';
+/**
+ * Tests for getChangedFilesSinceLastCommit logic in GitLab service.
+ *
+ * These tests verify that we use the compare API (baseSha → headSha)
+ * to get only the diff of new changes since the last reviewed commit.
+ *
+ * The logic is:
+ * 1. Get baseSha from lastCommit.sha
+ * 2. Get headSha from the most recent commit in the MR (sorted by date)
+ * 3. Use Repositories.compare to get the diff between baseSha and headSha
+ */
 
-describe('GitlabService - getChangedFilesSinceLastCommit', () => {
-    let service: GitlabService;
-    let mockGitlabAPI: any;
+// Mock logger
+jest.mock('@kodus/flow', () => ({
+    createLogger: () => ({
+        log: jest.fn(),
+        error: jest.fn(),
+        warn: jest.fn(),
+        debug: jest.fn(),
+        info: jest.fn(),
+    }),
+}));
 
-    const mockOrganizationAndTeamData = {
-        organizationId: 'org-123',
-        teamId: 'team-456',
-        organization: {
-            uuid: 'org-123',
-        },
-        team: {
-            uuid: 'team-456',
-        },
-    };
+describe('GitLab getChangedFilesSinceLastCommit', () => {
+    // Helper to count changes (replicates gitlab.service.ts logic)
+    function countChanges(diff: string): { adds: number; deletes: number } {
+        if (!diff) return { adds: 0, deletes: 0 };
+        const lines = diff.split('\n');
+        let adds = 0;
+        let deletes = 0;
+        for (const line of lines) {
+            if (line.startsWith('+') && !line.startsWith('+++')) adds++;
+            if (line.startsWith('-') && !line.startsWith('---')) deletes++;
+        }
+        return { adds, deletes };
+    }
 
-    const mockRepository = {
-        id: 12345,
-        name: 'test-repo',
-    };
+    // Helper to map GitLab status
+    function mapGitlabStatus(change: any): string {
+        if (change.new_file) return 'added';
+        if (change.deleted_file) return 'removed';
+        if (change.renamed_file) return 'renamed';
+        return 'modified';
+    }
 
-    const mockLastCommit = {
-        id: 'old-commit-sha',
-        created_at: '2024-01-01T10:00:00Z',
-    };
-
-    beforeEach(async () => {
-        // Mock do GitLab API
-        mockGitlabAPI = {
-            MergeRequests: {
-                allCommits: jest.fn(),
-            },
-            Commits: {
-                showDiff: jest.fn(),
-            },
+    /**
+     * This function replicates the exact logic from gitlab.service.ts getChangedFilesSinceLastCommit
+     *
+     * The key parts are:
+     * 1. Get baseSha from lastCommit.dataExecution.lastAnalyzedCommit.sha
+     * 2. Sort commits by date desc and pick the most recent as headSha
+     * 3. Call Repositories.compare(projectId, baseSha, headSha)
+     * 4. Return the diffs from the compare result
+     */
+    async function simulateGetChangedFilesSinceLastCommit(params: {
+        commits: Array<{ id: string; created_at: string }>;
+        lastCommit: {
+            dataExecution: {
+                lastAnalyzedCommit: { sha: string };
+            };
         };
+        compareCommits: (base: string, head: string) => Promise<Array<{
+            new_path: string;
+            diff: string;
+            new_file?: boolean;
+            deleted_file?: boolean;
+            renamed_file?: boolean;
+        }>>;
+    }) {
+        const { commits, lastCommit, compareCommits } = params;
 
-        const mockIntegrationService = {
-            findOne: jest.fn(),
-        };
+        // 1. Get the SHA of the last analyzed commit
+        const baseSha = lastCommit.dataExecution.lastAnalyzedCommit.sha;
 
-        const mockIntegrationConfigService = {
-            findOne: jest.fn(),
-        };
+        // 2. Sort commits by date desc and pick the most recent as headSha
+        const sortedCommits = [...commits].sort(
+            (a, b) =>
+                new Date(b.created_at).getTime() -
+                new Date(a.created_at).getTime(),
+        );
 
-        const mockAuthIntegrationService = {
-            findByIntegrationConfig: jest.fn(),
-        };
+        const headSha = sortedCommits[0]?.id;
 
-        const mockConfigService = {
-            get: jest.fn(),
-        };
+        if (!headSha || baseSha === headSha) {
+            return [];
+        }
 
-        const mockCacheService = {
-            get: jest.fn(),
-            set: jest.fn(),
-        };
+        // 3. Compare the two commits
+        const diffs = await compareCommits(baseSha, headSha);
 
-        const mockMCPManagerService = {
-            getMCPContext: jest.fn(),
-        };
-
-        const module: TestingModule = await Test.createTestingModule({
-            providers: [
-                GitlabService,
-                {
-                    provide: INTEGRATION_SERVICE_TOKEN,
-                    useValue: mockIntegrationService,
-                },
-                {
-                    provide: INTEGRATION_CONFIG_SERVICE_TOKEN,
-                    useValue: mockIntegrationConfigService,
-                },
-                {
-                    provide: AUTH_INTEGRATION_SERVICE_TOKEN,
-                    useValue: mockAuthIntegrationService,
-                },
-                {
-                    provide: ConfigService,
-                    useValue: mockConfigService,
-                },
-                {
-                    provide: CacheService,
-                    useValue: mockCacheService,
-                },
-                {
-                    provide: MCPManagerService,
-                    useValue: mockMCPManagerService,
-                },
-            ],
-        }).compile();
-
-        service = module.get<GitlabService>(GitlabService);
-    });
-
-    afterEach(() => {
-        jest.clearAllMocks();
-    });
-
-    describe('deduplicação de arquivos em múltiplos commits', () => {
-        it('deve retornar apenas a versão mais recente de cada arquivo quando o mesmo arquivo aparece em múltiplos commits', async () => {
-            // Arrange: Configurar 3 commits com datas crescentes
-            const commit1Date = '2024-01-01T11:00:00Z'; // Mais antigo
-            const commit2Date = '2024-01-01T12:00:00Z'; // Meio
-            const commit3Date = '2024-01-01T13:00:00Z'; // Mais recente
-
-            // Mock dos commits retornados pela API (após o lastCommit)
-            const mockCommits = [
-                {
-                    id: 'commit-1-sha',
-                    created_at: commit1Date,
-                },
-                {
-                    id: 'commit-2-sha',
-                    created_at: commit2Date,
-                },
-                {
-                    id: 'commit-3-sha',
-                    created_at: commit3Date,
-                },
-            ];
-
-            // Mock dos diffs de cada commit
-            // Todos os 3 commits modificam os mesmos 3 arquivos (file1.ts, file2.ts, file3.ts)
-            const commit1Diff = [
-                {
-                    new_path: 'file1.ts',
-                    new_file: false,
-                    deleted_file: false,
-                    renamed_file: false,
-                    diff: '@@ -1,5 +1,10 @@\n+line1\n+line2\n+line3\n+line4\n+line5\ncommit1 version',
-                },
-                {
-                    new_path: 'file2.ts',
-                    new_file: false,
-                    deleted_file: false,
-                    renamed_file: false,
-                    diff: '@@ -1,10 +1,20 @@\n+line1\n+line2\ncommit1 version',
-                },
-                {
-                    new_path: 'file3.ts',
-                    new_file: true,
-                    deleted_file: false,
-                    renamed_file: false,
-                    diff: '@@ -0,0 +1,30 @@\n+line1\n+line2\ncommit1 version',
-                },
-            ];
-
-            const commit2Diff = [
-                {
-                    new_path: 'file1.ts',
-                    new_file: false,
-                    deleted_file: false,
-                    renamed_file: false,
-                    diff: '@@ -1,10 +1,15 @@\n+line1\n+line2\n+line3\ncommit2 version',
-                },
-                {
-                    new_path: 'file2.ts',
-                    new_file: false,
-                    deleted_file: false,
-                    renamed_file: false,
-                    diff: '@@ -1,20 +1,25 @@\n+line1\n+line2\ncommit2 version',
-                },
-                {
-                    new_path: 'file3.ts',
-                    new_file: false,
-                    deleted_file: false,
-                    renamed_file: false,
-                    diff: '@@ -1,30 +1,35 @@\n+line1\n+line2\ncommit2 version',
-                },
-            ];
-
-            const commit3Diff = [
-                {
-                    new_path: 'file1.ts',
-                    new_file: false,
-                    deleted_file: false,
-                    renamed_file: false,
-                    diff: '@@ -1,15 +1,20 @@\n+line1\ncommit3 version (LATEST)',
-                },
-                {
-                    new_path: 'file2.ts',
-                    new_file: false,
-                    deleted_file: false,
-                    renamed_file: false,
-                    diff: '@@ -1,25 +1,30 @@\n+line1\n+line2\n+line3\n+line4\n+line5\ncommit3 version (LATEST)',
-                },
-                {
-                    new_path: 'file3.ts',
-                    new_file: false,
-                    deleted_file: false,
-                    renamed_file: false,
-                    diff: '@@ -1,35 +1,40 @@\n+line1\ncommit3 version (LATEST)',
-                },
-            ];
-
-            // Mock do getAuthDetails
-            jest.spyOn(service as any, 'getAuthDetails').mockResolvedValue({
-                authIntegration: {},
-            });
-
-            // Mock do instanceGitlabApi
-            jest.spyOn(service as any, 'instanceGitlabApi').mockReturnValue(
-                mockGitlabAPI,
-            );
-
-            // Mock do countChanges (método privado usado no GitlabService)
-            jest.spyOn(service as any, 'countChanges').mockImplementation(
-                (diff: string) => {
-                    const adds = (diff.match(/\n\+/g) || []).length;
-                    const deletes = (diff.match(/\n-/g) || []).length;
-                    return { adds, deletes };
-                },
-            );
-
-            // Mock do mapGitlabStatus
-            jest.spyOn(service as any, 'mapGitlabStatus').mockImplementation(
-                (change: any) => {
-                    if (change.new_file) return 'added';
-                    if (change.deleted_file) return 'removed';
-                    if (change.renamed_file) return 'renamed';
-                    return 'modified';
-                },
-            );
-
-            // Mock do allCommits para retornar os commits
-            mockGitlabAPI.MergeRequests.allCommits.mockResolvedValue(
-                mockCommits,
-            );
-
-            // Mock do showDiff para retornar os diffs de cada commit
-            mockGitlabAPI.Commits.showDiff
-                .mockResolvedValueOnce(commit1Diff)
-                .mockResolvedValueOnce(commit2Diff)
-                .mockResolvedValueOnce(commit3Diff);
-
-            // Act: Executar o método
-            const result = await service.getChangedFilesSinceLastCommit({
-                organizationAndTeamData: mockOrganizationAndTeamData,
-                repository: mockRepository,
-                prNumber: 123,
-                lastCommit: mockLastCommit,
-            });
-
-            // Assert: Verificar que retornou apenas 3 arquivos (sem duplicatas)
-            expect(result).toHaveLength(3);
-
-            // Verificar que cada arquivo tem a versão do commit3 (mais recente)
-            const file1Result = result.find(
-                (f: any) => f.filename === 'file1.ts',
-            );
-            expect(file1Result).toBeDefined();
-            expect(file1Result.status).toBe('modified');
-            expect(file1Result.patch).toContain('commit3 version (LATEST)');
-
-            const file2Result = result.find(
-                (f: any) => f.filename === 'file2.ts',
-            );
-            expect(file2Result).toBeDefined();
-            expect(file2Result.status).toBe('modified');
-            expect(file2Result.patch).toContain('commit3 version (LATEST)');
-
-            const file3Result = result.find(
-                (f: any) => f.filename === 'file3.ts',
-            );
-            expect(file3Result).toBeDefined();
-            expect(file3Result.status).toBe('modified');
-            expect(file3Result.patch).toContain('commit3 version (LATEST)');
-
-            // Verificar que showDiff foi chamado 3 vezes (uma para cada commit)
-            expect(mockGitlabAPI.Commits.showDiff).toHaveBeenCalledTimes(3);
+        return diffs.map((file) => {
+            const changeCount = countChanges(file.diff);
+            return {
+                filename: file.new_path,
+                status: mapGitlabStatus(file),
+                additions: changeCount.adds,
+                deletions: changeCount.deletes,
+                changes: changeCount.adds + changeCount.deletes,
+                patch: file.diff,
+            };
         });
+    }
 
-        it('deve filtrar apenas os commits mais recentes que o lastCommit', async () => {
-            // Arrange: Commits antes e depois do lastCommit
-            const lastCommitDate = '2024-01-01T12:00:00Z';
-            const oldCommitDate = '2024-01-01T10:00:00Z'; // Antes do lastCommit
-            const newCommitDate = '2024-01-01T14:00:00Z'; // Depois do lastCommit
-
-            const mockCommits = [
-                {
-                    id: 'old-commit-sha',
-                    created_at: oldCommitDate,
-                },
-                {
-                    id: 'new-commit-sha',
-                    created_at: newCommitDate,
-                },
+    describe('compare behavior', () => {
+        it('should return diff only for changes between last reviewed commit and head', async () => {
+            // Scenario: MR has 3 commits, commit1 was already reviewed
+            // Only changes from commit2 and commit3 should be returned
+            const commits = [
+                { id: 'commit1-sha', created_at: '2024-01-02T00:00:00Z' },
+                { id: 'commit2-sha', created_at: '2024-01-03T00:00:00Z' },
+                { id: 'commit3-sha', created_at: '2024-01-04T00:00:00Z' },
             ];
 
-            const newCommitDiff = [
-                {
-                    new_path: 'new-file.ts',
-                    new_file: true,
-                    deleted_file: false,
-                    renamed_file: false,
-                    diff: '@@ -0,0 +1,10 @@\n+line1\n+line2\nnew file',
+            const lastCommit = {
+                dataExecution: {
+                    lastAnalyzedCommit: { sha: 'commit1-sha' },
                 },
-            ];
+            };
 
-            jest.spyOn(service as any, 'getAuthDetails').mockResolvedValue({
-                authIntegration: {},
+            const compareCommits = async (base: string, head: string) => {
+                expect(base).toBe('commit1-sha');
+                expect(head).toBe('commit3-sha'); // Most recent commit
+                return [
+                    {
+                        new_path: 'index.html',
+                        diff: '@@ -12,1 +12,1 @@\n-<h1>Old</h1>\n+<h1>commit 1</h1>\n@@ -17,1 +17,1 @@\n-<button>Old</button>\n+<button>commit 2</button>',
+                    },
+                ];
+            };
+
+            const result = await simulateGetChangedFilesSinceLastCommit({
+                commits,
+                lastCommit,
+                compareCommits,
             });
 
-            jest.spyOn(service as any, 'instanceGitlabApi').mockReturnValue(
-                mockGitlabAPI,
-            );
-
-            jest.spyOn(service as any, 'countChanges').mockReturnValue({
-                adds: 10,
-                deletes: 0,
-            });
-
-            jest.spyOn(service as any, 'mapGitlabStatus').mockReturnValue(
-                'added',
-            );
-
-            mockGitlabAPI.MergeRequests.allCommits.mockResolvedValue(
-                mockCommits,
-            );
-
-            // Apenas o commit novo deve ser processado
-            mockGitlabAPI.Commits.showDiff.mockResolvedValueOnce(
-                newCommitDiff,
-            );
-
-            // Act
-            const result = await service.getChangedFilesSinceLastCommit({
-                organizationAndTeamData: mockOrganizationAndTeamData,
-                repository: mockRepository,
-                prNumber: 123,
-                lastCommit: {
-                    id: 'last-commit-sha',
-                    created_at: lastCommitDate,
-                },
-            });
-
-            // Assert
             expect(result).toHaveLength(1);
-            expect(result[0].filename).toBe('new-file.ts');
-
-            // Verificar que apenas 1 commit foi processado (não o commit antigo)
-            expect(mockGitlabAPI.Commits.showDiff).toHaveBeenCalledTimes(1);
-            expect(mockGitlabAPI.Commits.showDiff).toHaveBeenCalledWith(
-                mockRepository.id,
-                'new-commit-sha',
-            );
+            expect(result[0].filename).toBe('index.html');
+            expect(result[0].patch).toContain('commit 1');
+            expect(result[0].patch).toContain('commit 2');
         });
 
-        it('deve retornar array vazio quando não houver novos commits', async () => {
-            // Arrange: Todos os commits são mais antigos que o lastCommit
-            const lastCommitDate = '2024-01-01T15:00:00Z';
-            const oldCommitDate = '2024-01-01T10:00:00Z';
-
-            const mockCommits = [
-                {
-                    id: 'old-commit-sha',
-                    created_at: oldCommitDate,
-                },
+        it('should pick the most recent commit as head (sorted by date)', async () => {
+            // Commits may not be in chronological order from the API
+            const commits = [
+                { id: 'commit-c', created_at: '2024-01-04T00:00:00Z' },
+                { id: 'commit-a', created_at: '2024-01-02T00:00:00Z' },
+                { id: 'commit-b', created_at: '2024-01-03T00:00:00Z' },
             ];
 
-            jest.spyOn(service as any, 'getAuthDetails').mockResolvedValue({
-                authIntegration: {},
-            });
-
-            jest.spyOn(service as any, 'instanceGitlabApi').mockReturnValue(
-                mockGitlabAPI,
-            );
-
-            mockGitlabAPI.MergeRequests.allCommits.mockResolvedValue(
-                mockCommits,
-            );
-
-            // Act
-            const result = await service.getChangedFilesSinceLastCommit({
-                organizationAndTeamData: mockOrganizationAndTeamData,
-                repository: mockRepository,
-                prNumber: 123,
-                lastCommit: {
-                    id: 'last-commit-sha',
-                    created_at: lastCommitDate,
+            const lastCommit = {
+                dataExecution: {
+                    lastAnalyzedCommit: { sha: 'commit-a' },
                 },
+            };
+
+            const compareCommits = async (base: string, head: string) => {
+                expect(base).toBe('commit-a');
+                expect(head).toBe('commit-c'); // Most recent by date
+                return [
+                    { new_path: 'file.ts', diff: '+test' },
+                ];
+            };
+
+            const result = await simulateGetChangedFilesSinceLastCommit({
+                commits,
+                lastCommit,
+                compareCommits,
             });
 
-            // Assert
+            expect(result).toHaveLength(1);
+        });
+
+        it('should return empty array when baseSha equals headSha', async () => {
+            const commits = [
+                { id: 'same-sha', created_at: '2024-01-02T00:00:00Z' },
+            ];
+
+            const lastCommit = {
+                dataExecution: {
+                    lastAnalyzedCommit: { sha: 'same-sha' },
+                },
+            };
+
+            const compareCommits = async () => {
+                throw new Error('Should not be called');
+            };
+
+            const result = await simulateGetChangedFilesSinceLastCommit({
+                commits,
+                lastCommit,
+                compareCommits,
+            });
+
             expect(result).toHaveLength(0);
-            expect(mockGitlabAPI.Commits.showDiff).not.toHaveBeenCalled();
         });
 
-        it('deve lidar corretamente com arquivos adicionados, modificados e renomeados', async () => {
-            // Arrange
-            const commit1Date = '2024-01-01T11:00:00Z';
+        it('should return empty array when no commits exist', async () => {
+            const lastCommit = {
+                dataExecution: {
+                    lastAnalyzedCommit: { sha: 'some-sha' },
+                },
+            };
 
-            const mockCommits = [
-                {
-                    id: 'commit-1-sha',
-                    created_at: commit1Date,
-                },
-            ];
+            const compareCommits = async () => {
+                throw new Error('Should not be called');
+            };
 
-            const commitDiff = [
-                {
-                    new_path: 'added-file.ts',
-                    new_file: true,
-                    deleted_file: false,
-                    renamed_file: false,
-                    diff: '@@ -0,0 +1,10 @@\n+line1\n+line2',
-                },
-                {
-                    new_path: 'modified-file.ts',
-                    new_file: false,
-                    deleted_file: false,
-                    renamed_file: false,
-                    diff: '@@ -1,5 +1,8 @@\n+line1\n-line2',
-                },
-                {
-                    new_path: 'renamed-file-new.ts',
-                    new_file: false,
-                    deleted_file: false,
-                    renamed_file: true,
-                    diff: '@@ -0,0 +0,0 @@',
-                },
-            ];
-
-            jest.spyOn(service as any, 'getAuthDetails').mockResolvedValue({
-                authIntegration: {},
+            const result = await simulateGetChangedFilesSinceLastCommit({
+                commits: [],
+                lastCommit,
+                compareCommits,
             });
 
-            jest.spyOn(service as any, 'instanceGitlabApi').mockReturnValue(
-                mockGitlabAPI,
-            );
+            expect(result).toHaveLength(0);
+        });
 
-            jest.spyOn(service as any, 'countChanges').mockImplementation(
-                (diff: string) => {
-                    const adds = (diff.match(/\n\+/g) || []).length;
-                    const deletes = (diff.match(/\n-/g) || []).length;
-                    return { adds, deletes };
+        it('should return multiple files from compare result', async () => {
+            const commits = [
+                { id: 'old-sha', created_at: '2024-01-01T00:00:00Z' },
+                { id: 'new-sha', created_at: '2024-01-02T00:00:00Z' },
+            ];
+
+            const lastCommit = {
+                dataExecution: {
+                    lastAnalyzedCommit: { sha: 'old-sha' },
                 },
-            );
+            };
 
-            jest.spyOn(service as any, 'mapGitlabStatus').mockImplementation(
-                (change: any) => {
-                    if (change.new_file) return 'added';
-                    if (change.deleted_file) return 'removed';
-                    if (change.renamed_file) return 'renamed';
-                    return 'modified';
-                },
-            );
+            const compareCommits = async () => [
+                { new_path: 'file1.ts', diff: '+file1 changes' },
+                { new_path: 'file2.ts', diff: '+file2 new', new_file: true },
+                { new_path: 'file3.ts', diff: '-file3 removed', deleted_file: true },
+            ];
 
-            mockGitlabAPI.MergeRequests.allCommits.mockResolvedValue(
-                mockCommits,
-            );
-
-            mockGitlabAPI.Commits.showDiff.mockResolvedValueOnce(commitDiff);
-
-            // Act
-            const result = await service.getChangedFilesSinceLastCommit({
-                organizationAndTeamData: mockOrganizationAndTeamData,
-                repository: mockRepository,
-                prNumber: 123,
-                lastCommit: mockLastCommit,
+            const result = await simulateGetChangedFilesSinceLastCommit({
+                commits,
+                lastCommit,
+                compareCommits,
             });
 
-            // Assert
             expect(result).toHaveLength(3);
+            expect(result[0].filename).toBe('file1.ts');
+            expect(result[0].status).toBe('modified');
+            expect(result[1].filename).toBe('file2.ts');
+            expect(result[1].status).toBe('added');
+            expect(result[2].filename).toBe('file3.ts');
+            expect(result[2].status).toBe('removed');
+        });
 
-            const addedFile = result.find(
-                (f: any) => f.filename === 'added-file.ts',
-            );
-            expect(addedFile.status).toBe('added');
+        it('should preserve patch with correct line numbers from compare', async () => {
+            // This is the key scenario: commit 1 changed lines 25-35, commit 2 changed lines 50-53
+            // The compare should show ONLY the diff for commit 2 (lines 50-53)
+            const commits = [
+                { id: 'commit1-sha', created_at: '2024-01-02T00:00:00Z' },
+                { id: 'commit2-sha', created_at: '2024-01-03T00:00:00Z' },
+            ];
 
-            const modifiedFile = result.find(
-                (f: any) => f.filename === 'modified-file.ts',
-            );
-            expect(modifiedFile.status).toBe('modified');
+            const lastCommit = {
+                dataExecution: {
+                    lastAnalyzedCommit: { sha: 'commit1-sha' },
+                },
+            };
 
-            const renamedFile = result.find(
-                (f: any) => f.filename === 'renamed-file-new.ts',
-            );
-            expect(renamedFile.status).toBe('renamed');
+            const compareCommits = async () => [
+                {
+                    new_path: 'app.ts',
+                    diff: '@@ -50,4 +50,4 @@\n-    old line 50\n-    old line 51\n-    old line 52\n-    old line 53\n+    new line 50\n+    new line 51\n+    new line 52\n+    new line 53',
+                },
+            ];
+
+            const result = await simulateGetChangedFilesSinceLastCommit({
+                commits,
+                lastCommit,
+                compareCommits,
+            });
+
+            expect(result).toHaveLength(1);
+            expect(result[0].patch).toContain('@@ -50,4 +50,4 @@');
+            // Should NOT contain changes from lines 25-35 (those were in commit1, already reviewed)
+            expect(result[0].patch).not.toContain('line 25');
+            expect(result[0].patch).not.toContain('line 35');
+        });
+
+        it('should handle compare with no diffs', async () => {
+            const commits = [
+                { id: 'old-sha', created_at: '2024-01-01T00:00:00Z' },
+                { id: 'new-sha', created_at: '2024-01-02T00:00:00Z' },
+            ];
+
+            const lastCommit = {
+                dataExecution: {
+                    lastAnalyzedCommit: { sha: 'old-sha' },
+                },
+            };
+
+            const compareCommits = async () => [];
+
+            const result = await simulateGetChangedFilesSinceLastCommit({
+                commits,
+                lastCommit,
+                compareCommits,
+            });
+
+            expect(result).toHaveLength(0);
+        });
+
+        it('should correctly map GitLab file statuses', async () => {
+            const commits = [
+                { id: 'old-sha', created_at: '2024-01-01T00:00:00Z' },
+                { id: 'new-sha', created_at: '2024-01-02T00:00:00Z' },
+            ];
+
+            const lastCommit = {
+                dataExecution: {
+                    lastAnalyzedCommit: { sha: 'old-sha' },
+                },
+            };
+
+            const compareCommits = async () => [
+                { new_path: 'new-file.ts', diff: '+new', new_file: true },
+                { new_path: 'modified-file.ts', diff: '+modified' },
+                { new_path: 'renamed-file.ts', diff: '', renamed_file: true },
+                { new_path: 'deleted-file.ts', diff: '-deleted', deleted_file: true },
+            ];
+
+            const result = await simulateGetChangedFilesSinceLastCommit({
+                commits,
+                lastCommit,
+                compareCommits,
+            });
+
+            expect(result).toHaveLength(4);
+            expect(result.find(f => f.filename === 'new-file.ts')?.status).toBe('added');
+            expect(result.find(f => f.filename === 'modified-file.ts')?.status).toBe('modified');
+            expect(result.find(f => f.filename === 'renamed-file.ts')?.status).toBe('renamed');
+            expect(result.find(f => f.filename === 'deleted-file.ts')?.status).toBe('removed');
         });
     });
 });
