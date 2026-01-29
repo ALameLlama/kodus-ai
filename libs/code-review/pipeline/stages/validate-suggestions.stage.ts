@@ -71,7 +71,7 @@ export class ValidateSuggestionsStage extends BasePipelineStage<CodeReviewPipeli
             }
 
             const candidates = await this.prepareValidationCandidates(
-                validSuggestions,
+                filtered,
                 changedFiles,
             );
 
@@ -374,7 +374,7 @@ export class ValidateSuggestionsStage extends BasePipelineStage<CodeReviewPipeli
 
         const suggestionLines: string[] = [];
 
-        let currentLineNum = hunk.newStart;
+        let currentLineNum = hunk.oldStart;
         let firstAddedLineNum: number | null = null;
         let lastAddedLineNum: number | null = null;
 
@@ -588,6 +588,7 @@ export class ValidateSuggestionsStage extends BasePipelineStage<CodeReviewPipeli
         suggestions: Partial<CodeSuggestion>[],
         files: FileChange[],
     ) {
+        const filesMap = new Map(files.map((file) => [file.filename, file]));
         return suggestions.reduce<{
             [path: string]: {
                 fileData: FileChange;
@@ -596,7 +597,7 @@ export class ValidateSuggestionsStage extends BasePipelineStage<CodeReviewPipeli
         }>((acc, suggestion) => {
             const path = suggestion.relevantFile!;
             if (!acc[path]) {
-                const fileData = files.find((f) => f.filename === path);
+                const fileData = filesMap.get(path);
                 if (fileData) acc[path] = { fileData, suggestions: [] };
             }
             if (acc[path]) acc[path].suggestions.push(suggestion);
