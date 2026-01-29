@@ -1481,7 +1481,7 @@ export class GitlabService implements Omit<
 
         const headSha = sortedCommits[sortedCommits?.length - 1]?.id;
 
-        if (!headSha || baseSha === headSha) {
+        if (!headSha || !baseSha || baseSha === headSha) {
             return [];
         }
 

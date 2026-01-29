@@ -2624,7 +2624,7 @@ export class GithubService
 
         const headSha = sortedCommits[sortedCommits?.length - 1]?.sha;
 
-        if (!headSha || baseSha === headSha) {
+        if (!headSha || !baseSha || baseSha === headSha) {
             return [];
         }
 
