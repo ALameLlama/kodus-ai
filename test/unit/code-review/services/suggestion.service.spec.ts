@@ -168,6 +168,32 @@ describe('SuggestionService', () => {
 
             expect(result).toHaveLength(0);
         });
+
+        it('should discard cross-file suggestions with medium/low severity when filter is high', async () => {
+            const crossFileSuggestions = [
+                { id: '1', severity: 'critical', label: 'cross_file', type: 'cross_file' },
+                { id: '2', severity: 'high', label: 'cross_file', type: 'cross_file' },
+                { id: '3', severity: 'medium', label: 'cross_file', type: 'cross_file' },
+                { id: '4', severity: 'low', label: 'cross_file', type: 'cross_file' },
+            ];
+
+            const result = await service.filterSuggestionsBySeverityLevel(
+                crossFileSuggestions,
+                'high',
+                mockOrganizationAndTeamData as any,
+                123,
+            );
+
+            const prioritized = result.filter(s => s.priorityStatus === PriorityStatus.PRIORITIZED);
+            const discarded = result.filter(s => s.priorityStatus === PriorityStatus.DISCARDED_BY_SEVERITY);
+
+            expect(prioritized).toHaveLength(2);
+            expect(prioritized.map(s => s.id)).toContain('1');
+            expect(prioritized.map(s => s.id)).toContain('2');
+            expect(discarded).toHaveLength(2);
+            expect(discarded.map(s => s.id)).toContain('3');
+            expect(discarded.map(s => s.id)).toContain('4');
+        });
     });
 
     describe('sortSuggestionsByPriority', () => {
@@ -653,7 +679,7 @@ __new hunk__
             expect(highs[0].id).toBe('3');
         });
 
-        it('should return all of a severity when limit is 0', async () => {
+        it('should return all of a severity when limit is 0 (unlimited)', async () => {
             const suggestions = [
                 { id: '1', severity: 'critical', rankScore: 100 },
                 { id: '2', severity: 'critical', rankScore: 90 },
@@ -661,7 +687,7 @@ __new hunk__
             ];
 
             const severityLimits = {
-                critical: 0, // 0 means no limit
+                critical: 0, // 0 means no limit (unlimited)
                 high: 0,
                 medium: 0,
                 low: 0,
