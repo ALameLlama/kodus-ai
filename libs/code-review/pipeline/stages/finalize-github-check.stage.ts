@@ -4,6 +4,7 @@ import { CodeReviewPipelineContext } from '../context/code-review-pipeline.conte
 import { createLogger } from '@kodus/flow';
 import { GithubChecksService } from '@libs/platform/infrastructure/adapters/services/github/github-checks.service';
 import { PlatformType } from '@libs/core/domain/enums';
+import { DeliveryStatus } from '@libs/platformData/domain/pullRequests/enums/deliveryStatus.enum';
 
 @Injectable()
 export class FinalizeGithubCheckStage extends BasePipelineStage<CodeReviewPipelineContext> {
@@ -41,11 +42,21 @@ export class FinalizeGithubCheckStage extends BasePipelineStage<CodeReviewPipeli
                 return context;
             }
 
-            // Count suggestions to determine the appropriate message
+            // Count only comments that were actually posted successfully.
+            // Previously this counted validSuggestions + validSuggestionsByPR +
+            // validCrossFileSuggestions, which had two problems:
+            // 1. Cross-file suggestions were double-counted (already merged into
+            //    validSuggestions during file processing, AND counted separately)
+            // 2. It counted prioritized suggestions instead of actually sent
+            //    comments (some may be discarded by sortAndPrioritize or fail to post)
+            const sentLineComments = (context.lineComments || []).filter(
+                (c) => c.deliveryStatus === DeliveryStatus.SENT,
+            );
+            const sentPrComments = (
+                context.prLevelCommentResults || []
+            ).filter((c) => c.deliveryStatus === DeliveryStatus.SENT);
             const totalSuggestions =
-                (context.validSuggestions?.length || 0) +
-                (context.validSuggestionsByPR?.length || 0) +
-                (context.validCrossFileSuggestions?.length || 0);
+                sentLineComments.length + sentPrComments.length;
 
             const hasErrors = context.pipelineError || false;
 

@@ -622,6 +622,43 @@ export class ProcessFilesReview extends BasePipelineStage<CodeReviewPipelineCont
                 context?.codeReviewConfig?.byokConfig,
             );
 
+        // Apply severity level filter to cross-file suggestions
+        // This is needed because cross-file suggestions skip applySafeguardFilter,
+        // which contains the severity pre-filter for v2 (and is the only severity
+        // level gate when limitationType is SEVERITY, since it overrides
+        // severityLevelFilter to LOW in the downstream prioritizeSuggestionsLegacy)
+        let filteredCrossFileFinal = crossFileSuggestionsWithSeverity;
+
+        const severityLevelFilter =
+            context?.codeReviewConfig?.suggestionControl?.severityLevelFilter;
+
+        if (severityLevelFilter && crossFileSuggestionsWithSeverity?.length > 0) {
+            const prioritizedCrossFile =
+                await this.suggestionService.filterSuggestionsBySeverityLevel(
+                    crossFileSuggestionsWithSeverity,
+                    severityLevelFilter,
+                    context?.organizationAndTeamData,
+                    context?.pullRequest?.number,
+                );
+
+            const discardedCrossFileBySeverity = prioritizedCrossFile.filter(
+                (suggestion) =>
+                    suggestion.priorityStatus ===
+                    PriorityStatus.DISCARDED_BY_SEVERITY,
+            );
+
+            if (discardedCrossFileBySeverity.length > 0) {
+                discardedSuggestionsBySafeGuard.push(
+                    ...discardedCrossFileBySeverity,
+                );
+            }
+
+            filteredCrossFileFinal = prioritizedCrossFile.filter(
+                (suggestion) =>
+                    suggestion.priorityStatus === PriorityStatus.PRIORITIZED,
+            );
+        }
+
         let mergedSuggestions = [];
 
         const kodyRulesSuggestions =
@@ -660,7 +697,7 @@ export class ProcessFilesReview extends BasePipelineStage<CodeReviewPipelineCont
         mergedSuggestions = [
             ...mergedSuggestions,
             ...kodyASTSuggestionsWithId,
-            ...crossFileSuggestionsWithSeverity,
+            ...filteredCrossFileFinal,
         ];
 
         const VALID_ACTIONS = [
