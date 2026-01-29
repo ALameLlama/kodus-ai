@@ -1,5 +1,6 @@
 import { createLogger } from '@kodus/flow';
 import { BasePipelineStage } from '@libs/core/infrastructure/pipeline/abstracts/base-stage.abstract';
+import { PipelineError } from '@libs/core/infrastructure/pipeline/interfaces/pipeline-context.interface';
 import { Inject, Injectable } from '@nestjs/common';
 import { StageVisibility } from '@libs/core/infrastructure/pipeline/enums/stage-visibility.enum';
 
@@ -7,7 +8,11 @@ import {
     CROSS_FILE_ANALYSIS_SERVICE_TOKEN,
     CrossFileAnalysisService,
 } from '@libs/code-review/infrastructure/adapters/services/crossFileAnalysis.service';
-import { ReviewModeResponse } from '@libs/core/infrastructure/config/types/general/codeReview.type';
+import {
+    CodeSuggestion,
+    ReviewModeResponse,
+} from '@libs/core/infrastructure/config/types/general/codeReview.type';
+import { ISuggestionByPR } from '@libs/platformData/domain/pullRequests/interfaces/pullRequests.interface';
 import {
     KODY_RULES_PR_LEVEL_ANALYSIS_SERVICE_TOKEN,
     KodyRulesPrLevelAnalysisService,
@@ -19,7 +24,7 @@ import { CodeReviewPipelineContext } from '../context/code-review-pipeline.conte
 export class ProcessFilesPrLevelReviewStage extends BasePipelineStage<CodeReviewPipelineContext> {
     private readonly logger = createLogger(ProcessFilesPrLevelReviewStage.name);
     readonly stageName = 'PRLevelReviewStage';
-    readonly label = 'Reviewing Pull Request';
+    readonly label = 'Reviewing PR Level';
     readonly visibility = StageVisibility.PRIMARY;
 
     constructor(
@@ -79,7 +84,45 @@ export class ProcessFilesPrLevelReviewStage extends BasePipelineStage<CodeReview
             return context;
         }
 
-        //#region Kody Rules analysis
+        const kodyRulesResult = await this.runKodyRulesAnalysis(context);
+        const crossFileResult = await this.runCrossFileAnalysis(context);
+
+        return this.updateContext(context, (draft) => {
+            // Kody Rules Results
+            if (kodyRulesResult?.suggestions?.length > 0) {
+                if (!draft.validSuggestionsByPR) {
+                    draft.validSuggestionsByPR = [];
+                }
+                draft.validSuggestionsByPR.push(...kodyRulesResult.suggestions);
+            }
+
+            // Cross File Results
+            if (crossFileResult?.suggestions?.length > 0) {
+                if (!draft.prAnalysisResults) {
+                    draft.prAnalysisResults = {};
+                }
+                if (!draft.prAnalysisResults.validCrossFileSuggestions) {
+                    draft.prAnalysisResults.validCrossFileSuggestions = [];
+                }
+                draft.prAnalysisResults.validCrossFileSuggestions.push(
+                    ...crossFileResult.suggestions,
+                );
+            }
+
+            // Aggregate Errors
+            if (kodyRulesResult?.error) {
+                draft.errors.push(kodyRulesResult.error);
+            }
+
+            if (crossFileResult?.error) {
+                draft.errors.push(crossFileResult.error);
+            }
+        });
+    }
+
+    private async runKodyRulesAnalysis(
+        context: CodeReviewPipelineContext,
+    ): Promise<{ suggestions: ISuggestionByPR[]; error?: PipelineError }> {
         try {
             const prLevelRules = context?.codeReviewConfig?.kodyRules?.filter(
                 (rule) => rule.scope === KodyRulesScope.PULL_REQUEST,
@@ -119,18 +162,9 @@ export class ProcessFilesPrLevelReviewStage extends BasePipelineStage<CodeReview
                         },
                     });
 
-                    const codeSuggestions =
-                        kodyRulesPrLevelAnalysis?.codeSuggestions || [];
-
-                    context = this.updateContext(context, (draft) => {
-                        if (!draft.validSuggestionsByPR) {
-                            draft.validSuggestionsByPR = [];
-                        }
-
-                        if (codeSuggestions && Array.isArray(codeSuggestions)) {
-                            draft.validSuggestionsByPR.push(...codeSuggestions);
-                        }
-                    });
+                    return {
+                        suggestions: kodyRulesPrLevelAnalysis.codeSuggestions,
+                    };
                 } else {
                     this.logger.warn({
                         message: `Analysis returned null for PR#${context.pullRequest.number}`,
@@ -142,6 +176,8 @@ export class ProcessFilesPrLevelReviewStage extends BasePipelineStage<CodeReview
                     });
                 }
             }
+
+            return { suggestions: [] };
         } catch (error) {
             this.logger.error({
                 message: `Error during PR-level Kody Rules analysis for PR#${context.pullRequest.number}`,
@@ -152,10 +188,27 @@ export class ProcessFilesPrLevelReviewStage extends BasePipelineStage<CodeReview
                     prNumber: context.pullRequest.number,
                 },
             });
-        }
-        //#endregion Kody Rules analysis
 
-        //#region Cross-file analysis
+            return {
+                suggestions: [],
+                error: {
+                    stage: this.stageName,
+                    substage: 'KodyRulesAnalysis',
+                    error:
+                        error instanceof Error
+                            ? error
+                            : new Error(String(error)),
+                    metadata: {
+                        prNumber: context.pullRequest.number,
+                    },
+                },
+            };
+        }
+    }
+
+    private async runCrossFileAnalysis(
+        context: CodeReviewPipelineContext,
+    ): Promise<{ suggestions: CodeSuggestion[]; error?: PipelineError }> {
         try {
             const preparedFilesData = context.changedFiles.map((file) => ({
                 filename: file.filename,
@@ -185,17 +238,7 @@ export class ProcessFilesPrLevelReviewStage extends BasePipelineStage<CodeReview
                     },
                 });
 
-                context = this.updateContext(context, (draft) => {
-                    if (!draft.prAnalysisResults) {
-                        draft.prAnalysisResults = {};
-                    }
-                    if (!draft.prAnalysisResults.validCrossFileSuggestions) {
-                        draft.prAnalysisResults.validCrossFileSuggestions = [];
-                    }
-                    draft.prAnalysisResults.validCrossFileSuggestions.push(
-                        ...crossFileAnalysisSuggestions,
-                    );
-                });
+                return { suggestions: crossFileAnalysisSuggestions };
             } else {
                 this.logger.log({
                     message: `No cross-file analysis suggestions found for PR#${context.pullRequest.number}`,
@@ -205,6 +248,8 @@ export class ProcessFilesPrLevelReviewStage extends BasePipelineStage<CodeReview
                             context.organizationAndTeamData,
                     },
                 });
+
+                return { suggestions: [] };
             }
         } catch (error) {
             this.logger.error({
@@ -216,8 +261,21 @@ export class ProcessFilesPrLevelReviewStage extends BasePipelineStage<CodeReview
                     prNumber: context.pullRequest.number,
                 },
             });
+
+            return {
+                suggestions: [],
+                error: {
+                    stage: this.stageName,
+                    substage: 'CrossFileAnalysis',
+                    error:
+                        error instanceof Error
+                            ? error
+                            : new Error(String(error)),
+                    metadata: {
+                        prNumber: context.pullRequest.number,
+                    },
+                },
+            };
         }
-        //#endregion Cross-file analysis
-        return context;
     }
 }

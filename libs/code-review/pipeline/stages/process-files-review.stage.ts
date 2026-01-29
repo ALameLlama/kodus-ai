@@ -57,7 +57,7 @@ interface FileProcessingResult {
 @Injectable()
 export class ProcessFilesReview extends BasePipelineStage<CodeReviewPipelineContext> {
     readonly stageName = 'FileAnalysisStage';
-    readonly label = 'Analyzing Files';
+    readonly label = 'Reviewing File Level';
     readonly visibility = StageVisibility.PRIMARY;
 
     private readonly concurrencyLimit = 30;
@@ -285,11 +285,6 @@ export class ProcessFilesReview extends BasePipelineStage<CodeReviewPipelineCont
 
         this.validateBatchIntegrity(batches, files.length);
 
-        this.logger.log({
-            message: `Processing ${files.length} files in ${batches.length} batches`,
-            context: ProcessFilesReview.name,
-        });
-
         return batches;
     }
 
@@ -340,6 +335,7 @@ export class ProcessFilesReview extends BasePipelineStage<CodeReviewPipelineCont
                     index,
                     tasks,
                 );
+
                 allResults.push(...batchResults);
             } catch (error) {
                 this.logger.error({
@@ -352,7 +348,6 @@ export class ProcessFilesReview extends BasePipelineStage<CodeReviewPipelineCont
                         pullRequestNumber: context.pullRequest.number,
                     },
                 });
-                // Continuamos processando os próximos lotes mesmo se um falhar
             }
         }
 
@@ -367,7 +362,6 @@ export class ProcessFilesReview extends BasePipelineStage<CodeReviewPipelineCont
     ): Promise<FileProcessingResult[]> {
         const { organizationAndTeamData, pullRequest } = context;
 
-        // TESTAR
         const preparedFiles = await this.filterAndPrepareFiles(batch, context);
 
         const astFailed = preparedFiles.find((file) => {

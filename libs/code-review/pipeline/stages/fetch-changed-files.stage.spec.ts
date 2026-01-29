@@ -73,6 +73,28 @@ describe('FetchChangedFilesStage', () => {
         );
 
         expect(result.statusInfo.message).toBe(expectedMessage);
+        expect(result.ignoredFiles).toEqual(['file.js']);
+    });
+
+    it('should populate ignoredFiles and proceed if some files are valid', async () => {
+        context.codeReviewConfig.ignorePaths = ['**/*.js'];
+        const files = [
+            { filename: 'file.js' },
+            { filename: 'file.ts', patch: 'some patch', status: 'modified' },
+        ];
+
+        mockPullRequestManagerService.getChangedFilesMetadata.mockResolvedValue(
+            files,
+        );
+        mockPullRequestManagerService.enrichFilesWithContent.mockResolvedValue([
+            { filename: 'file.ts', patch: 'some patch', status: 'modified' },
+        ]);
+
+        const result = await stage.execute(context);
+
+        expect(result.ignoredFiles).toEqual(['file.js']);
+        expect(result.changedFiles).toHaveLength(1);
+        expect(result.changedFiles[0].filename).toBe('file.ts');
     });
 
     it('should skip if too many files (using PipelineReasons)', async () => {

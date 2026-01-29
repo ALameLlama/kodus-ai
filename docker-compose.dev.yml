@@ -50,6 +50,7 @@ services:
             - CHOKIDAR_USEPOLLING=false
             - API_DEVELOPMENT_MODE=${API_DEVELOPMENT_MODE:-true}
             - RUN_MIGRATIONS=true
+            - RUN_SEEDS=true
             - PYROSCOPE_SERVER_ADDRESS=${PYROSCOPE_SERVER_ADDRESS:-http://pyroscope:4040}
             - PYROSCOPE_HEAP_PROFILING=${PYROSCOPE_HEAP_PROFILING:-true}
 

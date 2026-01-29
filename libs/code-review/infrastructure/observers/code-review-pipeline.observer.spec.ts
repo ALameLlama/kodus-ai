@@ -343,7 +343,7 @@ describe('CodeReviewPipelineObserver', () => {
         await observer.onStageFinish(
             'TestStage',
             context as CodeReviewPipelineContext,
-            StageVisibility.PRIMARY,
+            { visibility: StageVisibility.PRIMARY },
         );
 
         expect(mockService.updateStageLog).toHaveBeenCalledWith(
@@ -366,7 +366,7 @@ describe('CodeReviewPipelineObserver', () => {
             'TestStage',
             new Error('Boom'),
             context as CodeReviewPipelineContext,
-            StageVisibility.INTERNAL,
+            { visibility: StageVisibility.INTERNAL },
         );
 
         expect(mockService.updateStageLog).toHaveBeenCalledWith(
@@ -389,7 +389,7 @@ describe('CodeReviewPipelineObserver', () => {
             'TestStage',
             'Reason',
             context as CodeReviewPipelineContext,
-            StageVisibility.PRIMARY,
+            { visibility: StageVisibility.PRIMARY },
         );
 
         expect(mockService.updateStageLog).toHaveBeenCalledWith(
@@ -397,6 +397,66 @@ describe('CodeReviewPipelineObserver', () => {
             expect.objectContaining({
                 metadata: expect.objectContaining({
                     visibility: StageVisibility.PRIMARY,
+                }),
+            }),
+        );
+    });
+
+    it('should include ignoredFiles in metadata on stage finish if present in context', async () => {
+        context.ignoredFiles = Array.from(
+            { length: 60 },
+            (_, i) => `file-${i}.ts`,
+        );
+
+        await observer.onStageStart(
+            'FetchChangedFilesStage',
+            context as CodeReviewPipelineContext,
+        );
+
+        await observer.onStageFinish(
+            'FetchChangedFilesStage',
+            context as CodeReviewPipelineContext,
+        );
+
+        expect(mockService.updateStageLog).toHaveBeenCalledWith(
+            'stage-log-uuid',
+            expect.objectContaining({
+                metadata: expect.objectContaining({
+                    ignoredFiles: expect.arrayContaining([
+                        'file-0.ts',
+                        'file-49.ts',
+                    ]),
+                }),
+            }),
+        );
+
+        // Verify truncation
+        const callArgs = mockService.updateStageLog.mock.calls[0];
+        const metadata = callArgs[1].metadata;
+        expect(metadata.ignoredFiles).toHaveLength(50);
+        expect(metadata.ignoredFiles).not.toContain('file-50.ts');
+    });
+
+    it('should include ignoredFiles in metadata on stage skipped if present in context', async () => {
+        context.ignoredFiles = ['ignored-file.ts'];
+
+        await observer.onStageStart(
+            'FetchChangedFilesStage',
+            context as CodeReviewPipelineContext,
+        );
+
+        await observer.onStageSkipped(
+            'FetchChangedFilesStage',
+            'All files ignored',
+            context as CodeReviewPipelineContext,
+        );
+
+        expect(mockService.updateStageLog).toHaveBeenCalledWith(
+            'stage-log-uuid',
+            expect.objectContaining({
+                status: AutomationStatus.SKIPPED,
+                metadata: expect.objectContaining({
+                    ignoredFiles: ['ignored-file.ts'],
                 }),
             }),
         );

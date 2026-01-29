@@ -222,6 +222,8 @@ export class CodeReviewExecutionRepository<
                 );
             }
 
+            qb.orderBy('codeReviewExecution.createdAt', 'ASC');
+
             const found = await qb.getMany();
 
             return mapSimpleModelsToEntities(found, CodeReviewExecutionEntity);

@@ -32,6 +32,9 @@ import {
     GitHubReaction,
     GitlabReaction,
 } from '@libs/code-review/domain/codeReviewFeedback/enums/codeReviewCommentReaction.enum';
+import { PipelineReasons } from '@libs/core/infrastructure/pipeline/constants/pipeline-reasons.const';
+import { PipelineReason } from '@libs/core/infrastructure/pipeline/interfaces/pipeline-reason.interface';
+import { StageMessageHelper } from '@libs/core/infrastructure/pipeline/utils/stage-message.helper';
 
 const ERROR_TO_MESSAGE_TYPE: Record<
     ValidationErrorType,
@@ -52,7 +55,8 @@ const NO_LICENSE_REACTION_MAP = {
 @Injectable()
 export class ValidatePrerequisitesStage extends BasePipelineStage<CodeReviewPipelineContext> {
     readonly stageName = 'ValidatePrerequisitesStage';
-    readonly visibility = StageVisibility.SECONDARY;
+    readonly label = 'Checking Prerequisites';
+    readonly visibility = StageVisibility.PRIMARY;
     private readonly logger = createLogger(ValidatePrerequisitesStage.name);
 
     constructor(
@@ -70,14 +74,7 @@ export class ValidatePrerequisitesStage extends BasePipelineStage<CodeReviewPipe
     protected override async executeStage(
         context: CodeReviewPipelineContext,
     ): Promise<CodeReviewPipelineContext> {
-        const {
-            organizationAndTeamData,
-            userGitId,
-            repository,
-            pullRequest,
-            platformType,
-            triggerCommentId,
-        } = context;
+        const { organizationAndTeamData, userGitId, pullRequest } = context;
 
         const prerequisitesResult = this.validatePrerequisites(context);
 
@@ -162,9 +159,29 @@ export class ValidatePrerequisitesStage extends BasePipelineStage<CodeReviewPipe
                 message:
                     failureHandled === 'auto_assigned'
                         ? undefined // Proceed if auto-assigned?
-                        : AutomationMessage.VALIDATION_FAILED,
+                        : StageMessageHelper.skippedWithReason(
+                              this.getLicenseSkipReason(
+                                  validationResult.errorType,
+                              ),
+                          ),
             };
         });
+    }
+
+    private getLicenseSkipReason(
+        errorType?: ValidationErrorType,
+    ): PipelineReason {
+        switch (errorType) {
+            case ValidationErrorType.BYOK_REQUIRED:
+                return PipelineReasons.PREREQUISITES.BYOK_MISSING;
+            case ValidationErrorType.PLAN_LIMIT_EXCEEDED:
+                return PipelineReasons.PREREQUISITES.PLAN_LIMIT;
+            case ValidationErrorType.USER_NOT_LICENSED:
+                return PipelineReasons.PREREQUISITES.USER_NO_LICENSE;
+            case ValidationErrorType.INVALID_LICENSE:
+            default:
+                return PipelineReasons.PREREQUISITES.NO_LICENSE;
+        }
     }
 
     private async handleValidationFailure(
@@ -420,7 +437,9 @@ export class ValidatePrerequisitesStage extends BasePipelineStage<CodeReviewPipe
             return {
                 canProceed: false,
                 details: {
-                    message: 'Missing repository metadata',
+                    message: StageMessageHelper.skippedWithReason(
+                        PipelineReasons.PREREQUISITES.MISSING_DATA,
+                    ),
                     reasonCode: AutomationMessage.VALIDATION_FAILED,
                 },
             };
@@ -430,7 +449,9 @@ export class ValidatePrerequisitesStage extends BasePipelineStage<CodeReviewPipe
             return {
                 canProceed: false,
                 details: {
-                    message: 'Missing pull request metadata',
+                    message: StageMessageHelper.skippedWithReason(
+                        PipelineReasons.PREREQUISITES.MISSING_DATA,
+                    ),
                     reasonCode: AutomationMessage.VALIDATION_FAILED,
                 },
             };
@@ -440,7 +461,9 @@ export class ValidatePrerequisitesStage extends BasePipelineStage<CodeReviewPipe
             return {
                 canProceed: false,
                 details: {
-                    message: `PR is closed (State: ${pullRequest.state})`,
+                    message: StageMessageHelper.skippedWithReason(
+                        PipelineReasons.PREREQUISITES.CLOSED,
+                    ),
                     reasonCode: AutomationMessage.VALIDATION_FAILED,
                     metadata: {
                         prState: pullRequest.state,
@@ -453,7 +476,9 @@ export class ValidatePrerequisitesStage extends BasePipelineStage<CodeReviewPipe
             return {
                 canProceed: false,
                 details: {
-                    message: 'PR is locked',
+                    message: StageMessageHelper.skippedWithReason(
+                        PipelineReasons.PREREQUISITES.LOCKED,
+                    ),
                     reasonCode: AutomationMessage.VALIDATION_FAILED,
                     metadata: {
                         isLocked: true,

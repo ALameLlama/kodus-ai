@@ -140,11 +140,7 @@ export class AutomationExecutionService implements IAutomationExecutionService {
         stageLog?: CodeReviewExecutionEntity<IAutomationExecution>;
     } | null> {
         try {
-            if (
-                !automationExecution ||
-                !automationExecution.status ||
-                !message
-            ) {
+            if (!automationExecution || !automationExecution.status) {
                 this.logger.warn({
                     message: 'Invalid parameters provided to createCodeReview',
                     context: AutomationExecutionService.name,
@@ -208,7 +204,6 @@ export class AutomationExecutionService implements IAutomationExecutionService {
         try {
             if (
                 !filter ||
-                !message ||
                 !automationExecution ||
                 !automationExecution.status
             ) {

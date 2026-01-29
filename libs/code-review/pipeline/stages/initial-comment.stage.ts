@@ -13,7 +13,7 @@ import { CodeReviewPipelineContext } from '../context/code-review-pipeline.conte
 @Injectable()
 export class InitialCommentStage extends BasePipelineStage<CodeReviewPipelineContext> {
     stageName = 'InitialCommentStage';
-    readonly label = 'Preparing Feedback';
+    readonly label = 'Preparing Initial Feedback';
     readonly visibility = StageVisibility.PRIMARY;
 
     private readonly logger = createLogger(InitialCommentStage.name);

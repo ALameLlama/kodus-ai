@@ -652,7 +652,12 @@ export class ValidateSuggestionsStage extends BasePipelineStage<CodeReviewPipeli
             !taskRes ||
             taskRes.task.status !== TaskStatus.TASK_STATUS_COMPLETED
         ) {
-            throw new Error('Task failed or timed out');
+            throw new Error(
+                StageMessageHelper.error(
+                    PipelineReasons.SUGGESTIONS.VALIDATION_FAILED.message,
+                    new Error('Task failed or timed out'),
+                ),
+            );
         }
     }
 
@@ -674,7 +679,12 @@ export class ValidateSuggestionsStage extends BasePipelineStage<CodeReviewPipeli
                 metadata: { taskId, organizationAndTeamData, prNumber },
             });
 
-            throw new Error('No results returned from validation task');
+            throw new Error(
+                StageMessageHelper.error(
+                    PipelineReasons.SUGGESTIONS.VALIDATION_FAILED.message,
+                    new Error('No results returned from validation task'),
+                ),
+            );
         }
 
         const validAstSuggestions = result.results.filter((r) => r.isValid);

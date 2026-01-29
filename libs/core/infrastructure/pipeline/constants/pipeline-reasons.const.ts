@@ -49,6 +49,26 @@ export const PipelineReasons = {
         LOCKED: {
             message: 'PR is Locked',
         } as PipelineReason,
+        MISSING_DATA: {
+            message: 'Invalid Context Data',
+            description: 'Required PR/Repo metadata missing',
+        } as PipelineReason,
+        NO_LICENSE: {
+            message: 'No Active Subscription',
+            action: 'Check subscription settings',
+        } as PipelineReason,
+        BYOK_MISSING: {
+            message: 'BYOK Configuration Required',
+            action: 'Configure API Keys in Settings',
+        } as PipelineReason,
+        PLAN_LIMIT: {
+            message: 'Plan Limit Exceeded',
+            action: 'Upgrade plan to continue',
+        } as PipelineReason,
+        USER_NO_LICENSE: {
+            message: 'User Not Licensed',
+            action: 'Assign seat to user',
+        } as PipelineReason,
     },
     SUGGESTIONS: {
         VALIDATION_FAILED: {

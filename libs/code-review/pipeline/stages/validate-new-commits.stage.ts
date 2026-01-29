@@ -23,7 +23,7 @@ import { StageMessageHelper } from '@libs/core/infrastructure/pipeline/utils/sta
 @Injectable()
 export class ValidateNewCommitsStage extends BasePipelineStage<CodeReviewPipelineContext> {
     readonly stageName = 'ValidateNewCommitsStage';
-    readonly label = 'Checking New Commits';
+    readonly label = 'Checking Commits';
     readonly visibility = StageVisibility.PRIMARY;
 
     private readonly logger = createLogger(ValidateNewCommitsStage.name);

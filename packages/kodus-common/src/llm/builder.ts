@@ -208,10 +208,7 @@ export class PromptBuilderWithProviders {
             PromptRunnerParams<void, NewOutputType>,
             'provider' | 'fallbackProvider'
         >,
-    ): ConfigurablePromptBuilderWithoutPayload<
-        NewOutputType | string | InferInteropZodOutput<InteropZodType>,
-        ParserType
-    > {
+    ): ConfigurablePromptBuilderWithoutPayload<unknown, ParserType> {
         const newParams = {
             ...this.params,
             byokConfig: this.byokConfig ? { main: this.byokConfig } : undefined,
@@ -278,10 +275,10 @@ export class PromptBuilderWithProviders {
                     );
                 }
 
-                const schema = parserOrSchema as InteropZodType;
+                const schema = parserOrSchema as InteropZodType<unknown>;
 
                 return new ConfigurablePromptBuilderWithoutPayload<
-                    InferInteropZodOutput<typeof schema>,
+                    unknown,
                     ParserType.ZOD
                 >(
                     this.runner,

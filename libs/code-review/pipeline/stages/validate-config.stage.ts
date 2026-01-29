@@ -489,7 +489,6 @@ export class ValidateConfigStage extends BasePipelineStage<CodeReviewPipelineCon
                 details: {
                     message: StageMessageHelper.skippedWithReason(
                         PipelineReasons.CONFIG.DISABLED,
-                        'automatedReviewActive is false',
                     ),
                     reasonCode: AutomationMessage.SKIPPED_BY_BASIC_RULES,
                 },

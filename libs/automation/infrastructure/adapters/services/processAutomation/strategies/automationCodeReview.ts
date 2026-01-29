@@ -146,7 +146,7 @@ export class AutomationCodeReviewService implements Omit<
             execution = await this.createAutomationExecution(
                 payload,
                 AutomationStatus.IN_PROGRESS,
-                'Automation started',
+                '',
             );
 
             if (!execution) {
@@ -387,7 +387,7 @@ export class AutomationCodeReviewService implements Omit<
         await this.updateAutomationExecution(
             execution,
             finalStatus,
-            finalMessage,
+            'Process completed',
             newData,
             'Kody Review Finished',
         );

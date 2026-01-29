@@ -27,7 +27,7 @@ export class CodeReviewPipelineObserver implements IPipelineObserver {
         await this.logStage(
             stageName,
             AutomationStatus.IN_PROGRESS,
-            `Starting stage ${stageName}`,
+            'Starting...',
             context,
             options,
         );
@@ -52,18 +52,54 @@ export class CodeReviewPipelineObserver implements IPipelineObserver {
             };
         }
 
-        const status =
+        const ignoredFilesMetadata = this.getIgnoredFilesMetadata(
+            stageName,
+            context,
+        );
+        if (ignoredFilesMetadata) {
+            additionalMetadata = additionalMetadata || {};
+            Object.assign(additionalMetadata, ignoredFilesMetadata);
+        }
+
+        let status =
             errors.length > 0
                 ? AutomationStatus.PARTIAL_ERROR
                 : AutomationStatus.SUCCESS;
 
-        await this.logStage(
-            stageName,
-            status,
-            `Completed stage ${stageName}`,
-            context,
-            { additionalMetadata, ...options },
-        );
+        let label = options?.label;
+
+        if (stageName === 'FileAnalysisStage') {
+            const totalFiles = context.changedFiles?.length || 0;
+            const errorCount = errors.length;
+
+            if (errorCount > 0) {
+                if (errorCount >= totalFiles) {
+                    status = AutomationStatus.ERROR;
+                } else {
+                    status = AutomationStatus.PARTIAL_ERROR;
+                }
+            }
+
+            label = `Reviewing File Level (${totalFiles} files)`;
+        }
+
+        if (stageName === 'CreatePrLevelCommentsStage') {
+            const count = context.validSuggestionsByPR?.length || 0;
+            label = `Drafting Comments (${count} items)`;
+        }
+
+        if (stageName === 'CreateFileCommentsStage') {
+            const count = context.validSuggestions?.length || 0;
+            label = `Posting File Comments (${count} items)`;
+        }
+
+        const message = errors.length > 0 ? 'Completed' : '';
+
+        await this.logStage(stageName, status, message, context, {
+            additionalMetadata,
+            ...options,
+            label,
+        });
     }
 
     async onStageError(
@@ -75,7 +111,7 @@ export class CodeReviewPipelineObserver implements IPipelineObserver {
         await this.logStage(
             stageName,
             AutomationStatus.ERROR,
-            `Error in stage ${stageName}: ${error.message}`,
+            error.message,
             context,
             options,
         );
@@ -87,13 +123,34 @@ export class CodeReviewPipelineObserver implements IPipelineObserver {
         context: CodeReviewPipelineContext,
         options?: { visibility?: StageVisibility; label?: string },
     ): Promise<void> {
+        const additionalMetadata = this.getIgnoredFilesMetadata(
+            stageName,
+            context,
+        );
+
         await this.logStage(
             stageName,
             AutomationStatus.SKIPPED,
-            `Stage ${stageName} skipped: ${reason}`,
+            reason,
             context,
-            options,
+            { ...options, additionalMetadata },
         );
+    }
+
+    private getIgnoredFilesMetadata(
+        stageName: string,
+        context: CodeReviewPipelineContext,
+    ): Record<string, any> | undefined {
+        if (
+            stageName === 'FetchChangedFilesStage' &&
+            context.ignoredFiles &&
+            context.ignoredFiles.length > 0
+        ) {
+            return {
+                ignoredFiles: context.ignoredFiles.slice(0, 50),
+            };
+        }
+        return undefined;
     }
 
     private async logStage(

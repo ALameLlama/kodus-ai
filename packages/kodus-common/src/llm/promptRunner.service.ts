@@ -14,6 +14,7 @@ import {
     isBaseMessage,
 } from '@langchain/core/messages';
 import { BYOKConfig } from './byokProvider.service';
+import { LLMErrorNormalizer } from './utils/llm-error-normalizer';
 
 export type PromptFn<Payload> = (input: Payload) => string;
 
@@ -116,13 +117,14 @@ export class PromptRunnerService {
 
             return response;
         } catch (error) {
+            const normalized = LLMErrorNormalizer.normalize(error);
             this.logger.error({
                 message: `Error running prompt: ${params.runName}`,
-                error: handleError(error),
+                error: normalized,
                 context: PromptRunnerService.name,
                 metadata: params,
             });
-            return null;
+            throw normalized;
         }
     }
 

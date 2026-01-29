@@ -3,7 +3,6 @@ import { Inject, Injectable } from '@nestjs/common';
 
 import { IAIAnalysisService } from '@libs/code-review/domain/contracts/AIAnalysisService.contract';
 
-
 import { LLM_ANALYSIS_SERVICE_TOKEN } from '@libs/code-review/infrastructure/adapters/services/llmAnalysis.service';
 import {
     AIAnalysisResult,
@@ -97,7 +96,7 @@ export class CodeAnalysisOrchestrator {
                     error,
                 },
             });
-            return null;
+            throw error;
         }
     }
 

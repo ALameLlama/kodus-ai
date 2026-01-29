@@ -11,3 +11,4 @@ export * from './llmModelProvider.service';
 export * from './parser';
 export * from './promptRunner.service';
 export * from './providerAdapters/index';
+export * from './utils/llm-error-normalizer';

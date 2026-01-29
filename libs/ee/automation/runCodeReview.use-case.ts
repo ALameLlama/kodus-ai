@@ -90,9 +90,9 @@ export class RunCodeReviewAutomationUseCase implements IUseCase {
                 return;
             }
 
-            // const mappedUsers = mappedPlatform.mapUsers({
-            //     payload: sanitizedPayload,
-            // });
+            const mappedUsers = mappedPlatform.mapUsers({
+                payload: sanitizedPayload,
+            });
 
             let pullRequestData = null;
             const pullRequest = mappedPlatform.mapPullRequest({
@@ -189,6 +189,12 @@ export class RunCodeReviewAutomationUseCase implements IUseCase {
                 },
             });
 
+            const userGitId =
+                // in azure repos, the user id is the descriptor
+                mappedUsers?.user?.descriptor?.toString() ||
+                mappedUsers?.user?.id?.toString() ||
+                mappedUsers?.user?.uuid?.toString();
+
             const strategyParams = {
                 organizationAndTeamData,
                 teamAutomationId: teamAutomationId,
@@ -202,7 +208,7 @@ export class RunCodeReviewAutomationUseCase implements IUseCase {
                 //TODO: prcisa do byokauu
                 //byokConfig,
                 triggerCommentId: sanitizedPayload?.triggerCommentId,
-                //userGitId,
+                userGitId,
             };
 
             const result = await this.executeAutomation.executeStrategy(

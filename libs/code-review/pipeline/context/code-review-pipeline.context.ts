@@ -80,6 +80,9 @@ export interface CodeReviewPipelineContext extends PipelineContext {
     /** Arquivos filtrados COM conteúdo - após aplicar ignorePaths no FetchChangedFilesStage */
     changedFiles?: FileChange[];
 
+    /** List of files ignored by configuration patterns */
+    ignoredFiles?: string[];
+
     lastExecution?: {
         commentId?: any;
         noteId?: any;

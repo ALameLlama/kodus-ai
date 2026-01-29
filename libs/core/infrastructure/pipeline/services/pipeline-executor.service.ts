@@ -82,15 +82,7 @@ export class PipelineExecutor<TContext extends PipelineContext> {
             try {
                 context = await stage.execute(context);
 
-                await this.notifyObservers(
-                    observers,
-                    (obs) =>
-                        obs.onStageFinish(stage.stageName, context, {
-                            visibility: stage.visibility,
-                            label: stage.label,
-                        }),
-                    'onStageFinish',
-                );
+                await this.notifyStageCompletion(stage, context, observers);
 
                 const stageDurationMs = Date.now() - start;
                 this.metricsCollector?.recordHistogram(
@@ -187,6 +179,39 @@ export class PipelineExecutor<TContext extends PipelineContext> {
         return context;
     }
 
+    private async notifyStageCompletion(
+        stage: PipelineStage<TContext>,
+        context: TContext,
+        observers: IPipelineObserver[],
+    ): Promise<void> {
+        if (context.statusInfo.status === AutomationStatus.SKIPPED) {
+            await this.notifyObservers(
+                observers,
+                (obs) =>
+                    obs.onStageSkipped(
+                        stage.stageName,
+                        context.statusInfo.message || 'Stage skipped',
+                        context,
+                        {
+                            visibility: stage.visibility,
+                            label: stage.label,
+                        },
+                    ),
+                'onStageSkipped',
+            );
+        } else {
+            await this.notifyObservers(
+                observers,
+                (obs) =>
+                    obs.onStageFinish(stage.stageName, context, {
+                        visibility: stage.visibility,
+                        label: stage.label,
+                    }),
+                'onStageFinish',
+            );
+        }
+    }
+
     private async notifyObservers(
         observers: IPipelineObserver[],
         callback: (observer: IPipelineObserver) => Promise<void>,
@@ -234,21 +259,6 @@ export class PipelineExecutor<TContext extends PipelineContext> {
         }
 
         if (stage.stageName !== targetStage) {
-            await this.notifyObservers(
-                observers,
-                (obs) =>
-                    obs.onStageSkipped(
-                        stage.stageName,
-                        `Skipping stage '${stage.stageName}' while looking for '${targetStage}'`,
-                        context,
-                        {
-                            visibility: stage.visibility,
-                            label: stage.label,
-                        },
-                    ),
-                'onStageSkipped',
-            );
-
             this.logger.log({
                 message: `Skipping stage '${stage.stageName}' while looking for '${targetStage}'`,
                 context: PipelineExecutor.name,

@@ -11,6 +11,7 @@ import {
     AutomationMessage,
     AutomationStatus,
 } from '@libs/automation/domain/automation/enum/automation-status';
+import { StageVisibility } from '@libs/core/infrastructure/pipeline/enums/stage-visibility.enum';
 import { FileChange } from '@libs/core/infrastructure/config/types/general/codeReview.type';
 import {
     convertToHunksWithLinesNumbers,
@@ -24,6 +25,8 @@ import { StageMessageHelper } from '@libs/core/infrastructure/pipeline/utils/sta
 @Injectable()
 export class FetchChangedFilesStage extends BasePipelineStage<CodeReviewPipelineContext> {
     stageName = 'FetchChangedFilesStage';
+    readonly visibility = StageVisibility.PRIMARY;
+    readonly label = 'Loading Files Context';
 
     private readonly logger = createLogger(FetchChangedFilesStage.name);
     private maxFilesToAnalyze = 500;
@@ -84,6 +87,9 @@ export class FetchChangedFilesStage extends BasePipelineStage<CodeReviewPipeline
         const filteredFiles = filesToProcess?.filter(
             (file) => !isFileMatchingGlob(file.filename, ignorePaths),
         );
+        const ignoredList = filesToProcess?.filter((file) =>
+            isFileMatchingGlob(file.filename, ignorePaths),
+        );
 
         const validation = this.validateFiles(
             filesToProcess,
@@ -114,6 +120,7 @@ export class FetchChangedFilesStage extends BasePipelineStage<CodeReviewPipeline
                     message: message,
                     jumpToStage: 'FinalizeGithubCheckStage',
                 };
+                draft.ignoredFiles = ignoredList?.map((f) => f.filename) || [];
             });
         }
 
@@ -151,6 +158,7 @@ export class FetchChangedFilesStage extends BasePipelineStage<CodeReviewPipeline
                 ...draft.pipelineMetadata,
             };
             draft.pullRequest.stats = stats;
+            draft.ignoredFiles = ignoredList?.map((f) => f.filename) || [];
         });
     }
 
@@ -172,16 +180,20 @@ export class FetchChangedFilesStage extends BasePipelineStage<CodeReviewPipeline
         }
 
         if (!filteredFiles || filteredFiles.length === 0) {
+            const ignoredFileNames = filesToProcess.map((f) => f.filename);
+            const messageFiles = ignoredFileNames.slice(0, 5).join(', ');
+            const suffix = ignoredFileNames.length > 5 ? '...' : '';
+
             return {
                 canProceed: false,
                 details: {
                     reasonCode: AutomationMessage.NO_FILES_AFTER_IGNORE,
                     message: StageMessageHelper.skippedWithReason(
                         PipelineReasons.FILES.ALL_IGNORED,
-                        `Patterns: [${ignorePaths.join(', ')}]`,
+                        `Ignored: ${messageFiles}${suffix}`,
                     ),
-                    technicalReason: `Patterns: [${ignorePaths.join(', ')}]`,
-                    metadata: { ignorePaths },
+                    technicalReason: `Ignored files: ${ignoredFileNames.join(', ')}`,
+                    metadata: { ignorePaths, ignoredFiles: ignoredFileNames },
                 },
             };
         }

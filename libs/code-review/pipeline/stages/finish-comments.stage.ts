@@ -9,6 +9,7 @@ import { BehaviourForNewCommits } from '@libs/core/infrastructure/config/types/g
 import { BasePipelineStage } from '@libs/core/infrastructure/pipeline/abstracts/base-stage.abstract';
 import { StageVisibility } from '@libs/core/infrastructure/pipeline/enums/stage-visibility.enum';
 import { CodeReviewPipelineContext } from '../context/code-review-pipeline.context';
+import { PipelineError } from '@libs/core/infrastructure/pipeline/interfaces/pipeline-context.interface';
 
 @Injectable()
 export class UpdateCommentsAndGenerateSummaryStage extends BasePipelineStage<CodeReviewPipelineContext> {
@@ -64,43 +65,68 @@ export class UpdateCommentsAndGenerateSummaryStage extends BasePipelineStage<Cod
         }
 
         if (shouldGenerateOrUpdateSummary) {
-            this.logger.log({
-                message: `Generating summary for PR#${pullRequest.number}`,
-                context: this.stageName,
-                metadata: {
+            try {
+                this.logger.log({
+                    message: `Generating summary for PR#${pullRequest.number}`,
+                    context: this.stageName,
+                    metadata: {
+                        organizationAndTeamData,
+                        prNumber: context.pullRequest.number,
+                        repository: context.repository,
+                    },
+                });
+
+                const changedFiles = context.changedFiles.map((file) => ({
+                    filename: file.filename,
+                    patch: file.patch,
+                    status: file.status,
+                }));
+
+                const summaryPR =
+                    await this.commentManagerService.generateSummaryPR(
+                        pullRequest,
+                        repository,
+                        changedFiles,
+                        organizationAndTeamData,
+                        codeReviewConfig.languageResultPrompt,
+                        codeReviewConfig.summary,
+                        codeReviewConfig?.byokConfig ?? null,
+                        isCommitRun,
+                        false,
+                        context.externalPromptContext,
+                    );
+
+                await this.commentManagerService.updateSummarizationInPR(
                     organizationAndTeamData,
-                    prNumber: context.pullRequest.number,
-                    repository: context.repository,
-                },
-            });
-
-            const changedFiles = context.changedFiles.map((file) => ({
-                filename: file.filename,
-                patch: file.patch,
-                status: file.status,
-            }));
-
-            const summaryPR =
-                await this.commentManagerService.generateSummaryPR(
-                    pullRequest,
+                    pullRequest.number,
                     repository,
-                    changedFiles,
-                    organizationAndTeamData,
-                    codeReviewConfig.languageResultPrompt,
-                    codeReviewConfig.summary,
-                    codeReviewConfig?.byokConfig ?? null,
-                    isCommitRun,
-                    false,
-                    context.externalPromptContext,
+                    summaryPR,
+                    context.dryRun,
                 );
+            } catch (error) {
+                this.logger.error({
+                    message: `Failed to generate summary for PR#${pullRequest.number}`,
+                    context: this.stageName,
+                    error,
+                });
 
-            await this.commentManagerService.updateSummarizationInPR(
-                organizationAndTeamData,
-                pullRequest.number,
-                repository,
-                summaryPR,
-                context.dryRun,
-            );
+                const pipelineError: PipelineError = {
+                    stage: this.stageName,
+                    error:
+                        error instanceof Error
+                            ? error
+                            : new Error(String(error)),
+                    metadata: {
+                        message: 'Failed to generate summary',
+                        reason: 'summary_generation_failed',
+                    },
+                };
+
+                if (!context.errors) {
+                    context.errors = [];
+                }
+                context.errors.push(pipelineError);
+            }
         }
 
         const startReviewMessage =
