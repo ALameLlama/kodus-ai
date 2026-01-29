@@ -2618,8 +2618,8 @@ export class GithubService
 
         const sortedCommits = [...commits].sort(
             (a, b) =>
-                new Date(a.commit.author.date).getTime() -
-                new Date(b.commit.author.date).getTime(),
+                new Date(a?.commit?.author?.date).getTime() -
+                new Date(b?.commit?.author?.date).getTime(),
         );
 
         const headSha = sortedCommits[sortedCommits?.length - 1]?.sha;
