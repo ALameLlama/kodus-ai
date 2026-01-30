@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # Script para limpar configurações antigas do .npmrc
 # Uso: ./scripts/cleanup-npmrc.sh [PROJECT_ID]

@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # Script para gerenciar .npmrc dinamicamente
 # Uso: ./scripts/manage-npmrc.sh [dev|publish|restore]

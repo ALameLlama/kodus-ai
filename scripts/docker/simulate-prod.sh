@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 set -e
 
 echo "🚀 Simulating Production Environment (using DEV Infra + Bake)..."
