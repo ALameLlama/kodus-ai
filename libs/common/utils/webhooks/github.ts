@@ -107,6 +107,7 @@ export class GithubMappedPlatform implements IMappedPlatform {
             name: repository?.name,
             language: repository?.language,
             fullName,
+            url: repository?.html_url || repository?.url,
         };
     }
 

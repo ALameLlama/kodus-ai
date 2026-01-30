@@ -46,6 +46,7 @@ export interface IMappedRepository {
     name: string;
     language: string;
     fullName: string;
+    url: string;
 }
 
 export interface IMappedComment {
