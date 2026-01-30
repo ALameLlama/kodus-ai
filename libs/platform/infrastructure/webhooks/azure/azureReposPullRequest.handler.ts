@@ -1,7 +1,7 @@
 import { createHash } from 'crypto';
 
 import { createLogger } from '@kodus/flow';
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 
 import { CacheService } from '@libs/core/cache/cache.service';
@@ -14,6 +14,10 @@ import {
 } from '@libs/platform/domain/platformIntegrations/interfaces/webhook-event-handler.interface';
 import { CodeManagementService } from '../../adapters/services/codeManagement.service';
 import { SavePullRequestUseCase } from '@libs/platformData/application/use-cases/pullRequests/save.use-case';
+import {
+    IPullRequestsService,
+    PULL_REQUESTS_SERVICE_TOKEN,
+} from '@libs/platformData/domain/pullRequests/contracts/pullRequests.service.contracts';
 import { PullRequestClosedEvent } from '@libs/core/domain/events/pull-request-closed.event';
 import { EnqueueCodeReviewJobUseCase } from '@libs/core/workflow/application/use-cases/enqueue-code-review-job.use-case';
 import { EnqueueImplementationCheckUseCase } from '@libs/code-review/application/use-cases/enqueue-implementation-check.use-case';
@@ -39,6 +43,8 @@ export class AzureReposPullRequestHandler implements IWebhookEventHandler {
         private readonly codeManagement: CodeManagementService,
         private readonly enqueueCodeReviewJobUseCase: EnqueueCodeReviewJobUseCase,
         private readonly enqueueImplementationCheckUseCase: EnqueueImplementationCheckUseCase,
+        @Inject(PULL_REQUESTS_SERVICE_TOKEN)
+        private readonly pullRequestsService: IPullRequestsService,
     ) {}
 
     /**
@@ -144,88 +150,96 @@ export class AzureReposPullRequestHandler implements IWebhookEventHandler {
         try {
             switch (eventType) {
                 case 'git.pullrequest.created':
-                case 'git.pullrequest.updated':
+                case 'git.pullrequest.updated': {
+                    const shouldTrigger = await this.shouldTriggerCodeReview(
+                        params,
+                        context,
+                    );
                     await this.savePullRequestUseCase.execute(params);
-                    if (
-                        this.enqueueCodeReviewJobUseCase &&
-                        context.organizationAndTeamData &&
-                        params?.payload?.resource?.status !== 'abandoned'
-                    ) {
-                        const jobId =
-                            await this.enqueueCodeReviewJobUseCase.execute({
-                                codeManagementPayload: params.payload,
-                                event: params.event,
-                                platformType: PlatformType.AZURE_REPOS,
-                                organizationAndTeamData:
-                                    context.organizationAndTeamData,
-                                correlationId: params.correlationId,
-                                teamAutomationId: context.teamAutomationId,
-                            });
 
-                        this.logger.log({
-                            message:
-                                'Code review job enqueued for asynchronous processing',
-                            context: AzureReposPullRequestHandler.name,
-                            metadata: {
-                                jobId,
-                                prId,
-                                repoName,
-                                repositoryId: repository.id,
-                            },
-                        });
-                    } else {
-                        this.logger.log({
-                            message:
-                                'Skipping code review job enqueue (missing org/team or enqueue use case)',
-                            context: AzureReposPullRequestHandler.name,
-                            metadata: {
-                                ...context,
-                                hasOrgAndTeam:
-                                    !!context.organizationAndTeamData,
-                                prId,
-                                repoName,
-                                repositoryId: repository.id,
-                            },
-                        });
-                    }
+                    if (shouldTrigger) {
+                        if (
+                            this.enqueueCodeReviewJobUseCase &&
+                            context.organizationAndTeamData &&
+                            params?.payload?.resource?.status !== 'abandoned'
+                        ) {
+                            const jobId =
+                                await this.enqueueCodeReviewJobUseCase.execute({
+                                    codeManagementPayload: params.payload,
+                                    event: params.event,
+                                    platformType: PlatformType.AZURE_REPOS,
+                                    organizationAndTeamData:
+                                        context.organizationAndTeamData,
+                                    correlationId: params.correlationId,
+                                    teamAutomationId: context.teamAutomationId,
+                                });
 
-                    if (
-                        eventType === 'git.pullrequest.updated' &&
-                        params?.payload?.resource?.status !== 'abandoned'
-                    ) {
-                        try {
-                            if (context.organizationAndTeamData) {
-                                await this.enqueueImplementationCheckUseCase.execute(
-                                    {
-                                        organizationAndTeamData:
-                                            context.organizationAndTeamData,
-                                        repository: {
-                                            id: repository.id,
-                                            name: repository.name,
-                                        },
-                                        pullRequestNumber: Number(prId),
-                                        commitSha:
-                                            params.payload?.resource
-                                                ?.lastMergeSourceCommit
-                                                ?.commitId,
-                                        payload: payload,
-                                        event: event,
-                                        platformType: PlatformType.AZURE_REPOS,
-                                        trigger: payload?.action,
-                                    },
-                                );
-                            }
-                        } catch (e) {
-                            this.logger.error({
+                            this.logger.log({
                                 message:
-                                    'Failed to enqueue implementation check',
+                                    'Code review job enqueued for asynchronous processing',
                                 context: AzureReposPullRequestHandler.name,
-                                error: e,
                                 metadata: {
-                                    repository,
+                                    jobId,
                                     prId,
+                                    repoName,
+                                    repositoryId: repository.id,
                                 },
                             });
+                        } else {
+                            this.logger.log({
+                                message:
+                                    'Skipping code review job enqueue (missing org/team or enqueue use case)',
+                                context: AzureReposPullRequestHandler.name,
+                                metadata: {
+                                    ...context,
+                                    hasOrgAndTeam:
+                                        !!context.organizationAndTeamData,
+                                    prId,
+                                    repoName,
+                                    repositoryId: repository.id,
+                                },
+                            });
+                        }
+
+                        if (
+                            eventType === 'git.pullrequest.updated' &&
+                            params?.payload?.resource?.status !== 'abandoned'
+                        ) {
+                            try {
+                                if (context.organizationAndTeamData) {
+                                    await this.enqueueImplementationCheckUseCase.execute(
+                                        {
+                                            organizationAndTeamData:
+                                                context.organizationAndTeamData,
+                                            repository: {
+                                                id: repository.id,
+                                                name: repository.name,
+                                            },
+                                            pullRequestNumber: Number(prId),
+                                            commitSha:
+                                                params.payload?.resource
+                                                    ?.lastMergeSourceCommit
+                                                    ?.commitId,
+                                            payload: payload,
+                                            event: event,
+                                            platformType:
+                                                PlatformType.AZURE_REPOS,
+                                            trigger: payload?.action,
+                                        },
+                                    );
+                                }
+                            } catch (e) {
+                                this.logger.error({
+                                    message:
+                                        'Failed to enqueue implementation check',
+                                    context: AzureReposPullRequestHandler.name,
+                                    error: e,
+                                    metadata: {
+                                        repository,
+                                        prId,
+                                    },
+                                });
+                            }
                         }
                     }
 
@@ -291,6 +305,7 @@ export class AzureReposPullRequestHandler implements IWebhookEventHandler {
                     }
 
                     break;
+                }
                 case 'git.pullrequest.merge.attempted':
                     await this.savePullRequestUseCase.execute(params);
                     break;
@@ -510,5 +525,98 @@ export class AzureReposPullRequestHandler implements IWebhookEventHandler {
 
         await this.cacheService.addToCache(cacheKey, true, 60000); // 1 minute
         return false;
+    }
+
+    /**
+     * Determines if code review should be triggered based on the pull request payload.
+     * @param params The webhook event parameters.
+     * @param context The webhook context containing organization and team data.
+     * @returns True if code review should be triggered, false otherwise.
+     */
+    private async shouldTriggerCodeReview(
+        params: IWebhookEventParams,
+        context: any,
+    ): Promise<boolean> {
+        const { event, payload } = params;
+
+        // 1. If event is NOT 'git.pullrequest.updated', return true (always process created/merged).
+        if (event !== 'git.pullrequest.updated') {
+            return true;
+        }
+
+        const prId = payload?.resource?.pullRequestId;
+        const repoName = payload?.resource?.repository?.name;
+
+        // Safety check for critical data
+        if (!prId || !repoName || !context?.organizationAndTeamData) {
+            this.logger.debug({
+                message:
+                    'Missing PR ID, Repo Name or Org Data for smart trigger check, defaulting to true',
+                context: AzureReposPullRequestHandler.name,
+                metadata: {
+                    prId,
+                    repoName,
+                    hasOrgData: !!context?.organizationAndTeamData,
+                },
+            });
+            return true;
+        }
+
+        try {
+            // 3. Fetch stored PR
+            const storedPR =
+                await this.pullRequestsService.findByNumberAndRepositoryName(
+                    prId,
+                    repoName,
+                    context.organizationAndTeamData,
+                );
+
+            const resource = payload.resource;
+            if (
+                resource.status === 'completed' ||
+                resource.status === 'abandoned'
+            ) {
+                return false;
+            }
+
+            const isDraft = resource.isDraft === true;
+            const wasDraft = storedPR?.isDraft === true;
+
+            // 4. Check Draft status change
+            // If it WAS a draft and now is NOT a draft, we should review it.
+            if (wasDraft && !isDraft) {
+                return true;
+            }
+
+            // 5. Check Commit Hash
+            const currentCommit = resource.lastMergeSourceCommit?.commitId;
+
+            if (storedPR && currentCommit) {
+                const storedCommits = storedPR.commits?.map((c) => c.sha) || [];
+
+                // If we have seen this commit before, SKIP (return false)
+                if (storedCommits.includes(currentCommit)) {
+                    this.logger.debug({
+                        message:
+                            'Skipping code review - commit already processed',
+                        context: AzureReposPullRequestHandler.name,
+                        metadata: { prId, currentCommit },
+                    });
+                    return false;
+                }
+            }
+
+            // Default: Return true (new commit or no stored PR)
+            return true;
+        } catch (error) {
+            this.logger.error({
+                message: `Error in shouldTriggerCodeReview: ${error.message}`,
+                context: AzureReposPullRequestHandler.name,
+                error,
+                metadata: { prId },
+            });
+            // Fail safe: process it if check fails
+            return true;
+        }
     }
 }

@@ -23,7 +23,7 @@ import { createLogger } from '@kodus/flow';
 @Injectable()
 export class CreatePrLevelCommentsStage extends BasePipelineStage<CodeReviewPipelineContext> {
     readonly stageName = 'CreatePrLevelCommentsStage';
-    readonly label = 'Drafting Comments';
+    readonly label = 'Posting PR Comments';
     readonly visibility = StageVisibility.PRIMARY;
     private readonly logger = createLogger(CreatePrLevelCommentsStage.name);
 

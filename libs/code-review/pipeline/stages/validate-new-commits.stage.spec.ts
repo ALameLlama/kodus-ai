@@ -88,7 +88,7 @@ describe('ValidateNewCommitsStage', () => {
 
         const expectedMessage = StageMessageHelper.skippedWithReason(
             PipelineReasons.COMMITS.NO_NEW,
-            'newCommits array is empty',
+            'No changes detected since last review',
         );
 
         expect(result.statusInfo.message).toBe(expectedMessage);

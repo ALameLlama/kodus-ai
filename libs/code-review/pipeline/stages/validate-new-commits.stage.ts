@@ -206,9 +206,9 @@ export class ValidateNewCommitsStage extends BasePipelineStage<CodeReviewPipelin
                 details: {
                     message: StageMessageHelper.skippedWithReason(
                         PipelineReasons.COMMITS.NO_NEW,
-                        'newCommits array is empty',
+                        'No changes detected since last review',
                     ),
-                    technicalReason: 'newCommits array is empty',
+                    technicalReason: 'No changes detected since last review',
                     reasonCode: AutomationMessage.NO_NEW_COMMITS_SINCE_LAST,
                     metadata: {
                         totalCommits: allCommits.length,
