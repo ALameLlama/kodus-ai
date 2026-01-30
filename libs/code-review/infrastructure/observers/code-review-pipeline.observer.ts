@@ -85,12 +85,18 @@ export class CodeReviewPipelineObserver implements IPipelineObserver {
 
         if (stageName === 'CreatePrLevelCommentsStage') {
             const count = context.validSuggestionsByPR?.length || 0;
-            label = `Drafting Comments (${count} items)`;
+            label =
+                count > 0
+                    ? `Posting PR Comments (${count} comments)`
+                    : `Posting PR Comments (No suggestions)`;
         }
 
         if (stageName === 'CreateFileCommentsStage') {
             const count = context.validSuggestions?.length || 0;
-            label = `Posting File Comments (${count} items)`;
+            label =
+                count > 0
+                    ? `Posting File Comments (${count} comments)`
+                    : `Posting File Comments (No suggestions)`;
         }
 
         const message = errors.length > 0 ? 'Completed' : '';
