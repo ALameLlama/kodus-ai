@@ -462,6 +462,7 @@ ${'```'}`,
                             r.fullName ||
                             r.full_name ||
                             `${r.organizationName || ''}/${r.name}`,
+                        url: r.http_url || '',
                     })),
                     startDate,
                     endDate,
