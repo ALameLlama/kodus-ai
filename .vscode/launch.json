@@ -12,7 +12,13 @@
             "localRoot": "${workspaceFolder}",
             "remoteRoot": "/usr/src/app",
             "sourceMaps": true,
+            "outFiles": ["${workspaceFolder}/dist/**/*.js"],
+            "resolveSourceMapLocations": [
+                "${workspaceFolder}/dist/**",
+                "!**/node_modules/**"
+            ],
             "sourceMapPathOverrides": {
+                "/usr/src/app/*": "${workspaceFolder}/*",
                 "webpack:///*": "${workspaceFolder}/*"
             },
             "skipFiles": ["<node_internals>/**"]
@@ -28,7 +34,13 @@
             "localRoot": "${workspaceFolder}",
             "remoteRoot": "/usr/src/app",
             "sourceMaps": true,
+            "outFiles": ["${workspaceFolder}/dist/**/*.js"],
+            "resolveSourceMapLocations": [
+                "${workspaceFolder}/dist/**",
+                "!**/node_modules/**"
+            ],
             "sourceMapPathOverrides": {
+                "/usr/src/app/*": "${workspaceFolder}/*",
                 "webpack:///*": "${workspaceFolder}/*"
             },
             "skipFiles": ["<node_internals>/**"]
@@ -44,7 +56,13 @@
             "localRoot": "${workspaceFolder}",
             "remoteRoot": "/usr/src/app",
             "sourceMaps": true,
+            "outFiles": ["${workspaceFolder}/dist/**/*.js"],
+            "resolveSourceMapLocations": [
+                "${workspaceFolder}/dist/**",
+                "!**/node_modules/**"
+            ],
             "sourceMapPathOverrides": {
+                "/usr/src/app/*": "${workspaceFolder}/*",
                 "webpack:///*": "${workspaceFolder}/*"
             },
             "skipFiles": ["<node_internals>/**"]
