@@ -97,8 +97,7 @@ module.exports = function (options, webpack) {
         output: {
             ...options.output,
             devtoolModuleFilenameTemplate: (info) => {
-                const rel = path.relative(__dirname, info.absoluteResourcePath);
-                return `webpack:///${rel.replace(/\\/g, '/')}`;
+                return info.absoluteResourcePath.replace(/\\/g, '/');
             },
         },
         resolve: {
