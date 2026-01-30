@@ -259,3 +259,46 @@ jobs:
                       }]
                     }'
                   fi
+
+    changelog:
+        needs: build_push_and_deploy
+        runs-on: ubuntu-latest
+        if: github.event_name == 'release'
+        permissions:
+            contents: write
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4.2.2
+
+            - name: Get previous release date
+              id: prev
+              run: |
+                  prev=$(gh release list -R ${{ github.repository }} --limit 2 \
+                    --json tagName,publishedAt -q '.[1].publishedAt // empty')
+                  echo "date=${prev:-$(date -d '-30 days' -Idate)}" >> "$GITHUB_OUTPUT"
+              env:
+                  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: Generate changelog
+              run: |
+                  end_date=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+                  response=$(curl -sf -X POST "${{ secrets.CHANGELOG_API_URL }}/api/v1/changelog" \
+                    -H "Content-Type: application/json" \
+                    -d '{
+                      "owner": "${{ github.repository_owner }}",
+                      "repo": "${{ github.event.repository.name }}",
+                      "startDate": "${{ steps.prev.outputs.date }}",
+                      "endDate": "'"$end_date"'",
+                      "style": "end-user",
+                      "webhookUrl": "${{ secrets.WEBHOOK_URL }}"
+                    }')
+                  echo "$response" | jq -r '.changelog' > changelog.md
+                  echo "Generated changelog for ${{ github.event.release.tag_name }}"
+
+            - name: Update release notes
+              run: |
+                  gh release edit ${{ github.event.release.tag_name }} \
+                    -R ${{ github.repository }} \
+                    --notes-file changelog.md
+              env:
+                  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
