@@ -15,6 +15,7 @@ interface BackfillParams {
         id: string;
         name: string;
         fullName?: string;
+        url?: string;
     }>;
     startDate?: string;
     endDate?: string;
@@ -92,7 +93,7 @@ export class BackfillHistoricalPRsUseCase {
 
     private async backfillRepositoryPRs(
         organizationAndTeamData: OrganizationAndTeamData,
-        repository: { id: string; name: string; fullName?: string },
+        repository: { id: string; name: string; fullName?: string; url?: string },
         startDate: string,
         endDate: string,
     ): Promise<void> {
@@ -245,6 +246,7 @@ export class BackfillHistoricalPRsUseCase {
                     organizationAndTeamData.organizationId,
                     fileStats,
                     commits,
+                    repository,
                 );
 
                 await this.pullRequestsRepository.create(prDocument);
@@ -284,6 +286,7 @@ export class BackfillHistoricalPRsUseCase {
             totalChanges: number;
         },
         commits: any[],
+        repository: { id: string; name: string; fullName?: string; url?: string },
     ): Omit<IPullRequests, 'uuid'> {
         const isMerged = !!pr.merged_at;
         const repoData = pr.head?.repo || pr.base?.repo;
@@ -303,9 +306,9 @@ export class BackfillHistoricalPRsUseCase {
                     pr.repositoryId ||
                     '',
                 name: repoData?.name || pr.repositoryData?.name || '',
-                fullName: repoData?.fullName || '',
+                fullName: repoData?.fullName || repository.fullName || '',
                 language: '',
-                url: '',
+                url: repository.url || '',
                 createdAt: new Date().toISOString(),
                 updatedAt: new Date().toISOString(),
             },
