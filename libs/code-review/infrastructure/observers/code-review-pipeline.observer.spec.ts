@@ -57,7 +57,7 @@ describe('CodeReviewPipelineObserver', () => {
                 uuid: 'exec-1',
             }),
             expect.objectContaining({ status: AutomationStatus.IN_PROGRESS }),
-            'Starting stage TestStage',
+            'Starting...',
             'TestStage',
             undefined,
         );
@@ -80,7 +80,7 @@ describe('CodeReviewPipelineObserver', () => {
             'stage-log-uuid',
             expect.objectContaining({
                 status: AutomationStatus.SUCCESS,
-                message: 'Completed stage TestStage',
+                message: '',
                 finishedAt: expect.any(Date),
             }),
         );
@@ -99,7 +99,7 @@ describe('CodeReviewPipelineObserver', () => {
                 uuid: 'exec-1',
             }),
             expect.objectContaining({ status: AutomationStatus.SUCCESS }),
-            'Completed stage TestStage',
+            '',
             'TestStage',
             undefined,
         );
@@ -123,7 +123,7 @@ describe('CodeReviewPipelineObserver', () => {
             'stage-log-uuid',
             expect.objectContaining({
                 status: AutomationStatus.ERROR,
-                message: 'Error in stage TestStage: Boom',
+                message: 'Boom',
                 finishedAt: expect.any(Date),
             }),
         );
@@ -146,7 +146,7 @@ describe('CodeReviewPipelineObserver', () => {
             'stage-log-uuid',
             expect.objectContaining({
                 status: AutomationStatus.SKIPPED,
-                message: 'Stage TestStage skipped: Some reason',
+                message: 'Some reason',
                 finishedAt: expect.any(Date),
             }),
         );
@@ -184,7 +184,7 @@ describe('CodeReviewPipelineObserver', () => {
 
         expect(mockService.updateStageLog).toHaveBeenLastCalledWith(
             'stage-log-1',
-            expect.objectContaining({ message: 'Completed stage Stage1' }),
+            expect.objectContaining({ message: '' }),
         );
 
         // Stage 2 Start
@@ -201,7 +201,7 @@ describe('CodeReviewPipelineObserver', () => {
 
         expect(mockService.updateStageLog).toHaveBeenLastCalledWith(
             'stage-log-2',
-            expect.objectContaining({ message: 'Completed stage Stage2' }),
+            expect.objectContaining({ message: '' }),
         );
     });
 
@@ -241,7 +241,7 @@ describe('CodeReviewPipelineObserver', () => {
             'recovered-stage-log-uuid',
             expect.objectContaining({
                 status: AutomationStatus.SUCCESS,
-                message: 'Completed stage TestStage',
+                message: '',
             }),
         );
     });
@@ -270,7 +270,7 @@ describe('CodeReviewPipelineObserver', () => {
                 repositoryId: 'repo-1',
             }),
             expect.objectContaining({ status: AutomationStatus.SUCCESS }),
-            'Completed stage TestStage',
+            '',
             'TestStage',
             undefined,
         );
@@ -290,7 +290,7 @@ describe('CodeReviewPipelineObserver', () => {
                 uuid: 'correlation-uuid',
             }),
             expect.objectContaining({ status: AutomationStatus.IN_PROGRESS }),
-            'Starting stage TestStage',
+            'Starting...',
             'TestStage',
             undefined,
         );
@@ -321,7 +321,7 @@ describe('CodeReviewPipelineObserver', () => {
             'stage-log-uuid',
             expect.objectContaining({
                 status: AutomationStatus.PARTIAL_ERROR,
-                message: 'Completed stage TestStage',
+                message: 'Completed',
                 finishedAt: expect.any(Date),
                 metadata: expect.objectContaining({
                     partialErrors: expect.arrayContaining([

@@ -1,7 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ProcessFilesReview } from './process-files-review.stage';
 import { SUGGESTION_SERVICE_TOKEN } from '@libs/code-review/domain/contracts/SuggestionService.contract';
-import { PULL_REQUEST_MANAGER_SERVICE_TOKEN } from '@libs/code-review/domain/contracts/PullRequestManagerService.contract';
 import { PULL_REQUESTS_SERVICE_TOKEN } from '@libs/platformData/domain/pullRequests/contracts/pullRequests.service.contracts';
 import { FILE_REVIEW_CONTEXT_PREPARATION_TOKEN } from '@libs/core/domain/interfaces/file-review-context-preparation.interface';
 import { KODY_FINE_TUNING_CONTEXT_PREPARATION_TOKEN } from '@libs/core/domain/interfaces/kody-fine-tuning-context-preparation.interface';
@@ -118,13 +117,13 @@ describe('ProcessFilesReview', () => {
             },
         });
 
-        await stage.execute(context);
+        const result = await stage.execute(context);
 
         expect(
             fileReviewContextPreparation.prepareFileContext,
         ).toHaveBeenCalled();
-        expect(context.errors).toHaveLength(1);
-        expect(context.errors[0]).toEqual(
+        expect(result.errors).toHaveLength(1);
+        expect(result.errors[0]).toEqual(
             expect.objectContaining({
                 stage: 'FileAnalysisStage',
                 substage: 'test-file.ts',

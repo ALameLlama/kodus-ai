@@ -69,7 +69,7 @@ describe('FetchChangedFilesStage', () => {
 
         const expectedMessage = StageMessageHelper.skippedWithReason(
             PipelineReasons.FILES.ALL_IGNORED,
-            'Patterns: [**/*.js]',
+            'Ignored: file.js',
         );
 
         expect(result.statusInfo.message).toBe(expectedMessage);

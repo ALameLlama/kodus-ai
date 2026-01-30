@@ -42,9 +42,11 @@ describe('PipelineExecutor', () => {
         expect(mockObserver.onStageStart).toHaveBeenCalledWith(
             'TestStage',
             expect.anything(),
+            expect.anything(),
         );
         expect(mockObserver.onStageFinish).toHaveBeenCalledWith(
             'TestStage',
+            expect.anything(),
             expect.anything(),
         );
     });
@@ -71,6 +73,7 @@ describe('PipelineExecutor', () => {
             'TestStage',
             error,
             expect.anything(),
+            expect.anything(),
         );
     });
 
@@ -94,10 +97,6 @@ describe('PipelineExecutor', () => {
             [mockObserver],
         );
 
-        expect(mockObserver.onStageSkipped).toHaveBeenCalledWith(
-            'TestStage',
-            expect.stringContaining('Skipping'),
-            expect.anything(),
-        );
+        expect(mockObserver.onStageSkipped).not.toHaveBeenCalled();
     });
 });

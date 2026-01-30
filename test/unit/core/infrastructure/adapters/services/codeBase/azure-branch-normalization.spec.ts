@@ -1,13 +1,10 @@
+import { AUTOMATION_EXECUTION_SERVICE_TOKEN } from '@libs/automation/domain/automationExecution/contracts/automation-execution.service';
+import { ValidateConfigStage } from '@libs/code-review/pipeline/stages/validate-config.stage';
+import { PlatformType } from '@libs/core/domain/enums';
+import { OrganizationAndTeamData } from '@libs/core/infrastructure/config/types/general/organizationAndTeamData';
+import { ORGANIZATION_PARAMETERS_SERVICE_TOKEN } from '@libs/organization/domain/organizationParameters/contracts/organizationParameters.service.contract';
+import { CodeManagementService } from '@libs/platform/infrastructure/adapters/services/codeManagement.service';
 import { Test, TestingModule } from '@nestjs/testing';
-
-import { CodeManagementService } from '@libs/platform/infrastructure/services/codeManagement.service';
-
-import { OrganizationAndTeamData } from '@/config/types/general/organizationAndTeamData';
-import { AUTOMATION_EXECUTION_SERVICE_TOKEN } from '@/core/domain/automation/contracts/automation-execution.service';
-import { ORGANIZATION_PARAMETERS_SERVICE_TOKEN } from '@/core/domain/organizationParameters/contracts/organizationParameters.service.contract';
-import { ValidateConfigStage } from '@/core/infrastructure/adapters/services/codeBase/codeReviewPipeline/stages/validate-config.stage';
-import { PinoLoggerService } from '@/core/infrastructure/adapters/services/logger/pino.service';
-import { PlatformType } from '@/shared/domain/enums/platform-type.enum';
 
 describe('Azure Branch Normalization', () => {
     let validateConfigStage: ValidateConfigStage;
@@ -47,10 +44,6 @@ describe('Azure Branch Normalization', () => {
                 {
                     provide: CodeManagementService,
                     useValue: mockCodeManagementService,
-                },
-                {
-                    provide: PinoLoggerService,
-                    useValue: mockLogger,
                 },
             ],
         }).compile();
@@ -235,7 +228,7 @@ describe('Azure Branch Normalization', () => {
             );
 
             // Should return true because feature/* gets normalized to refs/heads/feature/*
-            expect(result).toBe(true);
+            expect(result).toEqual({ canProceed: true });
         });
 
         it('should work with GitHub branches without normalization', () => {
@@ -255,7 +248,7 @@ describe('Azure Branch Normalization', () => {
             );
 
             // Should return true because feature/* matches feature/PLT-4873
-            expect(result).toBe(true);
+            expect(result).toEqual({ canProceed: true });
         });
 
         it('should work with GitLab branches without normalization', () => {
@@ -275,7 +268,7 @@ describe('Azure Branch Normalization', () => {
             );
 
             // Should return true because feature/* matches feature/PLT-4873
-            expect(result).toBe(true);
+            expect(result).toEqual({ canProceed: true });
         });
 
         it('should handle mixed Azure patterns (user + already normalized)', () => {
@@ -299,7 +292,7 @@ describe('Azure Branch Normalization', () => {
             );
 
             // Should return true because patterns get normalized properly
-            expect(result).toBe(true);
+            expect(result).toEqual({ canProceed: true });
         });
     });
 });
