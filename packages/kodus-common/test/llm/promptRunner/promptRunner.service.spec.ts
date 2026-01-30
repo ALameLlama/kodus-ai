@@ -100,7 +100,7 @@ describe('PromptRunnerService', () => {
             expect(mockLogger.error).not.toHaveBeenCalled();
         });
 
-        it('should return null and log an error if the chain fails', async () => {
+        it('should throw an error if the chain fails', async () => {
             const testError = new Error('LLM API failed');
             mockLLMProviderService.getLLMProvider.mockReturnValue(mockLlm);
             mockChain.invoke.mockRejectedValue(testError);
@@ -112,14 +112,8 @@ describe('PromptRunnerService', () => {
                 runName: 'failing-run',
             };
 
-            const result = await service.runPrompt(params);
-
-            expect(result).toBeNull();
-            expect(mockLogger.error).toHaveBeenCalledWith(
-                expect.objectContaining({
-                    message: 'Error running prompt: failing-run',
-                    error: expect.anything(),
-                }),
+            await expect(service.runPrompt(params)).rejects.toThrow(
+                'LLM API failed',
             );
         });
     });

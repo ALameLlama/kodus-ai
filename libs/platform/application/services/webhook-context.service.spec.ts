@@ -1,16 +1,26 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { WebhookContextService } from './webhook-context.service';
 import { INTEGRATION_CONFIG_SERVICE_TOKEN } from '@libs/integrations/domain/integrationConfigs/contracts/integration-config.service.contracts';
+import { TEAM_AUTOMATION_SERVICE_TOKEN } from '@libs/automation/domain/teamAutomation/contracts/team-automation.service';
+import { AUTOMATION_SERVICE_TOKEN } from '@libs/automation/domain/automation/contracts/automation.service';
 import { IntegrationConfigKey } from '@libs/core/domain/enums/Integration-config-key.enum';
 import { PlatformType } from '@libs/core/domain/enums/platform-type.enum';
 
 describe('WebhookContextService', () => {
     let service: WebhookContextService;
     let integrationConfigServiceMock: any;
+    let teamAutomationServiceMock: any;
+    let automationServiceMock: any;
 
     beforeEach(async () => {
         integrationConfigServiceMock = {
             findIntegrationConfigWithTeams: jest.fn(),
+        };
+        teamAutomationServiceMock = {
+            find: jest.fn().mockResolvedValue([{ uuid: 'team-auto-uuid' }]),
+        };
+        automationServiceMock = {
+            find: jest.fn().mockResolvedValue([{ uuid: 'auto-uuid' }]),
         };
 
         const module: TestingModule = await Test.createTestingModule({
@@ -19,6 +29,14 @@ describe('WebhookContextService', () => {
                 {
                     provide: INTEGRATION_CONFIG_SERVICE_TOKEN,
                     useValue: integrationConfigServiceMock,
+                },
+                {
+                    provide: TEAM_AUTOMATION_SERVICE_TOKEN,
+                    useValue: teamAutomationServiceMock,
+                },
+                {
+                    provide: AUTOMATION_SERVICE_TOKEN,
+                    useValue: automationServiceMock,
                 },
             ],
         }).compile();
@@ -49,8 +67,11 @@ describe('WebhookContextService', () => {
         const result = await service.getContext(platformType, repositoryId);
 
         expect(result).toEqual({
-            organizationId: 'org-uuid',
-            teamId: 'team-uuid',
+            organizationAndTeamData: {
+                organizationId: 'org-uuid',
+                teamId: 'team-uuid',
+            },
+            teamAutomationId: 'team-auto-uuid',
         });
         expect(
             integrationConfigServiceMock.findIntegrationConfigWithTeams,

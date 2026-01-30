@@ -153,17 +153,16 @@ export class ValidatePrerequisitesStage extends BasePipelineStage<CodeReviewPipe
             validationResult,
         );
 
+        if (failureHandled === 'auto_assigned') {
+            return context;
+        }
+
         return this.updateContext(context, (draft) => {
             draft.statusInfo = {
                 status: AutomationStatus.SKIPPED, // Or FAILED? Usually SKIPPED if business logic prevents it.
-                message:
-                    failureHandled === 'auto_assigned'
-                        ? undefined // Proceed if auto-assigned?
-                        : StageMessageHelper.skippedWithReason(
-                              this.getLicenseSkipReason(
-                                  validationResult.errorType,
-                              ),
-                          ),
+                message: StageMessageHelper.skippedWithReason(
+                    this.getLicenseSkipReason(validationResult.errorType),
+                ),
             };
         });
     }

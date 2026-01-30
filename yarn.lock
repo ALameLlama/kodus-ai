@@ -1274,10 +1274,10 @@
   resolved "https://registry.npmjs.org/@keyv/serialize/-/serialize-1.1.1.tgz#0c01dd3a3483882af7cf3878d4e71d505c81fc4a"
   integrity sha512-dXn3FZhPv0US+7dtJsIi2R+c7qWYiReoEh5zUntWCf4oSpMNib8FDhSoed6m3QyZdx5hK7iLFkYk3rNxwt8vTA==
 
-"@kodus/flow@0.1.39":
-  version "0.1.39"
-  resolved "https://us-central1-npm.pkg.dev/kodus-infra-prod/kodus-pkg/@kodus/flow/-/@kodus/flow-0.1.39.tgz#b07e2be38da5f587928932edad67acae94e95151"
-  integrity sha512-rKEIqtGUFdRGQLJt+yZjHEO1posCwuqJB4Dzup3A7R7nT2LPEIJhf4mKAs2NpFzdCBSHZqaAEe/BR0lnZpZXUw==
+"@kodus/flow@0.1.40":
+  version "0.1.40"
+  resolved "https://us-central1-npm.pkg.dev/kodus-infra-prod/kodus-pkg/@kodus/flow/-/@kodus/flow-0.1.40.tgz#16262efc2309820422203da3031593ded85eaea7"
+  integrity sha512-2AYtoPu0+d3RIAIZoTB6ZPxpA2V7uWTxhiidYX73ULDPTqQCDwBm/Kyy5y2twithw1KbGOGl0qtgVlBIycsNKA==
   dependencies:
     "@google/generative-ai" "^0.24.1"
     "@modelcontextprotocol/sdk" "^1.25.2"
@@ -1294,10 +1294,10 @@
     zod "^4.2.1"
     zod-from-json-schema "^0.5.2"
 
-"@kodus/kodus-common@1.3.5":
-  version "1.3.5"
-  resolved "https://us-central1-npm.pkg.dev/kodus-infra-prod/kodus-pkg/@kodus/kodus-common/-/@kodus/kodus-common-1.3.5.tgz#22dc180ee4c3b95e3f50b7b3f65c9e95dba1fe2f"
-  integrity sha512-qQKvEHWkJB/bYjn7W3SM8jlL2rGGdKX2gmhE5EVU/7tL1aefsEv3nh+CMymkBcpYGzNOupQ2hEDPvrgTLVj5Iw==
+"@kodus/kodus-common@1.3.6":
+  version "1.3.6"
+  resolved "https://us-central1-npm.pkg.dev/kodus-infra-prod/kodus-pkg/@kodus/kodus-common/-/@kodus/kodus-common-1.3.6.tgz#53634847dff68db4f8b2d6fe0e4c1c5917dc528d"
+  integrity sha512-jz7Ky08sqT9+SVlltJAxDiAosAqX+ogO9WNo0FjCyB+hdATH44QlJiGgD8jf+y6moqbkGsjo90drUWt4QkyHNw==
 
 "@kwsites/file-exists@^1.1.1":
   version "1.1.1"
