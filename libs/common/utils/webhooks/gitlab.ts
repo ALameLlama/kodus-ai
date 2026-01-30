@@ -102,6 +102,7 @@ export class GitlabMappedPlatform implements IMappedPlatform {
             name: project?.name,
             language: null,
             fullName: extractRepoFullName(mergeRequest) ?? project?.name ?? '',
+            url: project?.web_url || project?.url,
         };
     }
 

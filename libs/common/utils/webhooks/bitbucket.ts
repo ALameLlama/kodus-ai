@@ -84,6 +84,7 @@ export class BitbucketMappedPlatform implements IMappedPlatform {
                 extractRepoFullName(params.payload?.pullrequest) ??
                 repository?.name ??
                 '',
+            url: repository?.links?.html?.href || '',
         };
     }
 
