@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # Carrega variáveis do .env se existir
 if [ -f .env ]; then

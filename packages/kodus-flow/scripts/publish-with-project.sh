@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # Script para publicar com projectId específico
 # Uso: ./scripts/publish-with-project.sh [PROJECT_ID]

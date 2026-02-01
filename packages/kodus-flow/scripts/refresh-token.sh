@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # Script para renovar token de autenticação do Google Artifact Registry
 # Token é usado apenas durante publicação, não fica persistido
