@@ -298,6 +298,10 @@ jobs:
                     exit 1
                   fi
                   jq -r '.changelog' response.json > changelog.md
+                  if [ ! -s changelog.md ]; then
+                    echo "Error: changelog.md is empty — refusing to overwrite release notes"
+                    exit 1
+                  fi
                   echo "Generated changelog for ${{ github.event.release.tag_name }}"
 
             - name: Update release notes
