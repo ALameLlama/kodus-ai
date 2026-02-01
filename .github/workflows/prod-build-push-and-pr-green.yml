@@ -282,7 +282,7 @@ jobs:
             - name: Generate changelog
               run: |
                   end_date=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-                  response=$(curl -sf -X POST "${{ secrets.CHANGELOG_API_URL }}/api/v1/changelog" \
+                  http_code=$(curl -s -o response.json -w "%{http_code}" -X POST "${{ secrets.CHANGELOG_API_URL }}/api/v1/changelog" \
                     -H "Content-Type: application/json" \
                     -d '{
                       "owner": "${{ github.repository_owner }}",
@@ -292,7 +292,16 @@ jobs:
                       "style": "end-user",
                       "webhookUrl": "${{ secrets.WEBHOOK_URL }}"
                     }')
-                  echo "$response" | jq -r '.changelog' > changelog.md
+                  if [ "$http_code" -lt 200 ] || [ "$http_code" -ge 300 ]; then
+                    echo "Changelog API returned HTTP $http_code"
+                    cat response.json
+                    exit 1
+                  fi
+                  jq -r '.changelog' response.json > changelog.md
+                  if [ ! -s changelog.md ]; then
+                    echo "Error: changelog.md is empty — refusing to overwrite release notes"
+                    exit 1
+                  fi
                   echo "Generated changelog for ${{ github.event.release.tag_name }}"
 
             - name: Update release notes

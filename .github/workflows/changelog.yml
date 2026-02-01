@@ -1,0 +1,63 @@
+name: Generate Changelog
+
+on:
+    workflow_dispatch:
+        inputs:
+            tag:
+                description: "Release tag (e.g. 2.0.11)"
+                required: true
+
+permissions:
+    contents: write
+
+jobs:
+    changelog:
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4.2.2
+
+            - name: Get previous release date
+              id: prev
+              run: |
+                  prev=$(gh release list -R ${{ github.repository }} --limit 2 \
+                    --json tagName,publishedAt -q '.[1].publishedAt // empty')
+                  echo "date=${prev:-$(date -d '-30 days' -Idate)}" >> "$GITHUB_OUTPUT"
+              env:
+                  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: Generate changelog
+              run: |
+                  end_date=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+                  http_code=$(curl -s -o response.json -w "%{http_code}" -X POST "${{ secrets.CHANGELOG_API_URL }}/api/v1/changelog" \
+                    -H "Content-Type: application/json" \
+                    -d '{
+                      "owner": "${{ github.repository_owner }}",
+                      "repo": "${{ github.event.repository.name }}",
+                      "startDate": "${{ steps.prev.outputs.date }}",
+                      "endDate": "'"$end_date"'",
+                      "style": "end-user",
+                      "webhookUrl": "${{ secrets.WEBHOOK_URL }}"
+                    }')
+                  echo "HTTP status: $http_code"
+                  echo "Response:"
+                  cat response.json
+                  if [ "$http_code" -lt 200 ] || [ "$http_code" -ge 300 ]; then
+                    echo "Changelog API returned HTTP $http_code"
+                    exit 1
+                  fi
+                  jq -r '.changelog' response.json > changelog.md
+                  if [ ! -s changelog.md ]; then
+                    echo "Error: changelog.md is empty — refusing to overwrite release notes"
+                    exit 1
+                  fi
+                  echo "--- Changelog content ---"
+                  cat changelog.md
+
+            - name: Update release notes
+              run: |
+                  gh release edit ${{ inputs.tag }} \
+                    -R ${{ github.repository }} \
+                    --notes-file changelog.md
+              env:
+                  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
