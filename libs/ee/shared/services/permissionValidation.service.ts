@@ -114,11 +114,23 @@ export class PermissionValidationService {
                 return { allowed: true };
             }
 
+            this.logger.log({
+                message: '@@VALID PERMISSION@@ - Validating execution permissions',
+                context: contextName || PermissionValidationService.name,
+                metadata: { organizationAndTeamData, userGitId },
+            });
+
             // 1. Validate organization license
             const validation =
                 await this.licenseService.validateOrganizationLicense(
                     organizationAndTeamData,
                 );
+
+            this.logger.log({
+                message: '@@VALID PERMISSION@@ - Organization license validated',
+                context: contextName || PermissionValidationService.name,
+                metadata: { organizationAndTeamData, result: validation },
+            });
 
             if (!validation?.valid) {
                 this.logger.warn({
@@ -265,10 +277,22 @@ export class PermissionValidationService {
                 return { allowed: true };
             }
 
+            this.logger.log({
+                message: '@@VALID PERMISSION@@ - Validating basic license',
+                context: contextName || PermissionValidationService.name,
+                metadata: { organizationAndTeamData },
+            });
+
             const validation =
                 await this.licenseService.validateOrganizationLicense(
                     organizationAndTeamData,
                 );
+
+            this.logger.log({
+                message: '@@VALID PERMISSION@@ - Basic license validated',
+                context: contextName || PermissionValidationService.name,
+                metadata: { organizationAndTeamData, result: validation },
+            });
 
             if (!validation?.valid) {
                 this.logger.warn({
@@ -417,10 +441,22 @@ export class PermissionValidationService {
                 return false;
             }
 
+            this.logger.log({
+                message: '@@VALID PERMISSION@@ - Validating resource limits',
+                context: contextName || PermissionValidationService.name,
+                metadata: { organizationAndTeamData },
+            });
+
             const validation =
                 await this.licenseService.validateOrganizationLicense(
                     organizationAndTeamData,
                 );
+
+            this.logger.log({
+                message: '@@VALID PERMISSION@@ - Resource limits validated',
+                context: contextName || PermissionValidationService.name,
+                metadata: { organizationAndTeamData, result: validation },
+            });
 
             if (!validation?.valid) {
                 this.logger.warn({
