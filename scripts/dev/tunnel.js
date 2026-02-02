@@ -45,6 +45,10 @@ const updateEnvFile = (tunnelUrl) => {
             value: `${tunnelUrl}/azure-repos/webhook`
         },
         {
+            key: 'API_FORGEJO_CODE_MANAGEMENT_WEBHOOK',
+            value: `${tunnelUrl}/forgejo/webhook`
+        },
+        {
             key: 'API_SIGNUP_NOTIFICATION_WEBHOOK',
             value: `${tunnelUrl}/signup/webhook`
         }
@@ -89,6 +93,7 @@ const startTunnel = async () => {
         log(colors.yellow, `   GitLab: ${tunnel.url}/gitlab/webhook`);
         log(colors.yellow, `   Bitbucket: ${tunnel.url}/bitbucket/webhook`);
         log(colors.yellow, `   Azure: ${tunnel.url}/azure-repos/webhook`);
+        log(colors.yellow, `   Forgejo: ${tunnel.url}/forgejo/webhook`);
         console.log('');
         log(colors.blue, '💡 Press Ctrl+C to stop the tunnel');
         console.log('');

@@ -7,6 +7,7 @@ import { GithubModule } from './github.module';
 import { GitlabModule } from './gitlab.module';
 import { BitbucketModule } from './bitbucket.module';
 import { AzureReposModule } from './azure-repos.module';
+import { ForgejoModule } from './forgejo.module';
 
 import CodeManagementUseCases from '../application/use-cases/codeManagement';
 import { AgentsModule } from '@libs/agents/modules/agents.module';
@@ -22,6 +23,7 @@ import { AzureReposPullRequestHandler } from '../infrastructure/webhooks/azure/a
 import { GitHubPullRequestHandler } from '../infrastructure/webhooks/github/githubPullRequest.handler';
 import { GitLabMergeRequestHandler } from '../infrastructure/webhooks/gitlab/gitlabPullRequest.handler';
 import { BitbucketPullRequestHandler } from '../infrastructure/webhooks/bitbucket/bitbucketPullRequest.handler';
+import { ForgejoPullRequestHandler } from '../infrastructure/webhooks/forgejo/forgejoPullRequest.handler';
 
 import { PlatformCoreModule } from './platform-core.module';
 import { GetConnectionsUseCase } from '../application/use-cases/integrations/get-connections.use-case';
@@ -43,6 +45,7 @@ import { WorkflowModule } from '@libs/core/workflow/modules/workflow.module';
         GitlabModule,
         BitbucketModule,
         AzureReposModule,
+        ForgejoModule,
         forwardRef(() => AgentsModule),
         forwardRef(() => CodeReviewSettingsLogModule),
         forwardRef(() => OrganizationParametersModule),
@@ -66,6 +69,7 @@ import { WorkflowModule } from '@libs/core/workflow/modules/workflow.module';
         GitHubPullRequestHandler,
         GitLabMergeRequestHandler,
         BitbucketPullRequestHandler,
+        ForgejoPullRequestHandler,
         {
             provide: 'AZURE_REPOS_WEBHOOK_HANDLER',
             useExisting: AzureReposPullRequestHandler,
@@ -82,6 +86,10 @@ import { WorkflowModule } from '@libs/core/workflow/modules/workflow.module';
             provide: 'BITBUCKET_WEBHOOK_HANDLER',
             useExisting: BitbucketPullRequestHandler,
         },
+        {
+            provide: 'FORGEJO_WEBHOOK_HANDLER',
+            useExisting: ForgejoPullRequestHandler,
+        },
     ],
     exports: [
         PlatformCoreModule,
@@ -93,6 +101,7 @@ import { WorkflowModule } from '@libs/core/workflow/modules/workflow.module';
         'GITHUB_WEBHOOK_HANDLER',
         'GITLAB_WEBHOOK_HANDLER',
         'BITBUCKET_WEBHOOK_HANDLER',
+        'FORGEJO_WEBHOOK_HANDLER',
     ],
 })
 export class PlatformModule {}
