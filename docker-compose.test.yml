@@ -1,6 +1,6 @@
 services:
     db_postgres:
-        image: pgvector/pgvector:pg16
+        image: docker.io/pgvector/pgvector:pg16
         container_name: postgres
         ports:
             - '5432:5432'
@@ -12,7 +12,7 @@ services:
             - kodus-backend-services-test
 
     db_mongodb:
-        image: mongo:8
+        image: docker.io/mongo:8
         container_name: mongodb
         ports:
             - '27017:27017'

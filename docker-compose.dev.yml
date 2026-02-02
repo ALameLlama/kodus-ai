@@ -117,7 +117,7 @@ services:
         profiles:
             - profiling
             - infra
-        image: grafana/pyroscope:latest
+        image: docker.io/grafana/pyroscope:latest
         container_name: pyroscope
         ports:
             - '4040:4040'
@@ -134,7 +134,7 @@ services:
         profiles:
             - local-db
             - infra
-        image: pgvector/pgvector:pg16
+        image: docker.io/pgvector/pgvector:pg16
         container_name: db_postgres
         ports:
             - '5432:5432'
@@ -163,7 +163,7 @@ services:
         profiles:
             - local-db
             - infra
-        image: mongo:8
+        image: docker.io/mongo:8
         container_name: mongodb
         ports:
             - '27017:27017'

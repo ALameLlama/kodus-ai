@@ -1,4 +1,4 @@
-FROM node:22.22.0-slim AS base
+FROM docker.io/library/node:22.22.0-slim AS base
 WORKDIR /usr/src/app
 
 ARG API_CLOUD_MODE=false
@@ -41,7 +41,7 @@ FROM base AS prod-deps
 COPY package.json yarn.lock .npmrc ./
 RUN yarn install --frozen-lockfile && yarn cache clean
 
-FROM node:22.22.0-slim AS runtime-common
+FROM docker.io/library/node:22.22.0-slim AS runtime-common
 WORKDIR /usr/src/app
 ENV NODE_ENV=production
 
