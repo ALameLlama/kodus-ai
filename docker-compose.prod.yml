@@ -76,7 +76,7 @@ services:
   # Databases & Infrastructure
   #----------------------------------------------------------------
   db_postgres:
-    image: pgvector/pgvector:pg16
+    image: docker.io/pgvector/pgvector:pg16
     container_name: kodus_postgres_prod
     restart: unless-stopped
     env_file:
@@ -93,7 +93,7 @@ services:
       start_period: 10s
 
   db_mongodb:
-    image: mongo:8
+    image: docker.io/mongo:8
     container_name: kodus_mongodb_prod
     restart: unless-stopped
     env_file:
