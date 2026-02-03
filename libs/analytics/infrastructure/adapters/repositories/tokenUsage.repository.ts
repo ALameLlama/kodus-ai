@@ -240,6 +240,29 @@ export class TokenUsageRepository implements ITokenUsageRepository {
             query,
         });
 
+        // Add final aggregation stage to sum across all models in the database
+        pipeline.push(
+            {
+                $group: {
+                    _id: null,
+                    input: { $sum: '$input' },
+                    output: { $sum: '$output' },
+                    total: { $sum: '$total' },
+                    outputReasoning: { $sum: '$outputReasoning' },
+                },
+            },
+            {
+                $project: {
+                    _id: 0,
+                    input: 1,
+                    output: 1,
+                    total: 1,
+                    outputReasoning: 1,
+                    model: { $literal: '' },
+                },
+            },
+        );
+
         const results = await this.observabilityTelemetryModel
             .aggregate<UsageSummaryContract>(pipeline)
             .exec();
@@ -248,16 +271,7 @@ export class TokenUsageRepository implements ITokenUsageRepository {
             return { input: 0, output: 0, total: 0, outputReasoning: 0, model: '' };
         }
 
-        return results.reduce(
-            (acc, row) => ({
-                input: acc.input + (row.input || 0),
-                output: acc.output + (row.output || 0),
-                total: acc.total + (row.total || 0),
-                outputReasoning: acc.outputReasoning + (row.outputReasoning || 0),
-                model: '',
-            }),
-            { input: 0, output: 0, total: 0, outputReasoning: 0, model: '' },
-        );
+        return results[0];
     }
 
     async getDailyUsage(
