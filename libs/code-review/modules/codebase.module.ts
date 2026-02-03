@@ -59,6 +59,7 @@ import { codeReviewPipelineProvider } from '@libs/core/providers/code-review-pip
 import { AST_ANALYSIS_SERVICE_TOKEN } from '../domain/contracts/ASTAnalysisService.contract';
 import { CodeAstAnalysisService } from '@libs/ee/kodyAST/codeASTAnalysis.service';
 import { DryRunModule } from '@libs/dryRun/dry-run.module';
+import { GlobalCacheModule } from '@libs/core/cache/cache.module';
 
 @Module({
     imports: [
@@ -84,6 +85,7 @@ import { DryRunModule } from '@libs/dryRun/dry-run.module';
         forwardRef(() => OrganizationParametersModule),
         forwardRef(() => KodyASTModule),
         forwardRef(() => DryRunModule),
+        GlobalCacheModule,
     ],
     providers: [
         {

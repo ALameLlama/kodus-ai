@@ -40,6 +40,7 @@ import { SharedConfigModule } from '@libs/shared/infrastructure/shared-config.mo
 import { SharedCoreModule } from '@libs/shared/infrastructure/shared-core.module';
 import { SharedLogModule } from '@libs/shared/infrastructure/shared-log.module';
 import { SharedObservabilityModule } from '@libs/shared/infrastructure/shared-observability.module';
+import { GlobalCacheModule } from '@libs/core/cache/cache.module';
 import { Module } from '@nestjs/common';
 import { DevtoolsModule } from '@nestjs/devtools-integration';
 
@@ -52,6 +53,7 @@ import { CodeBaseController } from './controllers/codeBase.controller';
 import { CodeManagementController } from './controllers/codeManagement.controller';
 import { CodeReviewSettingLogController } from './controllers/codeReviewSettingLog.controller';
 import { DryRunController } from './controllers/dryRun.controller';
+import { GlobalParametersController } from './controllers/globalParameters.controller';
 import { IntegrationController } from './controllers/integration.controller';
 import { IntegrationConfigController } from './controllers/integrationConfig.controller';
 import { IssuesController } from './controllers/issues.controller';
@@ -128,6 +130,7 @@ import { ConfigService } from '@nestjs/config';
         HealthModule,
         CronModule,
         SSOModule,
+        GlobalCacheModule,
     ],
     controllers: [
         // WorkflowQueueController,
@@ -136,6 +139,7 @@ import { ConfigService } from '@nestjs/config';
         CodeReviewSettingLogController,
         PullRequestMessagesController,
         CodeBaseController,
+        GlobalParametersController,
         IssuesController,
         KodyRulesController,
         RuleLikeController,
