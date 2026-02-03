@@ -9,24 +9,22 @@ import {
 import {
     IWebhookForgejoPullRequestEvent,
     IWebhookForgejoIssueCommentEvent,
-    WebhookForgejoPullRequestAction,
 } from '@libs/platform/domain/platformIntegrations/types/webhooks/webhooks-forgejo.type';
 
 export class ForgejoMappedPlatform implements IMappedPlatform {
     mapUsers(params: {
         payload: IWebhookForgejoPullRequestEvent;
     }): IMappedUsers {
-        if (!params?.payload?.sender) {
+        if (!params?.payload?.pull_request) {
             return null;
         }
 
         const { payload } = params;
-        const pullRequest = payload?.pull_request;
 
         return {
-            user: payload?.sender,
-            assignees: pullRequest?.assignees || [],
-            reviewers: pullRequest?.requested_reviewers || [],
+            user: payload?.pull_request.user,
+            assignees: payload?.pull_request?.assignees || [],
+            reviewers: payload?.pull_request?.requested_reviewers || [],
         };
     }
 
@@ -37,7 +35,9 @@ export class ForgejoMappedPlatform implements IMappedPlatform {
     }
 
     mapPullRequest(params: {
-        payload: IWebhookForgejoPullRequestEvent | IWebhookForgejoIssueCommentEvent;
+        payload:
+        | IWebhookForgejoPullRequestEvent
+        | IWebhookForgejoIssueCommentEvent;
     }): IMappedPullRequest {
         const { payload } = params;
 
@@ -73,33 +73,37 @@ export class ForgejoMappedPlatform implements IMappedPlatform {
             url: pullRequest?.html_url,
             head: pullRequest?.head
                 ? {
-                      repo: {
-                          fullName: pullRequest?.head?.repo?.full_name,
-                      },
-                      ref: pullRequest?.head?.ref,
-                      sha: pullRequest?.head?.sha,
-                  }
+                    repo: {
+                        fullName: pullRequest?.head?.repo?.full_name,
+                    },
+                    ref: pullRequest?.head?.ref,
+                    sha: pullRequest?.head?.sha,
+                }
                 : undefined,
             base: pullRequest?.base
                 ? {
-                      repo: {
-                          fullName: pullRequest?.base?.repo?.full_name,
-                          defaultBranch: pullRequest?.base?.repo?.default_branch,
-                      },
-                      ref: pullRequest?.base?.ref,
-                      sha: pullRequest?.base?.sha,
-                  }
+                    repo: {
+                        fullName: pullRequest?.base?.repo?.full_name,
+                        defaultBranch:
+                            pullRequest?.base?.repo?.default_branch,
+                    },
+                    ref: pullRequest?.base?.ref,
+                    sha: pullRequest?.base?.sha,
+                }
                 : undefined,
-            isDraft: pullRequest?.title?.toLowerCase().startsWith('wip:') ||
-                     pullRequest?.title?.toLowerCase().startsWith('[wip]') ||
-                     pullRequest?.title?.toLowerCase().startsWith('draft:') ||
-                     pullRequest?.title?.toLowerCase().startsWith('[draft]'),
+            isDraft:
+                pullRequest?.title?.toLowerCase().startsWith('wip:') ||
+                pullRequest?.title?.toLowerCase().startsWith('[wip]') ||
+                pullRequest?.title?.toLowerCase().startsWith('draft:') ||
+                pullRequest?.title?.toLowerCase().startsWith('[draft]'),
             tags: pullRequest?.labels?.map((label: any) => label.name) ?? [],
         };
     }
 
     mapRepository(params: {
-        payload: IWebhookForgejoPullRequestEvent | IWebhookForgejoIssueCommentEvent;
+        payload:
+        | IWebhookForgejoPullRequestEvent
+        | IWebhookForgejoIssueCommentEvent;
     }): IMappedRepository {
         if (!params?.payload?.repository) {
             return null;

@@ -22,7 +22,7 @@ import { EnqueueCodeReviewJobUseCase } from '@libs/core/workflow/application/use
 import { EnqueueImplementationCheckUseCase } from '@libs/code-review/application/use-cases/enqueue-implementation-check.use-case';
 import { WebhookContextService } from '@libs/platform/application/services/webhook-context.service';
 import {
-    WebhookForgejoPullRequestAction,
+    WebhookForgejoHookIssueAction,
     IWebhookForgejoPullRequestEvent,
 } from '@libs/platform/domain/platformIntegrations/types/webhooks/webhooks-forgejo.type';
 
@@ -171,7 +171,7 @@ export class ForgejoPullRequestHandler implements IWebhookEventHandler {
                         context: ForgejoPullRequestHandler.name,
                         metadata: { prNumber, teamAutomationId: context.teamAutomationId },
                     });
-                    
+
                     this.enqueueCodeReviewJobUseCase
                         .execute({
                             codeManagementPayload: payload,
@@ -206,7 +206,7 @@ export class ForgejoPullRequestHandler implements IWebhookEventHandler {
                 }
 
                 // Check for new commits (synchronized action)
-                if (payload?.action === WebhookForgejoPullRequestAction.SYNCHRONIZED) {
+                if (payload?.action === WebhookForgejoHookIssueAction.SYNCHRONIZED) {
                     if (context.organizationAndTeamData) {
                         this.enqueueImplementationCheckUseCase
                             .execute({
@@ -238,7 +238,7 @@ export class ForgejoPullRequestHandler implements IWebhookEventHandler {
 
                 // Handle PR merge/close events
                 if (
-                    payload?.action === WebhookForgejoPullRequestAction.CLOSED &&
+                    payload?.action === WebhookForgejoHookIssueAction.CLOSED &&
                     payload?.pull_request?.merged
                 ) {
                     this.generateIssuesFromPrClosedUseCase.execute(params);
@@ -288,14 +288,14 @@ export class ForgejoPullRequestHandler implements IWebhookEventHandler {
 
                 return;
             } else if (
-                payload?.action === WebhookForgejoPullRequestAction.CLOSED ||
-                payload?.action === WebhookForgejoPullRequestAction.EDITED
+                payload?.action === WebhookForgejoHookIssueAction.CLOSED ||
+                payload?.action === WebhookForgejoHookIssueAction.EDITED
             ) {
                 // For closed or edited PRs, just save the state without triggering automation
                 await this.savePullRequestUseCase.execute(params);
 
                 if (
-                    payload?.action === WebhookForgejoPullRequestAction.CLOSED &&
+                    payload?.action === WebhookForgejoHookIssueAction.CLOSED &&
                     payload?.pull_request?.merged
                 ) {
                     this.generateIssuesFromPrClosedUseCase
@@ -431,27 +431,27 @@ export class ForgejoPullRequestHandler implements IWebhookEventHandler {
         const pullRequest = payload?.pull_request;
 
         // Trigger on new PR
-        if (action === WebhookForgejoPullRequestAction.OPENED) {
+        if (action === WebhookForgejoHookIssueAction.OPENED) {
             return true;
         }
 
         // Trigger on new commits (synchronized)
-        if (action === WebhookForgejoPullRequestAction.SYNCHRONIZED) {
+        if (action === WebhookForgejoHookIssueAction.SYNCHRONIZED) {
             return true;
         }
 
         // Trigger on reopened
-        if (action === WebhookForgejoPullRequestAction.REOPENED) {
+        if (action === WebhookForgejoHookIssueAction.REOPENED) {
             return true;
         }
 
         // Trigger on merge
-        if (action === WebhookForgejoPullRequestAction.CLOSED && pullRequest?.merged) {
+        if (action === WebhookForgejoHookIssueAction.CLOSED && pullRequest?.merged) {
             return true;
         }
 
         // Trigger on close (not merged)
-        if (action === WebhookForgejoPullRequestAction.CLOSED && !pullRequest?.merged) {
+        if (action === WebhookForgejoHookIssueAction.CLOSED && !pullRequest?.merged) {
             return true;
         }
 

@@ -289,8 +289,9 @@ jobs:
                       "repo": "${{ github.event.repository.name }}",
                       "startDate": "${{ steps.prev.outputs.date }}",
                       "endDate": "'"$end_date"'",
-                      "style": "end-user",
-                      "webhookUrl": "${{ secrets.WEBHOOK_URL }}"
+                      "style": "Write for end-users — no technical details, keep it clear and meaningful. Group related changes into a single item when they are part of the same improvement. Categorize into: New Features, Improvements, Bug Fixes, Chore / DevEx. Only include a category if it has items. Only include changes that were actually released.",
+                      "webhookUrl": "${{ secrets.WEBHOOK_URL }}",
+                      "version": "${{ github.event.release.tag_name }}"
                     }')
                   if [ "$http_code" -lt 200 ] || [ "$http_code" -ge 300 ]; then
                     echo "Changelog API returned HTTP $http_code"
