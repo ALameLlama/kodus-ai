@@ -9,6 +9,7 @@ import { IntegrationCategory } from '@libs/core/domain/enums/integration-categor
 import { IntegrationConfigKey } from '@libs/core/domain/enums/Integration-config-key.enum';
 import { OrganizationParametersKey } from '@libs/core/domain/enums/organization-parameters-key.enum';
 import { ParametersKey } from '@libs/core/domain/enums/parameters-key.enum';
+import { GlobalParametersKey } from '@libs/core/domain/enums/global-parameters-key.enum';
 import {
     CodeReviewConfig,
     CodeReviewConfigWithoutLLMProvider,
@@ -50,9 +51,17 @@ import {
     IParametersService,
     PARAMETERS_SERVICE_TOKEN,
 } from '@libs/organization/domain/parameters/contracts/parameters.service.contract';
+import {
+    IGlobalParametersService,
+    GLOBAL_PARAMETERS_SERVICE_TOKEN,
+} from '@libs/organization/domain/global-parameters/contracts/global-parameters.service.contract';
+import { CacheService } from '@libs/core/cache/cache.service';
 import { AuthMode } from '@libs/platform/domain/platformIntegrations/enums/codeManagement/authMode.enum';
 import { CodeManagementService } from '@libs/platform/infrastructure/adapters/services/codeManagement.service';
 import { KodyRulesValidationService } from '../kodyRules/service/kody-rules-validation.service';
+
+const GLOBAL_IGNORE_PATHS_CACHE_KEY = 'global:ignore_paths';
+const GLOBAL_IGNORE_PATHS_CACHE_TTL = 43200000; // 12 hours
 
 @Injectable()
 export default class CodeBaseConfigService implements ICodeBaseConfigService {
@@ -70,8 +79,11 @@ export default class CodeBaseConfigService implements ICodeBaseConfigService {
         private readonly parametersService: IParametersService,
         @Inject(KODY_RULES_SERVICE_TOKEN)
         private readonly kodyRulesService: IKodyRulesService,
+        @Inject(GLOBAL_PARAMETERS_SERVICE_TOKEN)
+        private readonly globalParametersService: IGlobalParametersService,
         private readonly codeManagementService: CodeManagementService,
         private readonly kodyRulesValidationService: KodyRulesValidationService,
+        private readonly cacheService: CacheService,
     ) {
         this.DEFAULT_CONFIG = this.getDefaultConfigs();
     }
@@ -122,6 +134,8 @@ export default class CodeBaseConfigService implements ICodeBaseConfigService {
                 mergedConfigs.directoryId,
             );
 
+            const globalIgnorePaths = await this.getGlobalIgnorePaths(organizationAndTeamData);
+
             const fullConfig = {
                 ...mergedConfigs,
                 languageResultPrompt:
@@ -131,9 +145,7 @@ export default class CodeBaseConfigService implements ICodeBaseConfigService {
                 kodyRules,
                 reviewModeConfig,
                 kodyFineTuningConfig,
-                ignorePaths: mergedConfigs.ignorePaths.concat(
-                    globalIgnorePathsJson?.paths ?? [],
-                ),
+                ignorePaths: mergedConfigs.ignorePaths.concat(globalIgnorePaths),
                 // v2-only prompt overrides (categories and severity guidance). Read from repo/global parameters.
                 v2PromptOverrides: this.sanitizeV2PromptOverrides(
                     mergedConfigs.v2PromptOverrides,
@@ -646,6 +658,77 @@ export default class CodeBaseConfigService implements ICodeBaseConfigService {
         };
     }
 
+    private async getGlobalIgnorePaths(organizationAndTeamData: OrganizationAndTeamData): Promise<string[]> {
+        try {
+            // Try to get from cache first
+            const cachedData =
+                await this.cacheService.getFromCache<{ paths: string[]; updatedAt: string }>(
+                    GLOBAL_IGNORE_PATHS_CACHE_KEY,
+                );
+
+            if (cachedData) {
+                // Light query: fetch only updatedAt to check if cache is stale
+                const dbUpdatedAt = await this.globalParametersService.findUpdatedAtByKey(
+                    GlobalParametersKey.IGNORE_PATHS_GLOBAL,
+                );
+
+                // If no record in DB or cache is still valid, use cached data
+                if (!dbUpdatedAt || new Date(cachedData.updatedAt) >= new Date(dbUpdatedAt)) {
+                    this.logger.log({
+                        message: 'Global ignore paths loaded from cache',
+                        context: CodeBaseConfigService.name,
+                        metadata: { organizationAndTeamData },
+                    });
+                    return cachedData.paths;
+                }
+            }
+
+            // Fetch full record from database
+            const globalParameters = await this.globalParametersService.findByKey(
+                GlobalParametersKey.IGNORE_PATHS_GLOBAL,
+            );
+
+            if (globalParameters?.configValue?.paths) {
+                const paths = globalParameters.configValue.paths as string[];
+
+                // Save to cache with updatedAt
+                await this.cacheService.addToCache(
+                    GLOBAL_IGNORE_PATHS_CACHE_KEY,
+                    {
+                        paths,
+                        updatedAt: globalParameters.updatedAt?.toISOString() ?? new Date().toISOString(),
+                    },
+                    GLOBAL_IGNORE_PATHS_CACHE_TTL,
+                );
+
+                this.logger.log({
+                    message: 'Global ignore paths loaded from global parameters',
+                    context: CodeBaseConfigService.name,
+                    metadata: { organizationAndTeamData },
+                });
+
+                return paths;
+            }
+
+            // Fallback to JSON file
+            this.logger.log({
+                message: 'Global ignore paths loaded from file (fallback)',
+                context: CodeBaseConfigService.name,
+                metadata: { organizationAndTeamData },
+            });
+
+            return globalIgnorePathsJson?.paths ?? [];
+        } catch (error) {
+            this.logger.error({
+                message: 'Error getting global ignore paths, using file fallback',
+                context: CodeBaseConfigService.name,
+                error,
+                metadata: { organizationAndTeamData },
+            });
+
+            return globalIgnorePathsJson?.paths ?? [];
+        }
+    } 
     private resolveConfigByDirectories(
         organizationAndTeamData: OrganizationAndTeamData,
         repoConfig: RepositoryCodeReviewConfig,
