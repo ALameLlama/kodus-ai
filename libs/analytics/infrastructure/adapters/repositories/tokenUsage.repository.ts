@@ -194,8 +194,31 @@ export class TokenUsageRepository implements ITokenUsageRepository {
             },
         };
 
+        // Exclude spans without token data (wrapper/parent spans that have no LLM usage)
+        const matchHasTokenData = {
+            $match: {
+                $expr: {
+                    $gt: [
+                        {
+                            $ifNull: [
+                                {
+                                    $getField: {
+                                        field: 'gen_ai.usage.total_tokens',
+                                        input: '$attributes',
+                                    },
+                                },
+                                0,
+                            ],
+                        },
+                        0,
+                    ],
+                },
+            },
+        };
+
         const pipeline: any[] = [
             matchStageFinal,
+            matchHasTokenData,
             matchBYOKStage,
             matchPRNumberStage,
             matchModelStage,
@@ -221,11 +244,20 @@ export class TokenUsageRepository implements ITokenUsageRepository {
             .aggregate<UsageSummaryContract>(pipeline)
             .exec();
 
-        if (results.length > 0) {
-            return results[0];
+        if (results.length === 0) {
+            return { input: 0, output: 0, total: 0, outputReasoning: 0, model: '' };
         }
 
-        return { input: 0, output: 0, total: 0, outputReasoning: 0, model: '' };
+        return results.reduce(
+            (acc, row) => ({
+                input: acc.input + (row.input || 0),
+                output: acc.output + (row.output || 0),
+                total: acc.total + (row.total || 0),
+                outputReasoning: acc.outputReasoning + (row.outputReasoning || 0),
+                model: '',
+            }),
+            { input: 0, output: 0, total: 0, outputReasoning: 0, model: '' },
+        );
     }
 
     async getDailyUsage(

@@ -205,15 +205,25 @@ export class TokenUsageController {
 
     @Get('tokens/pricing')
     async getPricing(@Query() query: TokenPricingQueryDto) {
-        const organizationId = this.request?.user?.organization?.uuid;
+        try {
+            const organizationId = this.request?.user?.organization?.uuid;
 
-        if (!organizationId) {
-            throw new BadRequestException(
-                'organizationId not found in request',
-            );
+            if (!organizationId) {
+                throw new BadRequestException(
+                    'organizationId not found in request',
+                );
+            }
+
+            return await this.tokenPricingUseCase.execute(query.model, query.provider);
+        } catch (error) {
+            this.logger.error({
+                message: 'Error fetching token pricing',
+                error,
+                context: TokenUsageController.name,
+                metadata: { query },
+            });
+            return {};
         }
-
-        return this.tokenPricingUseCase.execute(query.model, query.provider);
     }
 
     @Get('cost-estimate')
