@@ -4,21 +4,21 @@
  */
 
 import { createLogger } from '@kodus/flow';
-import { Injectable, Inject } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 
+import { AutomationStatus } from '@libs/automation/domain/automation/enum/automation-status';
 import {
     GitHubReaction,
     GitlabReaction,
     ReviewStatusReaction,
 } from '@libs/code-review/domain/codeReviewFeedback/enums/codeReviewCommentReaction.enum';
+import { CodeReviewPipelineContext } from '@libs/code-review/pipeline/context/code-review-pipeline.context';
 import { PlatformType } from '@libs/core/domain/enums/platform-type.enum';
 import { OrganizationAndTeamData } from '@libs/core/infrastructure/config/types/general/organizationAndTeamData';
-import { CodeReviewPipelineContext } from '@libs/code-review/pipeline/context/code-review-pipeline.context';
 import { PipelineFactory } from '@libs/core/infrastructure/pipeline/services/pipeline-factory.service';
 import { ObservabilityService } from '@libs/core/log/observability.service';
-import { CodeManagementService } from '@libs/platform/infrastructure/adapters/services/codeManagement.service';
-import { AutomationStatus } from '@libs/automation/domain/automation/enum/automation-status';
 import { TaskStatus } from '@libs/ee/kodyAST/interfaces/code-ast-analysis.interface';
+import { CodeManagementService } from '@libs/platform/infrastructure/adapters/services/codeManagement.service';
 
 @Injectable()
 export class CodeReviewHandlerService {
@@ -37,6 +37,11 @@ export class CodeReviewHandlerService {
             [ReviewStatusReaction.ERROR]: GitlabReaction.CONFUSED,
             [ReviewStatusReaction.SKIP]: GitlabReaction.EYES,
         },
+    };
+
+    private readonly statusToCommentMap = {
+        [ReviewStatusReaction.ERROR]: 'Code review failed 😕',
+        [ReviewStatusReaction.SKIP]: 'Code review skipped 👀',
     };
 
     constructor(
@@ -183,8 +188,22 @@ export class CodeReviewHandlerService {
         const status = result.statusInfo?.status;
 
         if (status === AutomationStatus.SKIPPED) {
+            // If the specific stage already handled the notification (e.g. License check on Azure/BB), don't post a generic skip message.
+            if (result.pipelineMetadata?.notificationHandled) {
+                this.logger.log({
+                    message: `Review skipped for PR#${context.pullRequest.number} - notification already handled`,
+                    context: CodeReviewHandlerService.name,
+                    metadata: {
+                        skipReason: result.statusInfo?.message,
+                        organizationAndTeamData:
+                            context.organizationAndTeamData,
+                    },
+                });
+                return;
+            }
+
             await this.removeCurrentReaction(context);
-            await this.addStatusReaction(context, ReviewStatusReaction.SKIP);
+            await this.addStatusReaction(result, ReviewStatusReaction.SKIP);
 
             this.logger.log({
                 message: `Review skipped for PR#${context.pullRequest.number} - adding skip reaction`,
@@ -199,7 +218,7 @@ export class CodeReviewHandlerService {
 
         if (status === AutomationStatus.ERROR) {
             await this.removeCurrentReaction(context);
-            await this.addStatusReaction(context, ReviewStatusReaction.ERROR);
+            await this.addStatusReaction(result, ReviewStatusReaction.ERROR);
 
             this.logger.error({
                 message: `Review failed for PR#${context.pullRequest.number} - adding error reaction`,
@@ -217,7 +236,7 @@ export class CodeReviewHandlerService {
             status === AutomationStatus.IN_PROGRESS
         ) {
             await this.removeCurrentReaction(context);
-            await this.addStatusReaction(context, ReviewStatusReaction.SUCCESS);
+            await this.addStatusReaction(result, ReviewStatusReaction.SUCCESS);
             return;
         }
     }
@@ -235,7 +254,45 @@ export class CodeReviewHandlerService {
                 triggerCommentId,
             } = context;
 
-            if (platformType === PlatformType.AZURE_REPOS) {
+            if (
+                platformType === PlatformType.AZURE_REPOS ||
+                platformType === PlatformType.BITBUCKET
+            ) {
+                const comment = this.statusToCommentMap[status];
+
+                if (!comment) {
+                    return;
+                }
+
+                if (
+                    triggerCommentId &&
+                    platformType === PlatformType.BITBUCKET
+                ) {
+                    await this.codeManagement.createResponseToComment({
+                        organizationAndTeamData,
+                        repository: {
+                            id: repository.id,
+                            name: repository.name,
+                        },
+                        prNumber: pullRequest.number,
+                        inReplyToId:
+                            typeof triggerCommentId === 'string'
+                                ? (parseInt(triggerCommentId, 10) ??
+                                  triggerCommentId)
+                                : triggerCommentId,
+                        body: comment,
+                    });
+                } else {
+                    await this.codeManagement.createIssueComment({
+                        organizationAndTeamData,
+                        repository: {
+                            id: repository.id,
+                            name: repository.name,
+                        },
+                        prNumber: pullRequest.number,
+                        body: comment,
+                    });
+                }
                 return;
             }
 
@@ -290,7 +347,10 @@ export class CodeReviewHandlerService {
                 triggerCommentId,
             } = context;
 
-            if (platformType === PlatformType.AZURE_REPOS) {
+            if (
+                platformType === PlatformType.AZURE_REPOS ||
+                platformType === PlatformType.BITBUCKET
+            ) {
                 return;
             }
 

@@ -1,40 +1,40 @@
-import { BasePipelineStage } from '@libs/core/infrastructure/pipeline/abstracts/base-stage.abstract';
-import { StageVisibility } from '@libs/core/infrastructure/pipeline/enums/stage-visibility.enum';
-import { Inject, Injectable } from '@nestjs/common';
 import { createLogger } from '@kodus/flow';
 import {
     AutomationMessage,
     AutomationStatus,
 } from '@libs/automation/domain/automation/enum/automation-status';
-import { IStageValidationResult } from '@libs/core/infrastructure/pipeline/interfaces/stage-result.interface';
-import { CodeReviewPipelineContext } from '../context/code-review-pipeline.context';
-import {
-    PermissionValidationService,
-    ValidationErrorType,
-} from '@libs/ee/shared/services/permissionValidation.service';
-import { AutoAssignLicenseUseCase } from '@libs/ee/license/use-cases/auto-assign-license.use-case';
-import {
-    IOrganizationParametersService,
-    ORGANIZATION_PARAMETERS_SERVICE_TOKEN,
-} from '@libs/organization/domain/organizationParameters/contracts/organizationParameters.service.contract';
-import {
-    IPullRequestsService,
-    PULL_REQUESTS_SERVICE_TOKEN,
-} from '@libs/platformData/domain/pullRequests/contracts/pullRequests.service.contracts';
-import { CodeManagementService } from '@libs/platform/infrastructure/adapters/services/codeManagement.service';
-import { OrganizationAndTeamData } from '@libs/core/infrastructure/config/types/general/organizationAndTeamData';
-import {
-    OrganizationParametersKey,
-    PlatformType,
-} from '@libs/core/domain/enums';
-import { OrganizationParametersAutoAssignConfig } from '@libs/organization/domain/organizationParameters/types/organizationParameters.types';
 import {
     GitHubReaction,
     GitlabReaction,
 } from '@libs/code-review/domain/codeReviewFeedback/enums/codeReviewCommentReaction.enum';
+import {
+    OrganizationParametersKey,
+    PlatformType,
+} from '@libs/core/domain/enums';
+import { OrganizationAndTeamData } from '@libs/core/infrastructure/config/types/general/organizationAndTeamData';
+import { BasePipelineStage } from '@libs/core/infrastructure/pipeline/abstracts/base-stage.abstract';
 import { PipelineReasons } from '@libs/core/infrastructure/pipeline/constants/pipeline-reasons.const';
+import { StageVisibility } from '@libs/core/infrastructure/pipeline/enums/stage-visibility.enum';
 import { PipelineReason } from '@libs/core/infrastructure/pipeline/interfaces/pipeline-reason.interface';
+import { IStageValidationResult } from '@libs/core/infrastructure/pipeline/interfaces/stage-result.interface';
 import { StageMessageHelper } from '@libs/core/infrastructure/pipeline/utils/stage-message.helper';
+import { AutoAssignLicenseUseCase } from '@libs/ee/license/use-cases/auto-assign-license.use-case';
+import {
+    PermissionValidationService,
+    ValidationErrorType,
+} from '@libs/ee/shared/services/permissionValidation.service';
+import {
+    IOrganizationParametersService,
+    ORGANIZATION_PARAMETERS_SERVICE_TOKEN,
+} from '@libs/organization/domain/organizationParameters/contracts/organizationParameters.service.contract';
+import { OrganizationParametersAutoAssignConfig } from '@libs/organization/domain/organizationParameters/types/organizationParameters.types';
+import { CodeManagementService } from '@libs/platform/infrastructure/adapters/services/codeManagement.service';
+import {
+    IPullRequestsService,
+    PULL_REQUESTS_SERVICE_TOKEN,
+} from '@libs/platformData/domain/pullRequests/contracts/pullRequests.service.contracts';
+import { Inject, Injectable } from '@nestjs/common';
+import { CodeReviewPipelineContext } from '../context/code-review-pipeline.context';
 
 const ERROR_TO_MESSAGE_TYPE: Record<
     ValidationErrorType,
@@ -164,6 +164,18 @@ export class ValidatePrerequisitesStage extends BasePipelineStage<CodeReviewPipe
                     this.getLicenseSkipReason(validationResult.errorType),
                 ),
             };
+
+            // If we failed validation, we likely sent a specific license notification (for Azure/Bitbucket).
+            // Mark it so the handler doesn't send a generic "Skipped" message on top.
+            if (
+                context.platformType === PlatformType.AZURE_REPOS ||
+                context.platformType === PlatformType.BITBUCKET
+            ) {
+                if (!draft.pipelineMetadata) {
+                    draft.pipelineMetadata = {};
+                }
+                draft.pipelineMetadata.notificationHandled = true;
+            }
         });
     }
 
@@ -321,7 +333,34 @@ export class ValidatePrerequisitesStage extends BasePipelineStage<CodeReviewPipe
         triggerCommentId?: string | number;
     }) {
         try {
-            if (params.platformType === PlatformType.AZURE_REPOS) {
+            if (
+                params.platformType === PlatformType.AZURE_REPOS ||
+                params.platformType === PlatformType.BITBUCKET
+            ) {
+                const message = 'License validation failed 👎';
+                if (
+                    params.triggerCommentId &&
+                    params.platformType === PlatformType.BITBUCKET
+                ) {
+                    await this.codeManagementService.createResponseToComment({
+                        organizationAndTeamData: params.organizationAndTeamData,
+                        repository: params.repository,
+                        prNumber: params.prNumber,
+                        inReplyToId:
+                            typeof params.triggerCommentId === 'string'
+                                ? (parseInt(params.triggerCommentId, 10) ??
+                                  params.triggerCommentId)
+                                : params.triggerCommentId,
+                        body: message,
+                    });
+                } else {
+                    await this.codeManagementService.createIssueComment({
+                        organizationAndTeamData: params.organizationAndTeamData,
+                        repository: params.repository,
+                        prNumber: params.prNumber,
+                        body: message,
+                    });
+                }
                 return;
             }
 

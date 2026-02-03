@@ -91,6 +91,7 @@ export interface CodeReviewPipelineContext extends PipelineContext {
     };
     pipelineMetadata?: {
         lastExecution?: AutomationExecutionEntity;
+        notificationHandled?: boolean;
     };
 
     initialCommentData?: {
