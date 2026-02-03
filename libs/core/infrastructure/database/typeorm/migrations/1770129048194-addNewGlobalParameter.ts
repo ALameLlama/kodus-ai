@@ -5,7 +5,7 @@ export class AddNewGlobalParameter1770129048194 implements MigrationInterface {
 
     public async up(queryRunner: QueryRunner): Promise<void> {
         await queryRunner.query(`
-            DROP INDEX "public"."IDX_integration_configs_value_gin"
+            DROP INDEX IF EXISTS "public"."IDX_integration_configs_value_gin"
         `);
         await queryRunner.query(`
             ALTER TYPE "public"."global_parameters_configkey_enum"
@@ -46,7 +46,7 @@ export class AddNewGlobalParameter1770129048194 implements MigrationInterface {
             RENAME TO "global_parameters_configkey_enum"
         `);
         await queryRunner.query(`
-            CREATE INDEX "IDX_integration_configs_value_gin" ON "integration_configs" ("configValue")
+            CREATE INDEX IF NOT EXISTS "IDX_integration_configs_value_gin" ON "integration_configs" ("configValue")
         `);
     }
 
