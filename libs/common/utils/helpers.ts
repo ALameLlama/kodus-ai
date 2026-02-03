@@ -25,6 +25,20 @@ export function extractRepoName(repoName: string): string {
     return parts[parts.length - 1].trim();
 }
 
+export function extractOwnerAndRepo(
+    repoFullName: string,
+): { owner: string; repo: string } | null {
+    if (!repoFullName) return null;
+
+    const parts = repoFullName.split('/', 2);
+    if (parts.length < 2) return null;
+
+    return {
+        owner: parts[0],
+        repo: parts[1],
+    };
+}
+
 export function extractRepoData(
     repositories: any[],
     repoName: string,

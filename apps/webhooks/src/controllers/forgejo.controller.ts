@@ -5,6 +5,8 @@ import { Request, Response } from 'express';
 import { PlatformType } from '@libs/core/domain/enums/platform-type.enum';
 import { EnqueueWebhookUseCase } from '@libs/platform/application/use-cases/webhook/enqueue-webhook.use-case';
 
+import { WebhookForgejoEvent } from '@libs/platform/domain/platformIntegrations/types/webhooks/webhooks-forgejo.type';
+
 @Controller('forgejo')
 export class ForgejoController {
     private readonly logger = createLogger(ForgejoController.name);
@@ -16,17 +18,17 @@ export class ForgejoController {
     handleWebhook(@Req() req: Request, @Res() res: Response) {
         // Forgejo uses X-Forgejo-Event header, but also supports X-Gitea-Event, X-Gogs-Event and X-GitHub-Event for compatibilityi
         // @see https://forgejo.org/docs/next/user/webhooks/#event-information
-        const event = (req.headers['x-forgejo-event'] || req.headers['x-gitea-event'] || req.headers['x-github-event'] || req.headers['x-gogs-event']) as string;
+        const event = (req.headers['x-forgejo-event'] ||
+            req.headers['x-gitea-event'] ||
+            req.headers['x-github-event'] ||
+            req.headers['x-gogs-event']) as string;
         const payload = req.body as any;
 
         // Filter unsupported events before enqueueing
-        // @see https://codeberg.org/forgejo/forgejo/src/branch/forgejo/modules/webhook/type.go
-        const supportedEvents = [
-            'pull_request',
-            'issue_comment',
-            'pull_request_review',
-            'pull_request_sync',
-            'pull_request_review_comment',
+        const supportedEvents: string[] = [
+            WebhookForgejoEvent.PULL_REQUEST,
+            WebhookForgejoEvent.ISSUE_COMMENT,
+            WebhookForgejoEvent.PULL_REQUEST_REVIEW_COMMENT,
         ];
 
         if (!supportedEvents.includes(event)) {
@@ -37,7 +39,6 @@ export class ForgejoController {
 
         res.status(HttpStatus.OK).send('Webhook received');
 
-        // TODO: look more into the payload?
         setImmediate(() => {
             void this.enqueueWebhookUseCase
                 .execute({
