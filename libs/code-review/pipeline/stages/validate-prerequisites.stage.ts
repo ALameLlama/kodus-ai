@@ -348,8 +348,8 @@ export class ValidatePrerequisitesStage extends BasePipelineStage<CodeReviewPipe
                         prNumber: params.prNumber,
                         inReplyToId:
                             typeof params.triggerCommentId === 'string'
-                                ? (parseInt(params.triggerCommentId, 10) ??
-                                  params.triggerCommentId)
+                                ? parseInt(params.triggerCommentId, 10) ||
+                                  params.triggerCommentId
                                 : params.triggerCommentId,
                         body: message,
                     });

@@ -277,8 +277,8 @@ export class CodeReviewHandlerService {
                         prNumber: pullRequest.number,
                         inReplyToId:
                             typeof triggerCommentId === 'string'
-                                ? (parseInt(triggerCommentId, 10) ??
-                                  triggerCommentId)
+                                ? parseInt(triggerCommentId, 10) ||
+                                  triggerCommentId
                                 : triggerCommentId,
                         body: comment,
                     });
