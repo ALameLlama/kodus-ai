@@ -40,6 +40,7 @@ import { SharedConfigModule } from '@libs/shared/infrastructure/shared-config.mo
 import { SharedCoreModule } from '@libs/shared/infrastructure/shared-core.module';
 import { SharedLogModule } from '@libs/shared/infrastructure/shared-log.module';
 import { SharedObservabilityModule } from '@libs/shared/infrastructure/shared-observability.module';
+import { GlobalCacheModule } from '@libs/core/cache/cache.module';
 import { Module } from '@nestjs/common';
 import { DevtoolsModule } from '@nestjs/devtools-integration';
 
@@ -128,6 +129,7 @@ import { ConfigService } from '@nestjs/config';
         HealthModule,
         CronModule,
         SSOModule,
+        GlobalCacheModule,
     ],
     controllers: [
         // WorkflowQueueController,

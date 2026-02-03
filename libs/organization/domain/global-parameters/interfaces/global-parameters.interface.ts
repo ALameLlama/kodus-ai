@@ -4,4 +4,5 @@ export interface IGlobalParameters {
     uuid: string;
     configKey: GlobalParametersKey;
     configValue: any;
+    updatedAt?: Date;
 }

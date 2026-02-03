@@ -161,4 +161,16 @@ export class GlobalParametersRepository implements IGlobalParametersRepository {
             GlobalParametersEntity,
         );
     }
+
+    async findUpdatedAtByKey(
+        configKey: GlobalParametersKey,
+    ): Promise<Date | null> {
+        const result = await this.globalParametersRepository
+            .createQueryBuilder('global_parameters')
+            .select('global_parameters.updatedAt', 'updatedAt')
+            .where('global_parameters.configKey = :configKey', { configKey })
+            .getRawOne();
+
+        return result?.updatedAt ?? null;
+    }
 }
