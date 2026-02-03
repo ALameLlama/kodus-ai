@@ -24,4 +24,5 @@ export interface IGlobalParametersRepository {
     ): Promise<GlobalParametersEntity | undefined>;
     delete(uuid: string): Promise<void>;
     findByKey(configKey: GlobalParametersKey): Promise<GlobalParametersEntity>;
+    findUpdatedAtByKey(configKey: GlobalParametersKey): Promise<Date | null>;
 }

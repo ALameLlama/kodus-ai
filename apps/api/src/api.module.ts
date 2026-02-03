@@ -53,7 +53,6 @@ import { CodeBaseController } from './controllers/codeBase.controller';
 import { CodeManagementController } from './controllers/codeManagement.controller';
 import { CodeReviewSettingLogController } from './controllers/codeReviewSettingLog.controller';
 import { DryRunController } from './controllers/dryRun.controller';
-import { GlobalParametersController } from './controllers/globalParameters.controller';
 import { IntegrationController } from './controllers/integration.controller';
 import { IntegrationConfigController } from './controllers/integrationConfig.controller';
 import { IssuesController } from './controllers/issues.controller';
@@ -139,7 +138,6 @@ import { ConfigService } from '@nestjs/config';
         CodeReviewSettingLogController,
         PullRequestMessagesController,
         CodeBaseController,
-        GlobalParametersController,
         IssuesController,
         KodyRulesController,
         RuleLikeController,

@@ -661,21 +661,29 @@ export default class CodeBaseConfigService implements ICodeBaseConfigService {
     private async getGlobalIgnorePaths(organizationAndTeamData: OrganizationAndTeamData): Promise<string[]> {
         try {
             // Try to get from cache first
-            const cachedPaths =
-                await this.cacheService.getFromCache<string[]>(
+            const cachedData =
+                await this.cacheService.getFromCache<{ paths: string[]; updatedAt: string }>(
                     GLOBAL_IGNORE_PATHS_CACHE_KEY,
                 );
 
-            if (cachedPaths) {
-                this.logger.log({
-                    message: 'Global ignore paths loaded from cache',
-                    context: CodeBaseConfigService.name,
-                    metadata: { organizationAndTeamData },
-                });
-                return cachedPaths;
+            if (cachedData) {
+                // Light query: fetch only updatedAt to check if cache is stale
+                const dbUpdatedAt = await this.globalParametersService.findUpdatedAtByKey(
+                    GlobalParametersKey.IGNORE_PATHS_GLOBAL,
+                );
+
+                // If no record in DB or cache is still valid, use cached data
+                if (!dbUpdatedAt || new Date(cachedData.updatedAt) >= new Date(dbUpdatedAt)) {
+                    this.logger.log({
+                        message: 'Global ignore paths loaded from cache',
+                        context: CodeBaseConfigService.name,
+                        metadata: { organizationAndTeamData },
+                    });
+                    return cachedData.paths;
+                }
             }
 
-            // Try to get from database (GlobalParameters)
+            // Fetch full record from database
             const globalParameters = await this.globalParametersService.findByKey(
                 GlobalParametersKey.IGNORE_PATHS_GLOBAL,
             );
@@ -683,10 +691,13 @@ export default class CodeBaseConfigService implements ICodeBaseConfigService {
             if (globalParameters?.configValue?.paths) {
                 const paths = globalParameters.configValue.paths as string[];
 
-                // Save to cache
+                // Save to cache with updatedAt
                 await this.cacheService.addToCache(
                     GLOBAL_IGNORE_PATHS_CACHE_KEY,
-                    paths,
+                    {
+                        paths,
+                        updatedAt: globalParameters.updatedAt?.toISOString() ?? new Date().toISOString(),
+                    },
                     GLOBAL_IGNORE_PATHS_CACHE_TTL,
                 );
 

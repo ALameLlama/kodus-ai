@@ -56,6 +56,12 @@ export class GlobalParametersService implements IGlobalParametersService {
         return this.globalParametersRepository.findByKey(configKey);
     }
 
+    async findUpdatedAtByKey(
+        configKey: GlobalParametersKey,
+    ): Promise<Date | null> {
+        return this.globalParametersRepository.findUpdatedAtByKey(configKey);
+    }
+
     async createOrUpdateConfig(
         parametersKey: GlobalParametersKey,
         configValue: any,
