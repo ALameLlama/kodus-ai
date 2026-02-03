@@ -40,8 +40,10 @@ export class CodeReviewHandlerService {
     };
 
     private readonly statusToCommentMap = {
-        [ReviewStatusReaction.ERROR]: 'Code review failed 😕',
-        [ReviewStatusReaction.SKIP]: 'Code review skipped 👀',
+        [ReviewStatusReaction.ERROR]:
+            '[😕](https://docs.kodus.io/how_to_use/en/code_review/flow#what-each-emoji-means)',
+        [ReviewStatusReaction.SKIP]:
+            '[👀](https://docs.kodus.io/how_to_use/en/code_review/flow#what-each-emoji-means)',
     };
 
     constructor(
