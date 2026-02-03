@@ -31,7 +31,7 @@ export class TokenPricingUseCase {
 
     async execute(model: string, provider?: string) {
         try {
-            return this.getModelInfo(model, provider);
+            return await this.getModelInfo(model, provider);
         } catch (error) {
             this.logger.error({
                 message: 'Error fetching token pricing',
