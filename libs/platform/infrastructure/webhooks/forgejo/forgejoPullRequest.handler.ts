@@ -1,7 +1,6 @@
 import { createLogger } from '@kodus/flow';
 import { Injectable } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-
 import { PlatformType } from '@libs/core/domain/enums/platform-type.enum';
 import { GenerateIssuesFromPrClosedUseCase } from '@libs/issues/application/use-cases/generate-issues-from-pr-closed.use-case';
 import { ChatWithKodyFromGitUseCase } from '@libs/platform/application/use-cases/codeManagement/chatWithKodyFromGit.use-case';
@@ -9,6 +8,7 @@ import {
     IWebhookEventHandler,
     IWebhookEventParams,
 } from '@libs/platform/domain/platformIntegrations/interfaces/webhook-event-handler.interface';
+import { EnqueueCodeReviewJobUseCase } from '@libs/core/workflow/application/use-cases/enqueue-code-review-job.use-case';
 import { CodeManagementService } from '../../adapters/services/codeManagement.service';
 import { getMappedPlatform } from '@libs/common/utils/webhooks';
 import {
@@ -18,12 +18,12 @@ import {
 } from '@libs/common/utils/codeManagement/codeCommentMarkers';
 import { SavePullRequestUseCase } from '@libs/platformData/application/use-cases/pullRequests/save.use-case';
 import { PullRequestClosedEvent } from '@libs/core/domain/events/pull-request-closed.event';
-import { EnqueueCodeReviewJobUseCase } from '@libs/core/workflow/application/use-cases/enqueue-code-review-job.use-case';
 import { EnqueueImplementationCheckUseCase } from '@libs/code-review/application/use-cases/enqueue-implementation-check.use-case';
 import { WebhookContextService } from '@libs/platform/application/services/webhook-context.service';
 import {
     WebhookForgejoHookIssueAction,
-    IWebhookForgejoPullRequestEvent,
+    WebhookForgejoEvent,
+    WebhookForgejoCommentAction,
 } from '@libs/platform/domain/platformIntegrations/types/webhooks/webhooks-forgejo.type';
 
 /**
@@ -38,100 +38,89 @@ export class ForgejoPullRequestHandler implements IWebhookEventHandler {
         private readonly savePullRequestUseCase: SavePullRequestUseCase,
         private readonly webhookContextService: WebhookContextService,
         private readonly chatWithKodyFromGitUseCase: ChatWithKodyFromGitUseCase,
+        private readonly codeManagement: CodeManagementService,
         private readonly generateIssuesFromPrClosedUseCase: GenerateIssuesFromPrClosedUseCase,
         private readonly eventEmitter: EventEmitter2,
-        private readonly codeManagement: CodeManagementService,
         private readonly enqueueCodeReviewJobUseCase: EnqueueCodeReviewJobUseCase,
         private readonly enqueueImplementationCheckUseCase: EnqueueImplementationCheckUseCase,
-    ) {}
+    ) { }
 
-    /**
-     * Checks if this handler can process the given webhook event.
-     * @param params The webhook event parameters.
-     * @returns True if this handler can process the event, false otherwise.
-     */
     public canHandle(params: IWebhookEventParams): boolean {
-        return (
-            params.platformType === PlatformType.FORGEJO &&
-            ['pull_request', 'issue_comment', 'pull_request_review', 'pull_request_review_comment'].includes(params.event)
-        );
+        if (params.platformType !== PlatformType.FORGEJO) {
+            return false;
+        }
+
+        const supportedEvents: string[] = [
+            WebhookForgejoEvent.PULL_REQUEST,
+            WebhookForgejoEvent.ISSUE_COMMENT,
+            WebhookForgejoEvent.PULL_REQUEST_REVIEW_COMMENT,
+        ];
+
+        if (!supportedEvents.includes(params.event)) {
+            return false;
+        }
+
+        if (params.event === WebhookForgejoEvent.PULL_REQUEST) {
+            const allowedActions = [
+                WebhookForgejoHookIssueAction.OPENED,
+                WebhookForgejoHookIssueAction.SYNCHRONIZED,
+                WebhookForgejoHookIssueAction.CLOSED,
+                WebhookForgejoHookIssueAction.REOPENED,
+            ] as const;
+
+            return allowedActions.includes(params.payload?.action);
+        }
+
+        return true;
     }
 
-    /**
-     * Processes Forgejo webhook events.
-     * @param params The webhook event parameters.
-     */
     public async execute(params: IWebhookEventParams): Promise<void> {
         const { event } = params;
 
         switch (event) {
-            case 'pull_request':
+            case WebhookForgejoEvent.PULL_REQUEST:
                 await this.handlePullRequest(params);
                 break;
-            case 'issue_comment':
-                await this.handleIssueComment(params);
-                break;
-            case 'pull_request_review':
-            case 'pull_request_review_comment':
-                // For now, we'll handle review events minimally
-                this.logger.log({
-                    message: `Received Forgejo ${event} event, processing...`,
-                    context: ForgejoPullRequestHandler.name,
-                });
+            case WebhookForgejoEvent.ISSUE_COMMENT:
+            case WebhookForgejoEvent.PULL_REQUEST_REVIEW_COMMENT:
+                await this.handleComment(params);
                 break;
             default:
                 this.logger.warn({
                     message: `Unsupported Forgejo event: ${event}`,
                     context: ForgejoPullRequestHandler.name,
                 });
+                return;
         }
     }
 
-    private async handlePullRequest(params: IWebhookEventParams): Promise<void> {
+    private async handlePullRequest(
+        params: IWebhookEventParams,
+    ): Promise<void> {
+        // TODO: swap to using typed payload but Partial<Repository> is typed as string instead of int
+        // const payload = params.payload as IWebhookForgejoPullRequestEvent;
+        // const event = params.event;
         const { payload, event } = params;
+
         const prNumber = payload?.pull_request?.number || payload?.number;
         const prUrl = payload?.pull_request?.html_url;
 
         this.logger.log({
             context: ForgejoPullRequestHandler.name,
             serviceName: ForgejoPullRequestHandler.name,
-            message: `Processing Forgejo 'pull_request' event for PR #${prNumber} (${prUrl || 'URL not found'})`,
             metadata: { prNumber, prUrl, action: payload?.action },
+            message: `Processing Forgejo 'pull_request' event for PR #${prNumber} (${prUrl || 'URL not found'})`,
         });
 
-        // Use full_name as name to match how repos are stored in config (e.g., "Llama/testing_repo")
-        // This ensures consistency with saved repository config and allows simple owner/repo extraction
         const repository = {
             id: String(payload?.repository?.id),
-            name: payload?.repository?.full_name || payload?.repository?.name,
+            name: payload?.repository?.full_name,
         };
-
-        const mappedPlatform = getMappedPlatform(PlatformType.FORGEJO);
-        if (!mappedPlatform) {
-            this.logger.error({
-                message: 'Could not get mapped platform for Forgejo.',
-                serviceName: ForgejoPullRequestHandler.name,
-                metadata: { prNumber },
-                context: ForgejoPullRequestHandler.name,
-            });
-            return;
-        }
 
         const context = await this.webhookContextService.getContext(
             PlatformType.FORGEJO,
             String(payload?.repository?.id),
         );
-
-        this.logger.log({
-            message: `Webhook context lookup result`,
-            context: ForgejoPullRequestHandler.name,
-            metadata: {
-                repositoryId: String(payload?.repository?.id),
-                hasContext: !!context,
-                hasOrgTeamData: !!context?.organizationAndTeamData,
-                teamAutomationId: context?.teamAutomationId,
-            },
-        });
 
         // If no active automation found, complete the webhook processing immediately
         if (!context?.organizationAndTeamData) {
@@ -148,173 +137,138 @@ export class ForgejoPullRequestHandler implements IWebhookEventHandler {
         }
 
         try {
-            // Check if we should trigger code review based on the PR action
-            const shouldTrigger = this.shouldTriggerCodeReview(payload);
-            this.logger.log({
-                message: `Checking if should trigger code review`,
-                context: ForgejoPullRequestHandler.name,
-                metadata: {
-                    action: payload?.action,
-                    shouldTrigger,
-                    prNumber,
-                    isDraft: payload?.pull_request?.draft,
-                    isMerged: payload?.pull_request?.merged,
-                },
-            });
+            await this.savePullRequestUseCase.execute(params);
 
-            if (shouldTrigger) {
-                await this.savePullRequestUseCase.execute(params);
-
-                if (this.enqueueCodeReviewJobUseCase && context.organizationAndTeamData) {
-                    this.logger.log({
-                        message: 'About to enqueue code review job',
-                        context: ForgejoPullRequestHandler.name,
-                        metadata: { prNumber, teamAutomationId: context.teamAutomationId },
-                    });
-
-                    this.enqueueCodeReviewJobUseCase
-                        .execute({
-                            codeManagementPayload: payload,
-                            event: params.event,
-                            platformType: PlatformType.FORGEJO,
-                            organizationAndTeamData: context.organizationAndTeamData,
-                            correlationId: params.correlationId,
-                            teamAutomationId: context.teamAutomationId,
-                        })
-                        .then((jobId) => {
-                            this.logger.log({
-                                message: 'Code review job enqueued for asynchronous processing',
-                                context: ForgejoPullRequestHandler.name,
-                                metadata: {
-                                    jobId,
-                                    prNumber,
-                                    repositoryId: repository.id,
-                                },
-                            });
-                        })
-                        .catch((error) => {
-                            this.logger.error({
-                                message: 'Failed to enqueue code review job',
-                                context: ForgejoPullRequestHandler.name,
-                                error,
-                                metadata: {
-                                    prNumber,
-                                    repositoryId: repository.id,
-                                },
-                            });
-                        });
-                }
-
-                // Check for new commits (synchronized action)
-                if (payload?.action === WebhookForgejoHookIssueAction.SYNCHRONIZED) {
-                    if (context.organizationAndTeamData) {
-                        this.enqueueImplementationCheckUseCase
-                            .execute({
-                                repository: {
-                                    id: repository.id,
-                                    name: repository.name,
-                                },
-                                pullRequestNumber: prNumber,
-                                commitSha: payload?.pull_request?.head?.sha,
-                                trigger: payload?.action,
-                                payload: payload,
-                                event: event,
-                                organizationAndTeamData: context.organizationAndTeamData,
-                                platformType: PlatformType.FORGEJO,
-                            })
-                            .catch((e) => {
-                                this.logger.error({
-                                    message: 'Failed to enqueue implementation check',
-                                    context: ForgejoPullRequestHandler.name,
-                                    error: e,
-                                    metadata: {
-                                        repository,
-                                        pullRequestNumber: prNumber,
-                                    },
-                                });
-                            });
-                    }
-                }
-
-                // Handle PR merge/close events
-                if (
-                    payload?.action === WebhookForgejoHookIssueAction.CLOSED &&
-                    payload?.pull_request?.merged
-                ) {
-                    this.generateIssuesFromPrClosedUseCase.execute(params);
-
-                    try {
-                        if (context.organizationAndTeamData) {
-                            const baseRef = payload?.pull_request?.base?.ref;
-                            const defaultBranch = await this.codeManagement.getDefaultBranch({
-                                organizationAndTeamData: context.organizationAndTeamData,
-                                repository: {
-                                    id: repository.id,
-                                    name: repository.name,
-                                },
-                            });
-
-                            if (baseRef !== defaultBranch) {
-                                return;
-                            }
-
-                            const changedFiles = await this.codeManagement.getFilesByPullRequestId({
-                                organizationAndTeamData: context.organizationAndTeamData,
-                                repository: {
-                                    id: repository.id,
-                                    name: repository.name,
-                                },
+            if (this.enqueueCodeReviewJobUseCase) {
+                this.enqueueCodeReviewJobUseCase
+                    .execute({
+                        codeManagementPayload: payload,
+                        event: event,
+                        platformType: PlatformType.FORGEJO,
+                        organizationAndTeamData:
+                            context.organizationAndTeamData,
+                        correlationId: params.correlationId,
+                        teamAutomationId: context.teamAutomationId,
+                    })
+                    .then((jobId) => {
+                        this.logger.log({
+                            message:
+                                'Code review job enqueued for asynchronous processing',
+                            context: ForgejoPullRequestHandler.name,
+                            metadata: {
+                                jobId,
                                 prNumber,
-                            });
+                                repositoryId: repository.id,
+                                ...context,
+                            },
+                        });
+                    })
+                    .catch((error) => {
+                        this.logger.error({
+                            message: 'Failed to enqueue code review job',
+                            context: ForgejoPullRequestHandler.name,
+                            error,
+                            metadata: {
+                                prNumber,
+                                repositoryId: repository.id,
+                            },
+                        });
+                    });
+            }
 
-                            this.eventEmitter.emit(
-                                'pull-request.closed',
-                                new PullRequestClosedEvent(
+            if (
+                payload?.action === WebhookForgejoHookIssueAction.SYNCHRONIZED
+            ) {
+                this.enqueueImplementationCheckUseCase
+                    .execute({
+                        payload: payload,
+                        event: event,
+                        organizationAndTeamData:
+                            context.organizationAndTeamData,
+                        repository: {
+                            id: repository.id,
+                            name: repository.name,
+                        },
+                        platformType: PlatformType.FORGEJO,
+                        pullRequestNumber: payload?.pull_request?.number,
+                        commitSha: payload?.pull_request?.head?.sha,
+                        trigger: payload?.action,
+                    })
+                    .catch((e) => {
+                        this.logger.error({
+                            message: 'Failed to enqueue implementation check',
+                            context: ForgejoPullRequestHandler.name,
+                            error: e,
+                            metadata: {
+                                organizationAndTeamData:
                                     context.organizationAndTeamData,
-                                    repository,
-                                    prNumber,
-                                    changedFiles || [],
-                                ),
-                            );
+                                repository,
+                                pullRequestNumber:
+                                    payload?.pull_request?.number,
+                            },
+                        });
+                    });
+            }
+
+            if (payload?.action === WebhookForgejoHookIssueAction.CLOSED) {
+                this.generateIssuesFromPrClosedUseCase.execute(params);
+
+                // If merged into default branch, trigger Kody Rules sync for main
+                const merged = payload?.pull_request?.merged === true;
+                const baseRef = payload?.pull_request?.base?.ref;
+
+                if (merged && baseRef) {
+                    try {
+                        const defaultBranch =
+                            await this.codeManagement.getDefaultBranch({
+                                organizationAndTeamData:
+                                    context.organizationAndTeamData,
+                                repository: {
+                                    id: repository.id,
+                                    name: repository.name,
+                                },
+                            });
+                        if (baseRef !== defaultBranch) {
+                            return;
                         }
+                        // fetch changed files
+                        const changedFiles =
+                            await this.codeManagement.getFilesByPullRequestId({
+                                organizationAndTeamData:
+                                    context.organizationAndTeamData,
+                                repository: {
+                                    id: repository.id,
+                                    name: repository.name,
+                                },
+                                prNumber: payload?.pull_request?.number,
+                            });
+                        this.eventEmitter.emit(
+                            'pull-request.closed',
+                            new PullRequestClosedEvent(
+                                context.organizationAndTeamData,
+                                repository,
+                                payload?.pull_request?.number,
+                                changedFiles || [],
+                            ),
+                        );
                     } catch (e) {
                         this.logger.error({
                             message: 'Failed to sync Kody Rules after PR merge',
                             context: ForgejoPullRequestHandler.name,
                             error: e,
+                            metadata: {
+                                organizationAndTeamData:
+                                    context.organizationAndTeamData,
+                                repository,
+                                pullRequestNumber:
+                                    payload?.pull_request?.number,
+                            },
                         });
                     }
                 }
-
-                return;
-            } else if (
-                payload?.action === WebhookForgejoHookIssueAction.CLOSED ||
-                payload?.action === WebhookForgejoHookIssueAction.EDITED
-            ) {
-                // For closed or edited PRs, just save the state without triggering automation
-                await this.savePullRequestUseCase.execute(params);
-
-                if (
-                    payload?.action === WebhookForgejoHookIssueAction.CLOSED &&
-                    payload?.pull_request?.merged
-                ) {
-                    this.generateIssuesFromPrClosedUseCase
-                        .execute(params)
-                        .catch((error) => {
-                            this.logger.error({
-                                message: 'Failed to generate issues from merged PR',
-                                context: ForgejoPullRequestHandler.name,
-                                error,
-                                metadata: {
-                                    prNumber,
-                                    repositoryId: repository.id,
-                                },
-                            });
-                        });
-                }
-
-                return;
             }
+
+            return;
         } catch (error) {
             this.logger.error({
                 context: ForgejoPullRequestHandler.name,
@@ -322,7 +276,7 @@ export class ForgejoPullRequestHandler implements IWebhookEventHandler {
                 metadata: {
                     prNumber,
                     prUrl,
-                    organizationAndTeamData: context.organizationAndTeamData,
+                    ...context,
                 },
                 message: `Error processing Forgejo pull request #${prNumber}: ${error.message}`,
                 error,
@@ -332,59 +286,154 @@ export class ForgejoPullRequestHandler implements IWebhookEventHandler {
     }
 
     /**
-     * Processes Forgejo issue comment events (used for PR comments)
+     * Process comment events from Forgejo
      */
-    private async handleIssueComment(params: IWebhookEventParams): Promise<void> {
-        const { payload } = params;
-        const issueNumber = payload?.issue?.number;
+    private async handleComment(params: IWebhookEventParams): Promise<void> {
+        // TODO: swap to using typed payload but Partial<Repository> is typed as string instead of int
+        // const payload = params.payload as IWebhookForgejoIssueCommentEvent;
+        // const event = params.event;
+        const { payload, event } = params;
 
-        // Only process comments on pull requests
-        if (!payload?.is_pull) {
-            return;
-        }
-
-        const mappedPlatform = getMappedPlatform(PlatformType.FORGEJO);
-        if (!mappedPlatform) {
-            this.logger.error({
-                message: 'Could not get mapped platform for Forgejo.',
-                serviceName: ForgejoPullRequestHandler.name,
-                metadata: { issueNumber },
-                context: ForgejoPullRequestHandler.name,
-            });
-            return;
-        }
-
-        const context = await this.webhookContextService.getContext(
-            PlatformType.FORGEJO,
-            String(payload?.repository?.id),
-        );
+        const prNumber = payload?.pull_request?.id;
 
         try {
-            // Only process created comments
-            if (payload?.action === 'created') {
-                const comment = mappedPlatform.mapComment({ payload });
-                if (!comment || !comment.body) {
-                    this.logger.debug({
-                        message: 'Comment body empty, skipping.',
-                        serviceName: ForgejoPullRequestHandler.name,
-                        metadata: { issueNumber },
-                        context: ForgejoPullRequestHandler.name,
-                    });
-                    return;
-                }
+            // Extract comment data
+            const mappedPlatform = getMappedPlatform(PlatformType.FORGEJO);
 
-                const isStartCommand = isReviewCommand(comment.body);
-                const hasMarker = hasReviewMarker(comment.body);
+            if (!mappedPlatform) {
+                this.logger.error({
+                    message: 'Could not get mapped platform for Forgejo.',
+                    serviceName: ForgejoPullRequestHandler.name,
+                    metadata: {
+                        prNumber,
+                    },
+                    context: ForgejoPullRequestHandler.name,
+                });
+                return;
+            }
 
-                if (isStartCommand && !hasMarker) {
-                    this.logger.log({
-                        message: `@kody start command detected in Forgejo comment for PR#${issueNumber}`,
-                        serviceName: ForgejoPullRequestHandler.name,
-                        metadata: { issueNumber },
-                        context: ForgejoPullRequestHandler.name,
-                    });
+            const comment = mappedPlatform.mapComment({ payload });
 
-                    // Prepare params for use cases
+            if (
+                !comment ||
+                !comment.body ||
+                payload?.action === WebhookForgejoCommentAction.DELETED
+            ) {
+                this.logger.debug({
+                    message:
+                        'Comment body empty or action is deleted, skipping.',
+                    serviceName: ForgejoPullRequestHandler.name,
+                    metadata: {
+                        prNumber,
+                    },
+                    context: ForgejoPullRequestHandler.name,
+                });
+                return;
+            }
+
+            const isStartCommand = isReviewCommand(comment.body);
+            const hasMarker = hasReviewMarker(comment.body);
+
+            const pullRequest = mappedPlatform.mapPullRequest({ payload });
+
+            if (isStartCommand && !hasMarker) {
+                this.logger.log({
+                    message: `@kody start command detected in Forgejo comment for PR#${pullRequest?.number}`,
+                    serviceName: ForgejoPullRequestHandler.name,
+                    metadata: {
+                        prNumber,
+                    },
+                    context: ForgejoPullRequestHandler.name,
+                });
+
+                let pullRequestData = null;
+                if (
+                    payload?.pull_request &&
+                    payload?.issue &&
+                    payload?.issue?.number
+                ) {
+                    const repository = {
+                        id: String(payload?.repository?.id),
+                        name: payload?.repository?.full_name,
+                    };
+
+                    const userGitId = payload?.sender?.id?.toString();
+
+                    const context = await this.webhookContextService.getContext(
+                        PlatformType.FORGEJO,
+                        String(repository.id),
+                    );
+
+                    if (!context?.organizationAndTeamData) {
+                        this.logger.warn({
+                            message: `No active code review found for PR #${payload.issue.number} via command`,
+                            context: ForgejoPullRequestHandler.name,
+                            metadata: {
+                                repository,
+                                prNumber: payload.issue.number,
+                                userGitId,
+                            },
+                        });
+                        return;
+                    }
+
+                    if (context?.organizationAndTeamData) {
+                        const data = await this.codeManagement.getPullRequest({
+                            organizationAndTeamData:
+                                context.organizationAndTeamData,
+                            repository,
+                            prNumber: payload.issue.number,
+                        });
+
+                        if (!data) {
+                            this.logger.error({
+                                message: `Could not fetch pull request details for PR#${payload.issue.number} in repository ${repository.name}`,
+                                serviceName: ForgejoPullRequestHandler.name,
+                                metadata: {
+                                    prNumber,
+                                    repository,
+                                },
+                                context: ForgejoPullRequestHandler.name,
+                            });
+                            return;
+                        }
+
+                        pullRequestData = {
+                            ...data,
+                            pull_request: {
+                                ...data,
+                                repository: {
+                                    id: repository.id,
+                                    name: repository.name,
+                                },
+                                head: {
+                                    ref: data?.head?.ref,
+                                    sha: data?.head?.sha,
+                                    repo: {
+                                        fullName: data?.head?.repo?.fullName,
+                                    },
+                                },
+                                base: {
+                                    ref: data?.base?.ref,
+                                    sha: data?.base?.sha,
+                                    repo: {
+                                        fullName: data?.base?.repo?.fullName,
+                                        defaultBranch:
+                                            data?.base?.repo?.defaultBranch,
+                                    },
+                                },
+                                title: data?.title,
+                                body: data?.body,
+                                user: {
+                                    id: data?.user?.id,
+                                    login: data?.user?.login,
+                                    name: data?.user?.name,
+                                },
+                                isDraft: data?.isDraft ?? false,
+                            },
+                        };
+                    }
+
                     const updatedParams = {
                         ...params,
                         payload: {
@@ -392,69 +441,64 @@ export class ForgejoPullRequestHandler implements IWebhookEventHandler {
                             action: 'synchronize',
                             origin: 'command',
                             triggerCommentId: comment?.id,
+                            pull_request:
+                                pullRequestData ||
+                                pullRequest ||
+                                payload?.pull_request,
                         },
                     };
 
                     await this.savePullRequestUseCase.execute(updatedParams);
-                    if (context.organizationAndTeamData) {
-                        await this.enqueueCodeReviewJobUseCase.execute({
-                            codeManagementPayload: updatedParams.payload,
-                            event: updatedParams.event,
-                            platformType: PlatformType.FORGEJO,
-                            organizationAndTeamData: context.organizationAndTeamData,
-                            correlationId: params.correlationId,
-                            teamAutomationId: context.teamAutomationId,
+
+                    if (
+                        this.enqueueCodeReviewJobUseCase &&
+                        context?.organizationAndTeamData
+                    ) {
+                        const jobId =
+                            await this.enqueueCodeReviewJobUseCase.execute({
+                                codeManagementPayload: updatedParams.payload,
+                                event: event,
+                                platformType: PlatformType.FORGEJO,
+                                organizationAndTeamData:
+                                    context?.organizationAndTeamData,
+                                teamAutomationId: context.teamAutomationId,
+                                correlationId: params.correlationId,
+                            });
+
+                        this.logger.log({
+                            message:
+                                'Code review job enqueued from command for asynchronous processing',
+                            context: ForgejoPullRequestHandler.name,
+                            metadata: {
+                                jobId,
+                                prNumber,
+                            },
                         });
                     }
-                    return;
                 }
+                return;
+            }
 
-                if (!isStartCommand && !hasMarker && isKodyMentionNonReview(comment.body)) {
-                    this.chatWithKodyFromGitUseCase.execute(params);
-                    return;
-                }
+            if (
+                (event === 'pull_request_review_comment' ||
+                    event === 'issue_comment') &&
+                !hasMarker &&
+                !isStartCommand &&
+                isKodyMentionNonReview(comment.body)
+            ) {
+                this.chatWithKodyFromGitUseCase.execute(params);
+                return;
             }
         } catch (error) {
             this.logger.error({
-                context: ForgejoPullRequestHandler.name,
+                message: 'Error processing Forgejo pull request comment',
                 serviceName: ForgejoPullRequestHandler.name,
-                metadata: { issueNumber },
-                message: `Error processing Forgejo comment: ${error.message}`,
+                metadata: {
+                    prNumber,
+                },
+                context: ForgejoPullRequestHandler.name,
                 error,
             });
-            throw error;
         }
-    }
-
-    private shouldTriggerCodeReview(payload: IWebhookForgejoPullRequestEvent): boolean {
-        const action = payload?.action;
-        const pullRequest = payload?.pull_request;
-
-        // Trigger on new PR
-        if (action === WebhookForgejoHookIssueAction.OPENED) {
-            return true;
-        }
-
-        // Trigger on new commits (synchronized)
-        if (action === WebhookForgejoHookIssueAction.SYNCHRONIZED) {
-            return true;
-        }
-
-        // Trigger on reopened
-        if (action === WebhookForgejoHookIssueAction.REOPENED) {
-            return true;
-        }
-
-        // Trigger on merge
-        if (action === WebhookForgejoHookIssueAction.CLOSED && pullRequest?.merged) {
-            return true;
-        }
-
-        // Trigger on close (not merged)
-        if (action === WebhookForgejoHookIssueAction.CLOSED && !pullRequest?.merged) {
-            return true;
-        }
-
-        return false;
     }
 }

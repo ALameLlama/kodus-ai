@@ -2,6 +2,12 @@ import { ForgejoController } from '../../../../apps/webhooks/src/controllers/for
 import { EnqueueWebhookUseCase } from '@libs/platform/application/use-cases/webhook/enqueue-webhook.use-case';
 import { Request, Response } from 'express';
 import { HttpStatus } from '@nestjs/common';
+import {
+    forgejoPullRequestOpenedPayload,
+    forgejoIssueCommentPayload,
+    forgejoPullRequestReviewCommentPayload,
+} from '../stubs/forgejo-webhook-stubs';
+
 
 describe('ForgejoController', () => {
     let controller: ForgejoController;
@@ -26,7 +32,7 @@ describe('ForgejoController', () => {
         it('should enqueue pull_request event with X-Forgejo-Event header', async () => {
             mockRequest = {
                 headers: { 'x-forgejo-event': 'pull_request' },
-                body: { action: 'opened', pull_request: { number: 1 } },
+                body: forgejoPullRequestOpenedPayload,
             };
 
             controller.handleWebhook(
@@ -37,12 +43,13 @@ describe('ForgejoController', () => {
             expect(mockResponse.status).toHaveBeenCalledWith(HttpStatus.OK);
             expect(mockResponse.send).toHaveBeenCalledWith('Webhook received');
 
+            // Wait for setImmediate
             await new Promise((resolve) => setImmediate(resolve));
 
             expect(enqueueWebhookUseCase.execute).toHaveBeenCalledWith({
                 platformType: 'FORGEJO',
                 event: 'pull_request',
-                payload: { action: 'opened', pull_request: { number: 1 } },
+                payload: forgejoPullRequestOpenedPayload,
             });
         });
 
@@ -60,6 +67,7 @@ describe('ForgejoController', () => {
             expect(mockResponse.status).toHaveBeenCalledWith(HttpStatus.OK);
             expect(mockResponse.send).toHaveBeenCalledWith('Webhook received');
 
+            // Wait for setImmediate
             await new Promise((resolve) => setImmediate(resolve));
 
             expect(enqueueWebhookUseCase.execute).toHaveBeenCalledWith({
@@ -92,7 +100,7 @@ describe('ForgejoController', () => {
             });
         });
 
-        it('should enqueue pull_request event with "synchronized" action', async () => {
+        it('should enqueue pull_request event with any action', async () => {
             mockRequest = {
                 headers: { 'x-forgejo-event': 'pull_request' },
                 body: { action: 'synchronized' },
@@ -108,10 +116,10 @@ describe('ForgejoController', () => {
             expect(enqueueWebhookUseCase.execute).toHaveBeenCalled();
         });
 
-        it('should enqueue pull_request event with "closed" action', async () => {
+        it('should enqueue pull_request event with X-GitHub-Event header (backwards compatibility)', async () => {
             mockRequest = {
-                headers: { 'x-forgejo-event': 'pull_request' },
-                body: { action: 'closed' },
+                headers: { 'x-github-event': 'pull_request' },
+                body: { action: 'opened', pull_request: { number: 1 } },
             };
 
             controller.handleWebhook(
@@ -119,15 +127,22 @@ describe('ForgejoController', () => {
                 mockResponse as Response,
             );
 
+            expect(mockResponse.status).toHaveBeenCalledWith(HttpStatus.OK);
+            expect(mockResponse.send).toHaveBeenCalledWith('Webhook received');
+
             await new Promise((resolve) => setImmediate(resolve));
 
-            expect(enqueueWebhookUseCase.execute).toHaveBeenCalled();
+            expect(enqueueWebhookUseCase.execute).toHaveBeenCalledWith({
+                platformType: 'FORGEJO',
+                event: 'pull_request',
+                payload: { action: 'opened', pull_request: { number: 1 } },
+            });
         });
 
-        it('should enqueue pull_request event with "reopened" action', async () => {
+        it('should enqueue pull_request event with X-Gogs-Event header (backwards compatibility)', async () => {
             mockRequest = {
-                headers: { 'x-forgejo-event': 'pull_request' },
-                body: { action: 'reopened' },
+                headers: { 'x-gogs-event': 'pull_request' },
+                body: { action: 'opened', pull_request: { number: 1 } },
             };
 
             controller.handleWebhook(
@@ -135,15 +150,22 @@ describe('ForgejoController', () => {
                 mockResponse as Response,
             );
 
+            expect(mockResponse.status).toHaveBeenCalledWith(HttpStatus.OK);
+            expect(mockResponse.send).toHaveBeenCalledWith('Webhook received');
+
             await new Promise((resolve) => setImmediate(resolve));
 
-            expect(enqueueWebhookUseCase.execute).toHaveBeenCalled();
+            expect(enqueueWebhookUseCase.execute).toHaveBeenCalledWith({
+                platformType: 'FORGEJO',
+                event: 'pull_request',
+                payload: { action: 'opened', pull_request: { number: 1 } },
+            });
         });
 
         it('should enqueue issue_comment event', async () => {
             mockRequest = {
                 headers: { 'x-forgejo-event': 'issue_comment' },
-                body: { action: 'created', comment: { body: '@kody review' } },
+                body: forgejoIssueCommentPayload,
             };
 
             controller.handleWebhook(
@@ -159,37 +181,14 @@ describe('ForgejoController', () => {
             expect(enqueueWebhookUseCase.execute).toHaveBeenCalledWith({
                 platformType: 'FORGEJO',
                 event: 'issue_comment',
-                payload: { action: 'created', comment: { body: '@kody review' } },
-            });
-        });
-
-        it('should enqueue pull_request_review event', async () => {
-            mockRequest = {
-                headers: { 'x-forgejo-event': 'pull_request_review' },
-                body: { action: 'submitted', review: { state: 'approved' } },
-            };
-
-            controller.handleWebhook(
-                mockRequest as Request,
-                mockResponse as Response,
-            );
-
-            expect(mockResponse.status).toHaveBeenCalledWith(HttpStatus.OK);
-            expect(mockResponse.send).toHaveBeenCalledWith('Webhook received');
-
-            await new Promise((resolve) => setImmediate(resolve));
-
-            expect(enqueueWebhookUseCase.execute).toHaveBeenCalledWith({
-                platformType: 'FORGEJO',
-                event: 'pull_request_review',
-                payload: { action: 'submitted', review: { state: 'approved' } },
+                payload: forgejoIssueCommentPayload,
             });
         });
 
         it('should enqueue pull_request_review_comment event', async () => {
             mockRequest = {
                 headers: { 'x-forgejo-event': 'pull_request_review_comment' },
-                body: { action: 'created', comment: { body: 'test' } },
+                body: forgejoPullRequestReviewCommentPayload,
             };
 
             controller.handleWebhook(
@@ -205,7 +204,7 @@ describe('ForgejoController', () => {
             expect(enqueueWebhookUseCase.execute).toHaveBeenCalledWith({
                 platformType: 'FORGEJO',
                 event: 'pull_request_review_comment',
-                payload: { action: 'created', comment: { body: 'test' } },
+                payload: forgejoPullRequestReviewCommentPayload,
             });
         });
     });
@@ -215,6 +214,27 @@ describe('ForgejoController', () => {
             mockRequest = {
                 headers: { 'x-forgejo-event': 'push' },
                 body: { ref: 'refs/heads/main' },
+            };
+
+            controller.handleWebhook(
+                mockRequest as Request,
+                mockResponse as Response,
+            );
+
+            expect(mockResponse.status).toHaveBeenCalledWith(HttpStatus.OK);
+            expect(mockResponse.send).toHaveBeenCalledWith(
+                'Webhook ignored (event not supported)',
+            );
+
+            await new Promise((resolve) => setImmediate(resolve));
+
+            expect(enqueueWebhookUseCase.execute).not.toHaveBeenCalled();
+        });
+
+        it('should ignore pull_request_review event (not the same as pull_request_review_comment)', async () => {
+            mockRequest = {
+                headers: { 'x-forgejo-event': 'pull_request_review' },
+                body: { action: 'submitted', review: { state: 'approved' } },
             };
 
             controller.handleWebhook(

@@ -1,15 +1,17 @@
 /**
  * Tests for Forgejo service methods.
- * 
+ *
  * Key differences from GitHub:
  * - GitHub uses Octokit which handles owner/repo from auth details (has `org` field)
  * - Forgejo uses raw axios API calls requiring owner/repo in the URL
  * - Forgejo webhook handler uses `full_name` as the repository name to match saved config
- * 
- * The repository name is always in "owner/repo" format (e.g., "Llama/testing_repo"):
- * - Webhook payload: payload.repository.full_name = "Llama/testing_repo"
- * - Saved config: name = "Llama/testing_repo"
+ *
+ * The repository name is always in "owner/repo" format (e.g., "kodustech/kodus-ai"):
+ * - Webhook payload: payload.repository.full_name = "kodustech/kodus-ai"
+ * - Saved config: name = "kodustech/kodus-ai"
  */
+
+import { extractOwnerAndRepo } from '../../../../libs/common/utils/helpers';
 
 // Mock logger
 jest.mock('@kodus/flow', () => ({
@@ -23,42 +25,27 @@ jest.mock('@kodus/flow', () => ({
 }));
 
 describe('Forgejo Service', () => {
-    describe('extractOwnerAndRepo (inlined split)', () => {
-        /**
-         * Helper function that mirrors the inlined logic in forgejo.service.ts
-         * for extracting owner and repo name from a full repository name.
-         * Uses split('/', 2) which splits into at most 2 parts.
-         */
-        function extractOwnerAndRepo(repoFullName: string): { owner: string; repoName: string } | null {
-            const [owner, repoName] = repoFullName.split('/', 2);
-
-            if (owner && repoName) {
-                return { owner, repoName };
-            }
-
-            return null;
-        }
-
+    describe('extractOwnerAndRepo helper', () => {
         it('should extract owner and repo from full name', () => {
-            const result = extractOwnerAndRepo('Llama/testing_repo');
+            const result = extractOwnerAndRepo('kodustech/kodus-ai');
 
             expect(result).toEqual({
-                owner: 'Llama',
-                repoName: 'testing_repo',
+                owner: 'kodustech',
+                repo: 'kodus-ai',
             });
         });
 
-        it('should handle org-owned repos (phplings/phplings)', () => {
-            const result = extractOwnerAndRepo('phplings/phplings');
+        it('should handle org-owned repos where owner equals repo name', () => {
+            const result = extractOwnerAndRepo('acme/acme');
 
             expect(result).toEqual({
-                owner: 'phplings',
-                repoName: 'phplings',
+                owner: 'acme',
+                repo: 'acme',
             });
         });
 
         it('should return null when only short name is provided', () => {
-            const result = extractOwnerAndRepo('testing_repo');
+            const result = extractOwnerAndRepo('kodus-ai');
 
             expect(result).toBeNull();
         });
@@ -82,7 +69,8 @@ describe('Forgejo Service', () => {
             return {
                 id: String(payload?.repository?.id),
                 // Use full_name to match saved config format
-                name: payload?.repository?.full_name || payload?.repository?.name,
+                name:
+                    payload?.repository?.full_name || payload?.repository?.name,
             };
         }
 
@@ -92,8 +80,8 @@ describe('Forgejo Service', () => {
                 number: 3,
                 repository: {
                     id: 22,
-                    name: 'testing_repo',       // Short name
-                    full_name: 'Llama/testing_repo', // Full name with owner
+                    name: 'kodus-ai', // Short name
+                    full_name: 'kodustech/kodus-ai', // Full name with owner
                 },
             };
 
@@ -101,7 +89,7 @@ describe('Forgejo Service', () => {
 
             expect(repo).toEqual({
                 id: '22',
-                name: 'Llama/testing_repo', // Should be the full name
+                name: 'kodustech/kodus-ai', // Should be the full name
             });
         });
 
@@ -109,7 +97,7 @@ describe('Forgejo Service', () => {
             const webhookPayload = {
                 repository: {
                     id: 22,
-                    name: 'testing_repo',
+                    name: 'kodus-ai',
                     // full_name is missing
                 },
             };
@@ -118,7 +106,7 @@ describe('Forgejo Service', () => {
 
             expect(repo).toEqual({
                 id: '22',
-                name: 'testing_repo',
+                name: 'kodus-ai',
             });
         });
     });
@@ -135,40 +123,40 @@ describe('Forgejo Service', () => {
 
         it('should construct correct URL for PR endpoint', () => {
             const url = buildApiUrl(
-                'https://git.llamacorp.au',
-                'Llama',
-                'testing_repo',
+                'https://git.example.com',
+                'kodustech',
+                'kodus-ai',
                 '/pulls/3',
             );
 
             expect(url).toBe(
-                'https://git.llamacorp.au/api/v1/repos/Llama/testing_repo/pulls/3',
+                'https://git.example.com/api/v1/repos/kodustech/kodus-ai/pulls/3',
             );
         });
 
         it('should construct correct URL for commits endpoint', () => {
             const url = buildApiUrl(
-                'https://git.llamacorp.au',
-                'Llama',
-                'testing_repo',
+                'https://git.example.com',
+                'kodustech',
+                'kodus-ai',
                 '/pulls/3/commits',
             );
 
             expect(url).toBe(
-                'https://git.llamacorp.au/api/v1/repos/Llama/testing_repo/pulls/3/commits',
+                'https://git.example.com/api/v1/repos/kodustech/kodus-ai/pulls/3/commits',
             );
         });
 
         it('should construct correct URL for files endpoint', () => {
             const url = buildApiUrl(
-                'https://git.llamacorp.au',
-                'Llama',
-                'testing_repo',
+                'https://git.example.com',
+                'kodustech',
+                'kodus-ai',
                 '/pulls/3/files',
             );
 
             expect(url).toBe(
-                'https://git.llamacorp.au/api/v1/repos/Llama/testing_repo/pulls/3/files',
+                'https://git.example.com/api/v1/repos/kodustech/kodus-ai/pulls/3/files',
             );
         });
     });
@@ -186,7 +174,8 @@ describe('Forgejo Service', () => {
                     date: commit?.commit?.author?.date,
                     username: commit?.author?.login || commit?.author?.username,
                 },
-                parents: commit?.parents?.map((p: any) => ({ sha: p?.sha })) || [],
+                parents:
+                    commit?.parents?.map((p: any) => ({ sha: p?.sha })) || [],
             };
         }
 
@@ -206,9 +195,7 @@ describe('Forgejo Service', () => {
                     login: 'johndoe',
                     username: 'johndoe',
                 },
-                parents: [
-                    { sha: '8cd80e38659f5aee787e5a8ec60ffe495fb5fac6' },
-                ],
+                parents: [{ sha: '8cd80e38659f5aee787e5a8ec60ffe495fb5fac6' }],
             };
 
             const mapped = mapForgejoCommit(forgejoCommit);
@@ -237,7 +224,9 @@ describe('Forgejo Service', () => {
                 status: file?.status,
                 additions: file?.additions || 0,
                 deletions: file?.deletions || 0,
-                changes: file?.changes || (file?.additions || 0) + (file?.deletions || 0),
+                changes:
+                    file?.changes ||
+                    (file?.additions || 0) + (file?.deletions || 0),
                 patch: file?.patch || file?.contents_url,
             };
         }
@@ -328,7 +317,7 @@ describe('Forgejo Service', () => {
                     ref: 'feat/testing',
                     sha: '9da9e0f093815f868096d98a25ae789ec5931cac',
                     repo: {
-                        name: 'testing_repo',
+                        name: 'kodus-ai',
                         id: 22,
                     },
                 },
@@ -336,14 +325,14 @@ describe('Forgejo Service', () => {
                     ref: 'main',
                     sha: '8cd80e38659f5aee787e5a8ec60ffe495fb5fac6',
                     repo: {
-                        name: 'testing_repo',
+                        name: 'kodus-ai',
                         id: 22,
                     },
                 },
                 user: {
                     id: 1,
-                    login: 'Llama',
-                    username: 'Llama',
+                    login: 'kodustech',
+                    username: 'kodustech',
                 },
                 assignees: [],
                 requested_reviewers: [],
@@ -354,8 +343,10 @@ describe('Forgejo Service', () => {
             expect(mapped.number).toBe(3);
             expect(mapped.title).toBe('feat: add testing');
             expect(mapped.head.ref).toBe('feat/testing');
-            expect(mapped.head.sha).toBe('9da9e0f093815f868096d98a25ae789ec5931cac');
-            expect(mapped.user.login).toBe('Llama');
+            expect(mapped.head.sha).toBe(
+                '9da9e0f093815f868096d98a25ae789ec5931cac',
+            );
+            expect(mapped.user.login).toBe('kodustech');
         });
 
         it('should handle username field when login is missing', () => {
@@ -363,13 +354,13 @@ describe('Forgejo Service', () => {
                 number: 1,
                 user: {
                     id: 1,
-                    username: 'Llama',
+                    username: 'kodustech',
                 },
             };
 
             const mapped = mapForgejoPullRequest(forgejoPR);
 
-            expect(mapped.user.login).toBe('Llama');
+            expect(mapped.user.login).toBe('kodustech');
         });
     });
 });
@@ -377,8 +368,8 @@ describe('Forgejo Service', () => {
 describe('Forgejo Webhook Actions', () => {
     const ALLOWED_ACTIONS = [
         'opened',
-        'synchronize',    // GitHub uses this
-        'synchronized',   // Forgejo uses this (with 'd')
+        'synchronize', // GitHub uses this
+        'synchronized', // Forgejo uses this (with 'd')
         'ready_for_review',
         'open',
         'update',

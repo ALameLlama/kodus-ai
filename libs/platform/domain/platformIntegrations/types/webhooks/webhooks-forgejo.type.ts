@@ -213,7 +213,7 @@ export interface IWebhookForgejoPullRequest {
     assignees: IWebhookForgejoUser[] | null;
     requested_reviewers: IWebhookForgejoUser[] | null;
     requested_reviewers_teams: IWebhookForgejoTeam[] | null;
-    state: WebhookForgejoMilestoneState
+    state: WebhookForgejoMilestoneState;
     draft: boolean;
     is_locked: boolean;
     comments: number;
@@ -349,7 +349,7 @@ export enum WebhookForgejoHookIssueAction {
     UNASSIGNED = 'unassigned',
     LABEL_UPDATED = 'label_updated',
     LABEL_CLEARED = 'label_cleared',
-    SYNCHRONIZED = 'synchronized',
+    SYNCHRONIZED = 'synchronized', // forgejo uses synchronized instead of synchronize
     MILESTONED = 'milestoned',
     DEMILESTONED = 'demilestoned',
     REVIEWED = 'reviewed',
@@ -457,4 +457,24 @@ export interface IWebhookForgejoPullRequestReviewEvent {
 export interface IWebhookForgejoReviewPayload {
     type: string;
     content: string;
+}
+
+// @see https://codeberg.org/forgejo/forgejo/src/branch/forgejo/modules/actions/github.go#L10
+export enum WebhookForgejoEvent {
+    PULL_REQUEST = 'pull_request',
+    PULL_REQUEST_TARGET = 'pull_request_target',
+    PULL_REQUEST_REVIEW_COMMENT = 'pull_request_review_comment',
+    PULL_REQUEST_REVIEW = 'pull_request_review',
+    REGISTRY_PACKAGE = 'registry_package',
+    CREATE = 'create',
+    DELETE = 'delete',
+    FORK = 'fork',
+    PUSH = 'push',
+    ISSUES = 'issues',
+    ISSUE_COMMENT = 'issue_comment',
+    RELEASE = 'release',
+    PULL_REQUEST_COMMENT = 'pull_request_comment',
+    GOLLUM = 'gollum',
+    SCHEDULE = 'schedule',
+    WORKFLOW_DISPATCH = 'workflow_dispatch',
 }

@@ -8,6 +8,7 @@ import {
     CreateAuthIntegrationStatus,
     IntegrationCategory,
     IntegrationConfigKey,
+    LanguageValue,
     PlatformType,
     PullRequestState,
 } from '@libs/core/domain/enums';
@@ -60,6 +61,11 @@ import {
     isFileMatchingGlob,
     isFileMatchingGlobCaseInsensitive,
 } from '@libs/common/utils/glob-utils';
+import { extractOwnerAndRepo } from '@libs/common/utils/helpers';
+import {
+    getTranslationsForLanguageByCategory,
+    TranslationsCategory,
+} from '@libs/common/utils/translations/translations';
 
 @Injectable()
 @IntegrationServiceDecorator(PlatformType.FORGEJO, 'codeManagement')
@@ -89,21 +95,103 @@ export class ForgejoService implements Omit<
         private readonly configService: ConfigService,
         private readonly cacheService: CacheService,
         private readonly mcpManagerService?: MCPManagerService,
-    ) {}
+    ) { }
 
     private createApiClient(authDetail: ForgejoAuthDetail): AxiosInstance {
         const token = decrypt(authDetail.accessToken);
-        return axios.create({
+        const client = axios.create({
             baseURL: `${authDetail.host}/api/v1`,
             headers: {
-                Authorization: `token ${token}`,
+                'Authorization': `token ${token}`,
                 'Content-Type': 'application/json',
             },
             timeout: 30000,
         });
+
+        // Add response interceptor for better error logging
+        client.interceptors.response.use(
+            (response) => response,
+            (error) => {
+                const status = error?.response?.status;
+                const statusText = error?.response?.statusText;
+                const url = error?.config?.url;
+                const method = error?.config?.method?.toUpperCase();
+                const errorMessage =
+                    error?.response?.data?.message || error?.message;
+
+                // Log specific error types for easier debugging
+                if (status === 401) {
+                    this.logger.error({
+                        message: `Forgejo API authentication failed - check if token is valid and has required permissions`,
+                        context: ForgejoService.name,
+                        metadata: {
+                            status,
+                            statusText,
+                            method,
+                            url,
+                            host: authDetail.host,
+                            errorMessage,
+                        },
+                    });
+                } else if (status === 403) {
+                    this.logger.error({
+                        message: `Forgejo API forbidden - token lacks permission for this operation`,
+                        context: ForgejoService.name,
+                        metadata: {
+                            status,
+                            statusText,
+                            method,
+                            url,
+                            host: authDetail.host,
+                            errorMessage,
+                        },
+                    });
+                } else if (status === 404) {
+                    this.logger.warn({
+                        message: `Forgejo API resource not found`,
+                        context: ForgejoService.name,
+                        metadata: {
+                            status,
+                            method,
+                            url,
+                            errorMessage,
+                        },
+                    });
+                } else if (
+                    error.code === 'ECONNREFUSED' ||
+                    error.code === 'ENOTFOUND'
+                ) {
+                    this.logger.error({
+                        message: `Forgejo API connection failed - check if host is reachable`,
+                        context: ForgejoService.name,
+                        metadata: {
+                            host: authDetail.host,
+                            errorCode: error.code,
+                            errorMessage,
+                        },
+                    });
+                } else if (
+                    error.code === 'ETIMEDOUT' ||
+                    error.code === 'ECONNABORTED'
+                ) {
+                    this.logger.error({
+                        message: `Forgejo API request timed out`,
+                        context: ForgejoService.name,
+                        metadata: {
+                            host: authDetail.host,
+                            method,
+                            url,
+                            errorCode: error.code,
+                        },
+                    });
+                }
+
+                return Promise.reject(error);
+            },
+        );
+
+        return client;
     }
-
-
 
     async getPullRequestAuthors(params: {
         organizationAndTeamData: OrganizationAndTeamData;
@@ -114,7 +202,9 @@ export class ForgejoService implements Omit<
                 return [];
             }
 
-            const authDetail = await this.getAuthDetails(params.organizationAndTeamData);
+            const authDetail = await this.getAuthDetails(
+                params.organizationAndTeamData,
+            );
             const repositories = <Repositories[]>(
                 await this.findOneByOrganizationAndTeamDataAndConfigKey(
                     params?.organizationAndTeamData,
@@ -136,13 +226,16 @@ export class ForgejoService implements Omit<
             for (const repo of repositories) {
                 try {
                     const [owner, repoName] = repo.name.split('/');
-                    const response = await api.get(`/repos/${owner}/${repoName}/pulls`, {
-                        params: {
-                            state: 'all',
-                            sort: 'created',
-                            direction: 'desc',
+                    const response = await api.get(
+                        `/repos/${owner}/${repoName}/pulls`,
+                        {
+                            params: {
+                                state: 'all',
+                                sort: 'created',
+                                direction: 'desc',
+                            },
                         },
-                    });
+                    );
 
                     for (const pr of response.data || []) {
                         if (pr.user?.id) {
@@ -151,7 +244,10 @@ export class ForgejoService implements Omit<
                                 authorsSet.add(userId);
                                 authorsData.set(userId, {
                                     id: userId,
-                                    name: pr.user.full_name || pr.user.login || pr.user.username,
+                                    name:
+                                        pr.user.full_name ||
+                                        pr.user.login ||
+                                        pr.user.username,
                                     type: 'user',
                                 });
                             }
@@ -186,25 +282,31 @@ export class ForgejoService implements Omit<
         prNumber: number;
     }): Promise<any | null> {
         try {
-            const authDetail = await this.getAuthDetails(params.organizationAndTeamData);
+            const authDetail = await this.getAuthDetails(
+                params.organizationAndTeamData,
+            );
             if (!authDetail) {
                 throw new Error('Forgejo authentication details not found');
             }
 
             const api = this.createApiClient(authDetail);
-            
-            const [owner, repoName] = params.repository.name.split('/', 2);
-            
-            if (!owner || !repoName) {
+
+            const repoData = extractOwnerAndRepo(params.repository.name);
+
+            if (!repoData) {
                 this.logger.error({
-                    message: 'Could not determine repository owner/name for getPullRequest',
+                    message:
+                        'Could not determine repository owner/name for getPullRequest',
                     context: ForgejoService.name,
                     metadata: { repositoryName: params.repository.name },
                 });
                 return null;
             }
+            const { owner, repo: repoName } = repoData;
 
-            const response = await api.get(`/repos/${owner}/${repoName}/pulls/${params.prNumber}`);
+            const response = await api.get(
+                `/repos/${owner}/${repoName}/pulls/${params.prNumber}`,
+            );
             const pr = response.data;
 
             if (!pr) {
@@ -256,7 +358,9 @@ export class ForgejoService implements Omit<
     async createOrUpdateIntegrationConfig(params: any): Promise<any> {
         try {
             const integration = await this.integrationService.findOne({
-                organization: { uuid: params.organizationAndTeamData.organizationId },
+                organization: {
+                    uuid: params.organizationAndTeamData.organizationId,
+                },
                 team: { uuid: params.organizationAndTeamData.teamId },
                 platform: PlatformType.FORGEJO,
             });
@@ -305,7 +409,11 @@ export class ForgejoService implements Omit<
             this.logger.log({
                 message: 'Starting Forgejo token authentication',
                 context: ForgejoService.name,
-                metadata: { host, hasToken: !!token, tokenLength: token?.length },
+                metadata: {
+                    host,
+                    hasToken: !!token,
+                    tokenLength: token?.length,
+                },
             });
 
             if (!host) {
@@ -326,17 +434,20 @@ export class ForgejoService implements Omit<
             });
 
             // Test the token by fetching user info
-            const testResponse = await axios.get(`${normalizedHost}/api/v1/user`, {
-                headers: {
-                    Authorization: `token ${token}`,
+            const testResponse = await axios.get(
+                `${normalizedHost}/api/v1/user`,
+                {
+                    headers: {
+                        Authorization: `token ${token}`,
+                    },
+                    timeout: 30000,
                 },
-                timeout: 30000,
-            });
+            );
 
             this.logger.log({
                 message: 'Forgejo /api/v1/user response received',
                 context: ForgejoService.name,
-                metadata: { 
+                metadata: {
                     status: testResponse?.status,
                     hasData: !!testResponse?.data,
                     username: testResponse?.data?.login,
@@ -353,11 +464,15 @@ export class ForgejoService implements Omit<
                 host: normalizedHost,
             };
 
-            const checkRepos = await this.checkRepositoryPermissions({ authDetails });
+            const checkRepos = await this.checkRepositoryPermissions({
+                authDetails,
+            });
             if (!checkRepos.success) return checkRepos;
 
             const integration = await this.integrationService.findOne({
-                organization: { uuid: params.organizationAndTeamData.organizationId },
+                organization: {
+                    uuid: params.organizationAndTeamData.organizationId,
+                },
                 team: { uuid: params.organizationAndTeamData.teamId },
                 platform: PlatformType.FORGEJO,
             });
@@ -373,9 +488,10 @@ export class ForgejoService implements Omit<
                 status: CreateAuthIntegrationStatus.SUCCESS,
             };
         } catch (err) {
-            const errorMessage = err?.response?.data?.message || err?.message || 'Unknown error';
+            const errorMessage =
+                err?.response?.data?.message || err?.message || 'Unknown error';
             const statusCode = err?.response?.status;
-            
+
             this.logger.error({
                 message: 'Error authenticating with Forgejo token',
                 context: ForgejoService.name,
@@ -386,7 +502,9 @@ export class ForgejoService implements Omit<
                     responseData: err?.response?.data,
                 },
             });
-            throw new BadRequestException(`Error authenticating with Forgejo token: ${errorMessage}`);
+            throw new BadRequestException(
+                `Error authenticating with Forgejo token: ${errorMessage}`,
+            );
         }
     }
 
@@ -432,9 +550,12 @@ export class ForgejoService implements Omit<
             });
 
             for (const org of orgsResponse.data || []) {
-                const orgReposResponse = await api.get(`/orgs/${org.username}/repos`, {
-                    params: { limit: 10 },
-                });
+                const orgReposResponse = await api.get(
+                    `/orgs/${org.username}/repos`,
+                    {
+                        params: { limit: 10 },
+                    },
+                );
 
                 if (orgReposResponse.data && orgReposResponse.data.length > 0) {
                     return {
@@ -450,7 +571,8 @@ export class ForgejoService implements Omit<
             };
         } catch (error) {
             this.logger.error({
-                message: 'Failed to list repositories when creating integration',
+                message:
+                    'Failed to list repositories when creating integration',
                 context: ForgejoService.name,
                 error,
             });
@@ -466,7 +588,9 @@ export class ForgejoService implements Omit<
             {
                 uuid: params.integrationId,
                 authIntegration: params.authIntegrationId,
-                organization: { uuid: params.organizationAndTeamData.organizationId },
+                organization: {
+                    uuid: params.organizationAndTeamData.organizationId,
+                },
                 team: { uuid: params.organizationAndTeamData.teamId },
             },
             { status: true },
@@ -475,13 +599,17 @@ export class ForgejoService implements Omit<
         return await this.authIntegrationService.update(
             {
                 uuid: params.authIntegrationId,
-                organization: { uuid: params.organizationAndTeamData.organizationId },
+                organization: {
+                    uuid: params.organizationAndTeamData.organizationId,
+                },
                 team: { uuid: params.organizationAndTeamData.teamId },
             },
             {
                 status: true,
                 authDetails: params?.authDetails,
-                organization: { uuid: params.organizationAndTeamData.organizationId },
+                organization: {
+                    uuid: params.organizationAndTeamData.organizationId,
+                },
                 team: { uuid: params.organizationAndTeamData.teamId },
             },
         );
@@ -502,22 +630,27 @@ export class ForgejoService implements Omit<
         };
     }): Promise<Repositories[]> {
         try {
-            const authDetail = await this.getAuthDetails(params.organizationAndTeamData);
+            const authDetail = await this.getAuthDetails(
+                params.organizationAndTeamData,
+            );
             if (!authDetail) {
                 return [];
             }
 
             const integration = await this.integrationService.findOne({
-                organization: { uuid: params.organizationAndTeamData.organizationId },
+                organization: {
+                    uuid: params.organizationAndTeamData.organizationId,
+                },
                 team: { uuid: params.organizationAndTeamData.teamId },
                 platform: PlatformType.FORGEJO,
             });
 
-            const integrationConfig = await this.integrationConfigService.findOne({
-                integration: { uuid: integration?.uuid },
-                configKey: IntegrationConfigKey.REPOSITORIES,
-                team: { uuid: params.organizationAndTeamData.teamId },
-            });
+            const integrationConfig =
+                await this.integrationConfigService.findOne({
+                    integration: { uuid: integration?.uuid },
+                    configKey: IntegrationConfigKey.REPOSITORIES,
+                    team: { uuid: params.organizationAndTeamData.teamId },
+                });
 
             const api = this.createApiClient(authDetail);
 
@@ -539,7 +672,8 @@ export class ForgejoService implements Omit<
                         name: repo.full_name,
                         http_url: repo.clone_url,
                         avatar_url: repo.avatar_url || repo.owner?.avatar_url,
-                        organizationName: repo.owner?.login || repo.owner?.username,
+                        organizationName:
+                            repo.owner?.login || repo.owner?.username,
                         visibility: repo.private ? 'private' : 'public',
                         selected: integrationConfig?.configValue?.some(
                             (r: { name: string }) => r?.name === repo.full_name,
@@ -559,9 +693,12 @@ export class ForgejoService implements Omit<
                 // Fetch repos from each organization
                 for (const org of orgsResponse.data || []) {
                     try {
-                        const orgReposResponse = await api.get(`/orgs/${org.username}/repos`, {
-                            params: { limit: 100 },
-                        });
+                        const orgReposResponse = await api.get(
+                            `/orgs/${org.username}/repos`,
+                            {
+                                params: { limit: 100 },
+                            },
+                        );
 
                         for (const repo of orgReposResponse.data || []) {
                             const repoId = repo.id.toString();
@@ -571,12 +708,18 @@ export class ForgejoService implements Omit<
                                     id: repoId,
                                     name: repo.full_name,
                                     http_url: repo.clone_url,
-                                    avatar_url: repo.avatar_url || repo.owner?.avatar_url,
+                                    avatar_url:
+                                        repo.avatar_url ||
+                                        repo.owner?.avatar_url,
                                     organizationName: org.username,
-                                    visibility: repo.private ? 'private' : 'public',
-                                    selected: integrationConfig?.configValue?.some(
-                                        (r: { name: string }) => r?.name === repo.full_name,
-                                    ),
+                                    visibility: repo.private
+                                        ? 'private'
+                                        : 'public',
+                                    selected:
+                                        integrationConfig?.configValue?.some(
+                                            (r: { name: string }) =>
+                                                r?.name === repo.full_name,
+                                        ),
                                     default_branch: repo.default_branch,
                                     lastActivityAt: repo.updated_at,
                                 });
@@ -627,7 +770,9 @@ export class ForgejoService implements Omit<
                 return [];
             }
 
-            const authDetail = await this.getAuthDetails(organizationAndTeamData);
+            const authDetail = await this.getAuthDetails(
+                organizationAndTeamData,
+            );
             const allRepositories = <Repositories[]>(
                 await this.findOneByOrganizationAndTeamDataAndConfigKey(
                     organizationAndTeamData,
@@ -635,7 +780,11 @@ export class ForgejoService implements Omit<
                 )
             );
 
-            if (!authDetail || !allRepositories || allRepositories.length === 0) {
+            if (
+                !authDetail ||
+                !allRepositories ||
+                allRepositories.length === 0
+            ) {
                 return [];
             }
 
@@ -658,16 +807,25 @@ export class ForgejoService implements Omit<
                     const [owner, repoName] = repo.name.split('/');
                     const state = this.mapPullRequestState(filters.state);
 
-                    const response = await api.get(`/repos/${owner}/${repoName}/pulls`, {
-                        params: {
-                            state,
-                            sort: 'created',
-                            direction: 'desc',
+                    const response = await api.get(
+                        `/repos/${owner}/${repoName}/pulls`,
+                        {
+                            params: {
+                                state,
+                                sort: 'created',
+                                direction: 'desc',
+                            },
                         },
-                    });
+                    );
 
                     for (const pr of response.data || []) {
-                        pullRequests.push(this.transformPullRequest(pr, repo, organizationAndTeamData));
+                        pullRequests.push(
+                            this.transformPullRequest(
+                                pr,
+                                repo,
+                                organizationAndTeamData,
+                            ),
+                        );
                     }
                 } catch (error) {
                     this.logger.error({
@@ -708,10 +866,10 @@ export class ForgejoService implements Omit<
         repo: Repositories,
         organizationAndTeamData: OrganizationAndTeamData,
     ): PullRequest {
-        const state = pr.merged 
-            ? PullRequestState.MERGED 
-            : pr.state === 'open' 
-                ? PullRequestState.OPENED 
+        const state = pr.merged
+            ? PullRequestState.MERGED
+            : pr.state === 'open'
+                ? PullRequestState.OPENED
                 : PullRequestState.CLOSED;
 
         return {
@@ -735,7 +893,9 @@ export class ForgejoService implements Omit<
             updated_at: pr.updated_at ?? '',
             merged_at: pr.merged_at ?? '',
             participants: pr.user?.id ? [{ id: pr.user.id.toString() }] : [],
-            reviewers: (pr.requested_reviewers || []).map((r: any) => ({ id: r.id?.toString() ?? '' })),
+            reviewers: (pr.requested_reviewers || []).map((r: any) => ({
+                id: r.id?.toString() ?? '',
+            })),
             sourceRefName: pr.head?.ref ?? '', // TODO: remove, legacy, use head.ref
             head: {
                 ref: pr.head?.ref ?? '',
@@ -744,7 +904,8 @@ export class ForgejoService implements Omit<
                     id: pr.head?.repo?.id?.toString() ?? '',
                     name: pr.head?.repo?.name ?? '',
                     defaultBranch: pr.head?.repo?.default_branch ?? '',
-                    fullName: pr.head?.repo?.full_name ?? '',
+                    fullName:
+                        pr.head?.repo?.full_name ?? pr.head?.repo?.name ?? '',
                 },
             },
             targetRefName: pr.base?.ref ?? '', // TODO: remove, legacy, use base.ref
@@ -760,13 +921,18 @@ export class ForgejoService implements Omit<
             },
             user: {
                 login: pr.user?.login || pr.user?.username || '',
-                name: pr.user?.full_name || pr.user?.login || pr.user?.username || '',
+                name:
+                    pr.user?.full_name ||
+                    pr.user?.login ||
+                    pr.user?.username ||
+                    '',
                 id: pr.user?.id?.toString() ?? '',
             },
-            isDraft: pr.title?.toLowerCase().startsWith('wip:') ||
-                     pr.title?.toLowerCase().startsWith('[wip]') ||
-                     pr.title?.toLowerCase().startsWith('draft:') ||
-                     pr.title?.toLowerCase().startsWith('[draft]'),
+            isDraft:
+                pr.title?.toLowerCase().startsWith('wip:') ||
+                pr.title?.toLowerCase().startsWith('[wip]') ||
+                pr.title?.toLowerCase().startsWith('draft:') ||
+                pr.title?.toLowerCase().startsWith('[draft]'),
         };
     }
 
@@ -783,7 +949,9 @@ export class ForgejoService implements Omit<
         const { organizationAndTeamData, repository, filters = {} } = params;
 
         try {
-            const authDetail = await this.getAuthDetails(organizationAndTeamData);
+            const authDetail = await this.getAuthDetails(
+                organizationAndTeamData,
+            );
             const configuredRepositories = <Repositories[]>(
                 await this.findOneByOrganizationAndTeamDataAndConfigKey(
                     organizationAndTeamData,
@@ -791,13 +959,19 @@ export class ForgejoService implements Omit<
                 )
             );
 
-            if (!authDetail || !configuredRepositories || configuredRepositories.length === 0) {
+            if (
+                !authDetail ||
+                !configuredRepositories ||
+                configuredRepositories.length === 0
+            ) {
                 return [];
             }
 
             let reposToProcess = configuredRepositories;
             if (repository && repository.name) {
-                const foundRepo = configuredRepositories.find((r) => r.name === repository.name);
+                const foundRepo = configuredRepositories.find(
+                    (r) => r.name === repository.name,
+                );
                 if (!foundRepo) {
                     return [];
                 }
@@ -810,11 +984,14 @@ export class ForgejoService implements Omit<
             for (const repo of reposToProcess) {
                 try {
                     const [owner, repoName] = repo.name.split('/');
-                    const response = await api.get(`/repos/${owner}/${repoName}/commits`, {
-                        params: {
-                            sha: filters.branch,
+                    const response = await api.get(
+                        `/repos/${owner}/${repoName}/commits`,
+                        {
+                            params: {
+                                sha: filters.branch,
+                            },
                         },
-                    });
+                    );
 
                     for (const commit of response.data || []) {
                         commits.push({
@@ -855,22 +1032,27 @@ export class ForgejoService implements Omit<
         params: any,
     ): Promise<{ name: string; id: string | number; type?: string }[]> {
         try {
-            const authDetail = await this.getAuthDetails(params.organizationAndTeamData);
+            const authDetail = await this.getAuthDetails(
+                params.organizationAndTeamData,
+            );
             if (!authDetail) {
                 return [];
             }
 
             const integration = await this.integrationService.findOne({
-                organization: { uuid: params.organizationAndTeamData.organizationId },
+                organization: {
+                    uuid: params.organizationAndTeamData.organizationId,
+                },
                 team: { uuid: params.organizationAndTeamData.teamId },
                 platform: PlatformType.FORGEJO,
             });
 
-            const integrationConfig = await this.integrationConfigService.findOne({
-                integration: { uuid: integration?.uuid },
-                configKey: IntegrationConfigKey.REPOSITORIES,
-                team: { uuid: params.organizationAndTeamData.teamId },
-            });
+            const integrationConfig =
+                await this.integrationConfigService.findOne({
+                    integration: { uuid: integration?.uuid },
+                    configKey: IntegrationConfigKey.REPOSITORIES,
+                    team: { uuid: params.organizationAndTeamData.teamId },
+                });
 
             const api = this.createApiClient(authDetail);
             const repositories = integrationConfig?.configValue || [];
@@ -879,12 +1061,17 @@ export class ForgejoService implements Omit<
             for (const repo of repositories) {
                 try {
                     const [owner, repoName] = repo.name.split('/');
-                    const response = await api.get(`/repos/${owner}/${repoName}/collaborators`);
+                    const response = await api.get(
+                        `/repos/${owner}/${repoName}/collaborators`,
+                    );
 
                     for (const user of response.data || []) {
                         if (!usersMap.has(user.id)) {
                             usersMap.set(user.id, {
-                                name: user.full_name || user.login || user.username,
+                                name:
+                                    user.full_name ||
+                                    user.login ||
+                                    user.username,
                                 id: user.id,
                                 type: 'user',
                             });
@@ -911,7 +1098,9 @@ export class ForgejoService implements Omit<
         }
     }
 
-    async verifyConnection(params: any): Promise<CodeManagementConnectionStatus> {
+    async verifyConnection(
+        params: any,
+    ): Promise<CodeManagementConnectionStatus> {
         try {
             if (!params.organizationAndTeamData.organizationId) {
                 return {
@@ -928,7 +1117,9 @@ export class ForgejoService implements Omit<
                     IntegrationConfigKey.REPOSITORIES,
                 ),
                 this.integrationService.findOne({
-                    organization: { uuid: params.organizationAndTeamData.organizationId },
+                    organization: {
+                        uuid: params.organizationAndTeamData.organizationId,
+                    },
                     status: true,
                     platform: PlatformType.FORGEJO,
                 }),
@@ -936,7 +1127,8 @@ export class ForgejoService implements Omit<
 
             const hasRepositories = repositories?.length > 0;
             const isSetupComplete =
-                hasRepositories && !!integration?.authIntegration?.authDetails?.accessToken;
+                hasRepositories &&
+                !!integration?.authIntegration?.authDetails?.accessToken;
 
             return {
                 platformName: PlatformType.FORGEJO,
@@ -974,31 +1166,39 @@ export class ForgejoService implements Omit<
 
         // Use the returned uuid if available, otherwise fall back to the generated one
         const authIntegrationId = authIntegration?.uuid || authUuid;
-        
+
         this.logger.log({
-            message: 'Created Forgejo auth integration, now creating integration record',
+            message:
+                'Created Forgejo auth integration, now creating integration record',
             context: ForgejoService.name,
             metadata: { authIntegrationId, organizationAndTeamData },
         });
 
         try {
-            const integration = await this.addIntegration(organizationAndTeamData, authIntegrationId);
-            
+            const integration = await this.addIntegration(
+                organizationAndTeamData,
+                authIntegrationId,
+            );
+
             this.logger.log({
                 message: 'Successfully created Forgejo integration',
                 context: ForgejoService.name,
-                metadata: { integrationId: integration?.uuid, authIntegrationId },
+                metadata: {
+                    integrationId: integration?.uuid,
+                    authIntegrationId,
+                },
             });
-            
+
             return integration;
         } catch (error) {
             this.logger.error({
-                message: 'Failed to create Forgejo integration record, cleaning up auth integration',
+                message:
+                    'Failed to create Forgejo integration record, cleaning up auth integration',
                 context: ForgejoService.name,
                 error,
                 metadata: { authIntegrationId, organizationAndTeamData },
             });
-            
+
             // Try to clean up the orphaned auth integration
             try {
                 await this.authIntegrationService.delete(authIntegrationId);
@@ -1009,7 +1209,7 @@ export class ForgejoService implements Omit<
                     error: cleanupError,
                 });
             }
-            
+
             throw error;
         }
     }
@@ -1023,7 +1223,11 @@ export class ForgejoService implements Omit<
         this.logger.log({
             message: 'Creating Forgejo integration record',
             context: ForgejoService.name,
-            metadata: { integrationUuid, authIntegrationId, organizationAndTeamData },
+            metadata: {
+                integrationUuid,
+                authIntegrationId,
+                organizationAndTeamData,
+            },
         });
 
         const integration = await this.integrationService.create({
@@ -1037,13 +1241,20 @@ export class ForgejoService implements Omit<
         });
 
         if (!integration) {
-            throw new Error('Failed to create integration record - integrationService.create returned null');
+            throw new Error(
+                'Failed to create integration record - integrationService.create returned null',
+            );
         }
 
         this.logger.log({
             message: 'Created Forgejo integration record',
             context: ForgejoService.name,
-            metadata: { integration: { uuid: integration.uuid, platform: integration.platform } },
+            metadata: {
+                integration: {
+                    uuid: integration.uuid,
+                    platform: integration.platform,
+                },
+            },
         });
 
         return integration;
@@ -1077,11 +1288,12 @@ export class ForgejoService implements Omit<
 
             if (!integration) return;
 
-            const integrationConfig = await this.integrationConfigService.findOne({
-                integration: { uuid: integration?.uuid },
-                team: { uuid: organizationAndTeamData.teamId },
-                configKey,
-            });
+            const integrationConfig =
+                await this.integrationConfigService.findOne({
+                    integration: { uuid: integration?.uuid },
+                    team: { uuid: organizationAndTeamData.teamId },
+                    configKey,
+                });
 
             return integrationConfig?.configValue || null;
         } catch (err) {
@@ -1091,32 +1303,37 @@ export class ForgejoService implements Omit<
 
     async getFilesByPullRequestId(params: {
         organizationAndTeamData: OrganizationAndTeamData;
-        repository: { name: string; id?: string; fullName?: string };
+        repository: { name: string; id?: string };
         prNumber: number;
     }): Promise<RepositoryFile[]> {
         try {
-            const authDetail = await this.getAuthDetails(params.organizationAndTeamData);
+            const authDetail = await this.getAuthDetails(
+                params.organizationAndTeamData,
+            );
             if (!authDetail) {
                 return [];
             }
 
             const api = this.createApiClient(authDetail);
-            
-            const [owner, repoName] = params.repository.name.split('/', 2);
-            
-            if (!owner || !repoName) {
+
+            const repoData = extractOwnerAndRepo(params.repository.name);
+
+            if (!repoData) {
                 this.logger.error({
-                    message: 'Could not determine repository owner/name for files fetch',
+                    message:
+                        'Could not determine repository owner/name for files fetch',
                     context: ForgejoService.name,
-                    metadata: { 
+                    metadata: {
                         repositoryName: params.repository.name,
-                        repositoryFullName: params.repository.fullName,
                     },
                 });
                 return [];
             }
+            const { owner, repo: repoName } = repoData;
 
-            const response = await api.get(`/repos/${owner}/${repoName}/pulls/${params.prNumber}/files`);
+            const response = await api.get(
+                `/repos/${owner}/${repoName}/pulls/${params.prNumber}/files`,
+            );
 
             return (response.data || []).map((file: any) => ({
                 sha: file.sha,
@@ -1145,27 +1362,34 @@ export class ForgejoService implements Omit<
         ref?: string;
     }): Promise<any> {
         try {
-            const authDetail = await this.getAuthDetails(params.organizationAndTeamData);
+            const authDetail = await this.getAuthDetails(
+                params.organizationAndTeamData,
+            );
             if (!authDetail) {
                 return null;
             }
 
             const api = this.createApiClient(authDetail);
-            
-            const [owner, repoName] = params.repository.name.split('/', 2);
-            
-            if (!owner || !repoName) {
+
+            const repoData = extractOwnerAndRepo(params.repository.name);
+
+            if (!repoData) {
                 this.logger.error({
-                    message: 'Could not determine repository owner/name for getFile',
+                    message:
+                        'Could not determine repository owner/name for getFile',
                     context: ForgejoService.name,
                     metadata: { repositoryName: params.repository.name },
                 });
                 return null;
             }
+            const { owner, repo: repoName } = repoData;
 
-            const response = await api.get(`/repos/${owner}/${repoName}/contents/${params.path}`, {
-                params: { ref: params.ref },
-            });
+            const response = await api.get(
+                `/repos/${owner}/${repoName}/contents/${params.path}`,
+                {
+                    params: { ref: params.ref },
+                },
+            );
 
             const content = response.data?.content;
             if (content) {
@@ -1186,28 +1410,32 @@ export class ForgejoService implements Omit<
 
     async createPullRequestComment(params: {
         organizationAndTeamData: OrganizationAndTeamData;
-        repository: { name: string; id?: string; fullName?: string };
+        repository: { name: string; id?: string };
         prNumber: number;
         body: string;
     }): Promise<any> {
         try {
-            const authDetail = await this.getAuthDetails(params.organizationAndTeamData);
+            const authDetail = await this.getAuthDetails(
+                params.organizationAndTeamData,
+            );
             if (!authDetail) {
                 return null;
             }
 
             const api = this.createApiClient(authDetail);
-            
-            const [owner, repoName] = params.repository.name.split('/', 2);
-            
-            if (!owner || !repoName) {
+
+            const repoData = extractOwnerAndRepo(params.repository.name);
+
+            if (!repoData) {
                 this.logger.error({
-                    message: 'Could not determine repository owner/name for comment creation',
+                    message:
+                        'Could not determine repository owner/name for comment creation',
                     context: ForgejoService.name,
                     metadata: { repositoryName: params.repository.name },
                 });
                 return null;
             }
+            const { owner, repo: repoName } = repoData;
 
             const response = await api.post(
                 `/repos/${owner}/${repoName}/issues/${params.prNumber}/comments`,
@@ -1228,7 +1456,7 @@ export class ForgejoService implements Omit<
 
     async createPullRequestReviewComment(params: {
         organizationAndTeamData: OrganizationAndTeamData;
-        repository: { name: string; id?: string; fullName?: string };
+        repository: { name: string; id?: string };
         prNumber: number;
         body: string;
         commitId: string;
@@ -1237,23 +1465,27 @@ export class ForgejoService implements Omit<
         side?: 'LEFT' | 'RIGHT';
     }): Promise<any> {
         try {
-            const authDetail = await this.getAuthDetails(params.organizationAndTeamData);
+            const authDetail = await this.getAuthDetails(
+                params.organizationAndTeamData,
+            );
             if (!authDetail) {
                 return null;
             }
 
             const api = this.createApiClient(authDetail);
-            
-            const [owner, repoName] = params.repository.name.split('/', 2);
-            
-            if (!owner || !repoName) {
+
+            const repoData = extractOwnerAndRepo(params.repository.name);
+
+            if (!repoData) {
                 this.logger.error({
-                    message: 'Could not determine repository owner/name for review comment',
+                    message:
+                        'Could not determine repository owner/name for review comment',
                     context: ForgejoService.name,
                     metadata: { repositoryName: params.repository.name },
                 });
                 return null;
             }
+            const { owner, repo: repoName } = repoData;
 
             const response = await api.post(
                 `/repos/${owner}/${repoName}/pulls/${params.prNumber}/reviews`,
@@ -1285,28 +1517,32 @@ export class ForgejoService implements Omit<
 
     async updatePullRequestComment(params: {
         organizationAndTeamData: OrganizationAndTeamData;
-        repository: { name: string; id?: string; fullName?: string };
+        repository: { name: string; id?: string };
         commentId: number;
         body: string;
     }): Promise<any> {
         try {
-            const authDetail = await this.getAuthDetails(params.organizationAndTeamData);
+            const authDetail = await this.getAuthDetails(
+                params.organizationAndTeamData,
+            );
             if (!authDetail) {
                 return null;
             }
 
             const api = this.createApiClient(authDetail);
-            
-            const [owner, repoName] = params.repository.name.split('/', 2);
-            
-            if (!owner || !repoName) {
+
+            const repoData = extractOwnerAndRepo(params.repository.name);
+
+            if (!repoData) {
                 this.logger.error({
-                    message: 'Could not determine repository owner/name for comment update',
+                    message:
+                        'Could not determine repository owner/name for comment update',
                     context: ForgejoService.name,
                     metadata: { repositoryName: params.repository.name },
                 });
                 return null;
             }
+            const { owner, repo: repoName } = repoData;
 
             const response = await api.patch(
                 `/repos/${owner}/${repoName}/issues/comments/${params.commentId}`,
@@ -1331,25 +1567,31 @@ export class ForgejoService implements Omit<
         commentId: number;
     }): Promise<boolean> {
         try {
-            const authDetail = await this.getAuthDetails(params.organizationAndTeamData);
+            const authDetail = await this.getAuthDetails(
+                params.organizationAndTeamData,
+            );
             if (!authDetail) {
                 return false;
             }
 
             const api = this.createApiClient(authDetail);
-            
-            const [owner, repoName] = params.repository.name.split('/', 2);
-            
-            if (!owner || !repoName) {
+
+            const repoData = extractOwnerAndRepo(params.repository.name);
+
+            if (!repoData) {
                 this.logger.error({
-                    message: 'Could not determine repository owner/name for deletePullRequestComment',
+                    message:
+                        'Could not determine repository owner/name for deletePullRequestComment',
                     context: ForgejoService.name,
                     metadata: { repositoryName: params.repository.name },
                 });
                 return false;
             }
+            const { owner, repo: repoName } = repoData;
 
-            await api.delete(`/repos/${owner}/${repoName}/issues/comments/${params.commentId}`);
+            await api.delete(
+                `/repos/${owner}/${repoName}/issues/comments/${params.commentId}`,
+            );
             return true;
         } catch (error) {
             this.logger.error({
@@ -1367,23 +1609,27 @@ export class ForgejoService implements Omit<
         repository: { name: string; id?: string };
     }): Promise<string> {
         try {
-            const authDetail = await this.getAuthDetails(params.organizationAndTeamData);
+            const authDetail = await this.getAuthDetails(
+                params.organizationAndTeamData,
+            );
             if (!authDetail) {
                 return 'main';
             }
 
             const api = this.createApiClient(authDetail);
-            
-            const [owner, repoName] = params.repository.name.split('/', 2);
-            
-            if (!owner || !repoName) {
+
+            const repoData = extractOwnerAndRepo(params.repository.name);
+
+            if (!repoData) {
                 this.logger.error({
-                    message: 'Could not determine repository owner/name for getDefaultBranch',
+                    message:
+                        'Could not determine repository owner/name for getDefaultBranch',
                     context: ForgejoService.name,
                     metadata: { repositoryName: params.repository.name },
                 });
                 return 'main';
             }
+            const { owner, repo: repoName } = repoData;
 
             const response = await api.get(`/repos/${owner}/${repoName}`);
             return response.data?.default_branch || 'main';
@@ -1402,7 +1648,9 @@ export class ForgejoService implements Omit<
         organizationAndTeamData: OrganizationAndTeamData;
     }): Promise<void> {
         try {
-            const authDetail = await this.getAuthDetails(params.organizationAndTeamData);
+            const authDetail = await this.getAuthDetails(
+                params.organizationAndTeamData,
+            );
             if (!authDetail) {
                 return;
             }
@@ -1419,7 +1667,9 @@ export class ForgejoService implements Omit<
             }
 
             const api = this.createApiClient(authDetail);
-            const webhookUrl = this.configService.get('API_FORGEJO_CODE_MANAGEMENT_WEBHOOK');
+            const webhookUrl = this.configService.get(
+                'API_FORGEJO_CODE_MANAGEMENT_WEBHOOK',
+            );
 
             if (!webhookUrl) {
                 this.logger.warn({
@@ -1434,7 +1684,9 @@ export class ForgejoService implements Omit<
                     const [owner, repoName] = repo.name.split('/');
 
                     // Check if webhook already exists
-                    const existingHooks = await api.get(`/repos/${owner}/${repoName}/hooks`);
+                    const existingHooks = await api.get(
+                        `/repos/${owner}/${repoName}/hooks`,
+                    );
                     const hookExists = existingHooks.data?.some(
                         (hook: any) => hook.config?.url === webhookUrl,
                     );
@@ -1477,17 +1729,22 @@ export class ForgejoService implements Omit<
         }
     }
 
-    async getPullRequestsWithFiles(params: any): Promise<PullRequestWithFiles[] | null> {
+    async getPullRequestsWithFiles(
+        params: any,
+    ): Promise<PullRequestWithFiles[] | null> {
         try {
             if (!params?.organizationAndTeamData.organizationId) {
                 return null;
             }
 
-            const authDetail = await this.getAuthDetails(params.organizationAndTeamData);
-            const repositories = await this.findOneByOrganizationAndTeamDataAndConfigKey(
+            const authDetail = await this.getAuthDetails(
                 params.organizationAndTeamData,
-                IntegrationConfigKey.REPOSITORIES,
             );
+            const repositories =
+                await this.findOneByOrganizationAndTeamDataAndConfigKey(
+                    params.organizationAndTeamData,
+                    IntegrationConfigKey.REPOSITORIES,
+                );
 
             if (!authDetail || !repositories) {
                 return null;
@@ -1499,9 +1756,12 @@ export class ForgejoService implements Omit<
             for (const repo of repositories) {
                 try {
                     const [owner, repoName] = repo.name.split('/');
-                    const prsResponse = await api.get(`/repos/${owner}/${repoName}/pulls`, {
-                        params: { state: 'all', limit: 10 },
-                    });
+                    const prsResponse = await api.get(
+                        `/repos/${owner}/${repoName}/pulls`,
+                        {
+                            params: { state: 'all', limit: 10 },
+                        },
+                    );
 
                     for (const pr of prsResponse.data || []) {
                         const filesResponse = await api.get(
@@ -1515,19 +1775,21 @@ export class ForgejoService implements Omit<
                             state: pr.state,
                             repository: repo.name,
                             repositoryData: {
-                                platform: 'github' as const, // Forgejo uses GitHub-compatible API
+                                platform: 'forgejo',
                                 id: repo.id,
-                                name: repoName,
+                                name: repo.name,
                                 fullName: repo.name,
                                 language: '',
                                 defaultBranch: repo.default_branch || 'main',
                             },
-                            pullRequestFiles: (filesResponse.data || []).map((file: any) => ({
-                                additions: file.additions,
-                                deletions: file.deletions,
-                                changes: file.changes,
-                                status: file.status,
-                            })),
+                            pullRequestFiles: (filesResponse.data || []).map(
+                                (file: any) => ({
+                                    additions: file.additions,
+                                    deletions: file.deletions,
+                                    changes: file.changes,
+                                    status: file.status,
+                                }),
+                            ),
                         });
                     }
                 } catch (error) {
@@ -1557,23 +1819,27 @@ export class ForgejoService implements Omit<
         ref: string;
     }): Promise<TreeItem[]> {
         try {
-            const authDetail = await this.getAuthDetails(params.organizationAndTeamData);
+            const authDetail = await this.getAuthDetails(
+                params.organizationAndTeamData,
+            );
             if (!authDetail) {
                 return [];
             }
 
             const api = this.createApiClient(authDetail);
-            
-            const [owner, repoName] = params.repository.name.split('/', 2);
-            
-            if (!owner || !repoName) {
+
+            const repoData = extractOwnerAndRepo(params.repository.name);
+
+            if (!repoData) {
                 this.logger.error({
-                    message: 'Could not determine repository owner/name for getTreeByRef',
+                    message:
+                        'Could not determine repository owner/name for getTreeByRef',
                     context: ForgejoService.name,
                     metadata: { repositoryName: params.repository.name },
                 });
                 return [];
             }
+            const { owner, repo: repoName } = repoData;
 
             const response = await api.get(
                 `/repos/${owner}/${repoName}/git/trees/${params.ref}`,
@@ -1604,27 +1870,34 @@ export class ForgejoService implements Omit<
         prNumber: number;
     }): Promise<boolean> {
         try {
-            const authDetail = await this.getAuthDetails(params.organizationAndTeamData);
+            const authDetail = await this.getAuthDetails(
+                params.organizationAndTeamData,
+            );
             if (!authDetail) {
                 return false;
             }
 
             const api = this.createApiClient(authDetail);
-            
-            const [owner, repoName] = params.repository.name.split('/', 2);
-            
-            if (!owner || !repoName) {
+
+            const repoData = extractOwnerAndRepo(params.repository.name);
+
+            if (!repoData) {
                 this.logger.error({
-                    message: 'Could not determine repository owner/name for approvePullRequest',
+                    message:
+                        'Could not determine repository owner/name for approvePullRequest',
                     context: ForgejoService.name,
                     metadata: { repositoryName: params.repository.name },
                 });
                 return false;
             }
+            const { owner, repo: repoName } = repoData;
 
-            await api.post(`/repos/${owner}/${repoName}/pulls/${params.prNumber}/reviews`, {
-                event: 'APPROVE',
-            });
+            await api.post(
+                `/repos/${owner}/${repoName}/pulls/${params.prNumber}/reviews`,
+                {
+                    event: 'APPROVE',
+                },
+            );
 
             return true;
         } catch (error) {
@@ -1644,29 +1917,38 @@ export class ForgejoService implements Omit<
         prNumber: number;
     }): Promise<PullRequestReviewComment[]> {
         try {
-            const authDetail = await this.getAuthDetails(params.organizationAndTeamData);
+            const authDetail = await this.getAuthDetails(
+                params.organizationAndTeamData,
+            );
             if (!authDetail) {
                 return [];
             }
 
             const api = this.createApiClient(authDetail);
-            
-            const [owner, repoName] = params.repository.name.split('/', 2);
-            
-            if (!owner || !repoName) {
+
+            const repoData = extractOwnerAndRepo(params.repository.name);
+
+            if (!repoData) {
                 this.logger.error({
-                    message: 'Could not determine repository owner/name for getPullRequestReviewComments',
+                    message:
+                        'Could not determine repository owner/name for getPullRequestReviewComments',
                     context: ForgejoService.name,
                     metadata: { repositoryName: params.repository.name },
                 });
                 return [];
             }
+            const { owner, repo: repoName } = repoData;
 
             // Get both issue comments and review comments
-            const [commentsResponse, reviewCommentsResponse] = await Promise.all([
-                api.get(`/repos/${owner}/${repoName}/issues/${params.prNumber}/comments`),
-                api.get(`/repos/${owner}/${repoName}/pulls/${params.prNumber}/comments`),
-            ]);
+            const [commentsResponse, reviewCommentsResponse] =
+                await Promise.all([
+                    api.get(
+                        `/repos/${owner}/${repoName}/issues/${params.prNumber}/comments`,
+                    ),
+                    api.get(
+                        `/repos/${owner}/${repoName}/pulls/${params.prNumber}/comments`,
+                    ),
+                ]);
 
             const comments: PullRequestReviewComment[] = [];
 
@@ -1715,23 +1997,27 @@ export class ForgejoService implements Omit<
         head: string;
     }): Promise<any> {
         try {
-            const authDetail = await this.getAuthDetails(params.organizationAndTeamData);
+            const authDetail = await this.getAuthDetails(
+                params.organizationAndTeamData,
+            );
             if (!authDetail) {
                 return null;
             }
 
             const api = this.createApiClient(authDetail);
-            
-            const [owner, repoName] = params.repository.name.split('/', 2);
-            
-            if (!owner || !repoName) {
+
+            const repoData = extractOwnerAndRepo(params.repository.name);
+
+            if (!repoData) {
                 this.logger.error({
-                    message: 'Could not determine repository owner/name for getComparison',
+                    message:
+                        'Could not determine repository owner/name for getComparison',
                     context: ForgejoService.name,
                     metadata: { repositoryName: params.repository.name },
                 });
                 return null;
             }
+            const { owner, repo: repoName } = repoData;
 
             const response = await api.get(
                 `/repos/${owner}/${repoName}/compare/${params.base}...${params.head}`,
@@ -1753,25 +2039,25 @@ export class ForgejoService implements Omit<
         repository: {
             id: string;
             defaultBranch?: string;
-            fullName?: string;
             name: string;
         };
         organizationAndTeamData: OrganizationAndTeamData;
     }): Promise<GitCloneParams> {
         try {
-            const authDetail = await this.getAuthDetails(params.organizationAndTeamData);
+            const authDetail = await this.getAuthDetails(
+                params.organizationAndTeamData,
+            );
             if (!authDetail) {
                 throw new Error('Forgejo authentication details not found');
             }
 
             const token = decrypt(authDetail.accessToken);
-            const fullName = params.repository.fullName || params.repository.name;
 
             return {
                 organizationId: params.organizationAndTeamData.organizationId,
                 repositoryId: params.repository.id,
                 repositoryName: params.repository.name,
-                url: `${authDetail.host}/${fullName}`,
+                url: `${authDetail.host}/${params.repository.name}`,
                 provider: PlatformType.FORGEJO,
                 branch: params.repository.defaultBranch,
                 auth: {
@@ -1798,7 +2084,10 @@ export class ForgejoService implements Omit<
         try {
             const pr = await this.getPullRequestByNumber({
                 organizationAndTeamData: params.organizationAndTeamData,
-                repository: { name: params.repository.name, id: params.repository.id },
+                repository: {
+                    name: params.repository.name,
+                    id: params.repository.id,
+                },
                 prNumber: params.prNumber,
             });
             if (!pr) {
@@ -1835,28 +2124,33 @@ export class ForgejoService implements Omit<
         prNumber: number;
     }): Promise<PullRequest | null> {
         try {
-            const authDetail = await this.getAuthDetails(params.organizationAndTeamData);
+            const authDetail = await this.getAuthDetails(
+                params.organizationAndTeamData,
+            );
             if (!authDetail) {
                 return null;
             }
 
             const api = this.createApiClient(authDetail);
-            
-            const [owner, repoName] = params.repository.name.split('/', 2);
-            
-            if (!owner || !repoName) {
+
+            const repoData = extractOwnerAndRepo(params.repository.name);
+
+            if (!repoData) {
                 this.logger.error({
-                    message: 'Could not determine repository owner/name for PR fetch',
+                    message:
+                        'Could not determine repository owner/name for PR fetch',
                     context: ForgejoService.name,
-                    metadata: { 
+                    metadata: {
                         repositoryName: params.repository.name,
-                        repositoryFullName: params.repository.fullName,
                     },
                 });
                 return null;
             }
+            const { owner, repo: repoName } = repoData;
 
-            const response = await api.get(`/repos/${owner}/${repoName}/pulls/${params.prNumber}`);
+            const response = await api.get(
+                `/repos/${owner}/${repoName}/pulls/${params.prNumber}`,
+            );
             const pr = response.data;
 
             if (!pr) {
@@ -1870,13 +2164,19 @@ export class ForgejoService implements Omit<
                 )
             );
 
-            const repo = repositories?.find(r => r.name === `${owner}/${repoName}`) || {
+            const repo = repositories?.find(
+                (r) => r.name === `${owner}/${repoName}`,
+            ) || {
                 id: params.repository.id || '',
                 name: `${owner}/${repoName}`,
                 default_branch: params.repository.defaultBranch || 'main',
             };
 
-            return this.transformPullRequest(pr, repo as Repositories, params.organizationAndTeamData);
+            return this.transformPullRequest(
+                pr,
+                repo as Repositories,
+                params.organizationAndTeamData,
+            );
         } catch (error) {
             this.logger.error({
                 message: 'Error getting pull request',
@@ -1899,7 +2199,7 @@ export class ForgejoService implements Omit<
                 filters: { state: PullRequestState.ALL },
             });
 
-            return pullRequests.map(pr => ({
+            return pullRequests.map((pr) => ({
                 id: parseInt(pr.id) || pr.number,
                 created_at: pr.created_at,
                 closed_at: pr.closed_at || '',
@@ -1916,25 +2216,31 @@ export class ForgejoService implements Omit<
 
     async getChangedFilesSinceLastCommit(params: any): Promise<any | null> {
         try {
-            const authDetail = await this.getAuthDetails(params.organizationAndTeamData);
+            const authDetail = await this.getAuthDetails(
+                params.organizationAndTeamData,
+            );
             if (!authDetail) {
                 return null;
             }
 
             const api = this.createApiClient(authDetail);
-            
-            const [owner, repoName] = params.repository.name.split('/', 2);
-            
-            if (!owner || !repoName) {
+
+            const repoData = extractOwnerAndRepo(params.repository.name);
+
+            if (!repoData) {
                 this.logger.error({
-                    message: 'Could not determine repository owner/name for getChangedFilesSinceLastCommit',
+                    message:
+                        'Could not determine repository owner/name for getChangedFilesSinceLastCommit',
                     context: ForgejoService.name,
                     metadata: { repositoryName: params.repository.name },
                 });
                 return null;
             }
+            const { owner, repo: repoName } = repoData;
 
-            const response = await api.get(`/repos/${owner}/${repoName}/pulls/${params.prNumber}/files`);
+            const response = await api.get(
+                `/repos/${owner}/${repoName}/pulls/${params.prNumber}/files`,
+            );
             return response.data || [];
         } catch (error) {
             this.logger.error({
@@ -1947,44 +2253,212 @@ export class ForgejoService implements Omit<
     }
 
     async createReviewComment(params: any): Promise<ReviewComment | null> {
-        try {
-            const authDetail = await this.getAuthDetails(params.organizationAndTeamData);
-            if (!authDetail) {
-                return null;
-            }
+        const {
+            organizationAndTeamData,
+            repository,
+            prNumber,
+            lineComment,
+            commit,
+            language,
+            suggestionCopyPrompt = true,
+        } = params;
 
-            const api = this.createApiClient(authDetail);
-            
-            const [owner, repoName] = params.repository.name.split('/', 2);
-            
-            if (!owner || !repoName) {
-                this.logger.error({
-                    message: 'Could not determine repository owner/name for createReviewComment',
+        try {
+            const authDetail = await this.getAuthDetails(
+                organizationAndTeamData,
+            );
+            if (!authDetail) {
+                this.logger.warn({
+                    message: 'No auth details found for createReviewComment',
                     context: ForgejoService.name,
-                    metadata: { repositoryName: params.repository.name },
+                    metadata: { organizationAndTeamData },
                 });
                 return null;
             }
 
+            const api = this.createApiClient(authDetail);
+
+            const repoData = extractOwnerAndRepo(repository.name);
+
+            if (!repoData) {
+                this.logger.error({
+                    message:
+                        'Could not determine repository owner/name for createReviewComment',
+                    context: ForgejoService.name,
+                    metadata: {
+                        repositoryName: repository?.name,
+                    },
+                });
+                return null;
+            }
+            const { owner, repo: repoName } = repoData;
+
+            // Get translations for the review comment
+            const translations = getTranslationsForLanguageByCategory(
+                language as LanguageValue,
+                TranslationsCategory.ReviewComment,
+            );
+
+            // Format the comment body like GitHub does
+            const bodyFormatted = this.formatBodyForForgejo(
+                lineComment,
+                repository,
+                translations,
+                suggestionCopyPrompt,
+            );
+
+            // Calculate start and end lines
+            const startLine = lineComment.start_line || lineComment.line;
+            const endLine = lineComment.line;
+
+            this.logger.log({
+                message: `Creating review comment for PR#${prNumber}`,
+                context: ForgejoService.name,
+                metadata: {
+                    owner,
+                    repoName,
+                    prNumber,
+                    path: lineComment.path,
+                    line: endLine,
+                    commitSha: commit?.sha?.substring(0, 7),
+                },
+            });
+
             const response = await api.post(
-                `/repos/${owner}/${repoName}/pulls/${params.prNumber}/reviews`,
+                `/repos/${owner}/${repoName}/pulls/${prNumber}/reviews`,
                 {
-                    body: params.body,
-                    commit_id: params.commitId,
+                    body: '', // Empty body for inline-only review
+                    commit_id: commit?.sha,
                     event: 'COMMENT',
-                    comments: params.comments || [],
+                    comments: [
+                        {
+                            path: lineComment.path,
+                            body: bodyFormatted,
+                            new_position: endLine,
+                        },
+                    ],
                 },
             );
 
-            return response.data;
+            this.logger.log({
+                message: `Created review comment for PR#${prNumber}`,
+                context: ForgejoService.name,
+                metadata: {
+                    reviewId: response.data?.id,
+                    prNumber,
+                },
+            });
+
+            // Return in the expected format
+            return {
+                id: response.data?.id,
+                pullRequestReviewId: response.data?.id?.toString(),
+                body: bodyFormatted,
+                createdAt: response.data?.submitted_at,
+                updatedAt: response.data?.submitted_at,
+            };
         } catch (error) {
+            const isLineMismatch =
+                error.response?.data?.message?.includes('line') ||
+                error.response?.data?.message?.includes('position');
+
+            const errorType = isLineMismatch
+                ? 'failed_lines_mismatch'
+                : 'failed';
+
             this.logger.error({
-                message: 'Error creating review comment',
+                message: `Error creating review comment for PR#${prNumber}`,
                 context: ForgejoService.name,
                 error,
+                metadata: {
+                    prNumber,
+                    repository: repository?.name,
+                    path: lineComment?.path,
+                    line: lineComment?.line,
+                    commitSha: commit?.sha?.substring(0, 7),
+                    errorType,
+                    responseStatus: error.response?.status,
+                    responseData: error.response?.data,
+                },
             });
-            return null;
+
+            throw {
+                ...error,
+                errorType,
+            };
         }
+    }
+
+    /**
+     * Format the body for a Forgejo review comment (similar to GitHub/GitLab formatting)
+     */
+    private formatBodyForForgejo(
+        lineComment: any,
+        repository: any,
+        translations: any,
+        suggestionCopyPrompt: boolean,
+    ): string {
+        const improvedCode = lineComment?.body?.improvedCode;
+        const language =
+            lineComment?.suggestion?.language?.toLowerCase() ||
+            repository?.language?.toLowerCase() ||
+            '';
+
+        const severityShield = lineComment?.suggestion
+            ? getSeverityLevelShield(lineComment.suggestion.severity)
+            : '';
+
+        const codeBlock = improvedCode
+            ? this.formatCodeBlock(language, improvedCode)
+            : '';
+
+        const suggestionContent = lineComment?.body?.suggestionContent || '';
+        const actionStatement = lineComment?.body?.actionStatement
+            ? `${lineComment.body.actionStatement}\n\n`
+            : '';
+
+        const badges =
+            [
+                getCodeReviewBadge(),
+                lineComment?.suggestion
+                    ? getLabelShield(lineComment.suggestion.label)
+                    : '',
+                severityShield,
+            ].join(' ') + '\n\n';
+
+        const copyPrompt = suggestionCopyPrompt
+            ? this.formatPromptForLLM(lineComment)
+            : '';
+
+        return [
+            badges,
+            suggestionContent,
+            actionStatement,
+            codeBlock,
+            copyPrompt,
+            this.formatSub(translations?.talkToKody || ''),
+            this.formatSub(translations?.feedback || '') +
+            '<!-- kody-codereview -->&#8203;\n&#8203;',
+        ]
+            .filter(Boolean)
+            .join('\n')
+            .trim();
+    }
+
+    private formatCodeBlock(language: string, code: string): string {
+        if (!code) return '';
+        return `\n\`\`\`${language}\n${code}\n\`\`\`\n`;
+    }
+
+    private formatSub(text: string): string {
+        if (!text) return '';
+        return `<sub>${text}</sub>\n`;
+    }
+
+    private formatPromptForLLM(lineComment: any): string {
+        const prompt = lineComment?.body?.oneLineSummary;
+        if (!prompt) return '';
+        return `\n<details>\n<summary>Prompt for AI</summary>\n\n\`${prompt}\`\n</details>\n`;
     }
 
     async createCommentInPullRequest(params: any): Promise<any[] | null> {
@@ -2010,12 +2484,17 @@ export class ForgejoService implements Omit<
         return this.getFile(params);
     }
 
-    async getCommitsForPullRequestForCodeReview(params: any): Promise<any[] | null> {
+    async getCommitsForPullRequestForCodeReview(
+        params: any,
+    ): Promise<any[] | null> {
         try {
-            const authDetail = await this.getAuthDetails(params.organizationAndTeamData);
+            const authDetail = await this.getAuthDetails(
+                params.organizationAndTeamData,
+            );
             if (!authDetail) {
                 this.logger.warn({
-                    message: 'No auth details found for getCommitsForPullRequestForCodeReview',
+                    message:
+                        'No auth details found for getCommitsForPullRequestForCodeReview',
                     context: ForgejoService.name,
                     metadata: { params },
                 });
@@ -2023,21 +2502,22 @@ export class ForgejoService implements Omit<
             }
 
             const api = this.createApiClient(authDetail);
-            
-            const [owner, repoName] = params.repository.name.split('/', 2);
-            
-            if (!owner || !repoName) {
+
+            const repoData = extractOwnerAndRepo(params.repository.name);
+
+            if (!repoData) {
                 this.logger.error({
-                    message: 'Could not determine repository owner/name for commits fetch',
+                    message:
+                        'Could not determine repository owner/name for commits fetch',
                     context: ForgejoService.name,
-                    metadata: { 
+                    metadata: {
                         repositoryName: params.repository.name,
-                        repositoryFullName: params.repository.fullName,
                         repoId: params.repository.id,
                     },
                 });
                 return null;
             }
+            const { owner, repo: repoName } = repoData;
 
             this.logger.log({
                 message: 'Fetching commits for PR',
@@ -2045,17 +2525,21 @@ export class ForgejoService implements Omit<
                 metadata: { owner, repoName, prNumber: params.prNumber },
             });
 
-            const response = await api.get(`/repos/${owner}/${repoName}/pulls/${params.prNumber}/commits`);
-            
+            const response = await api.get(
+                `/repos/${owner}/${repoName}/pulls/${params.prNumber}/commits`,
+            );
+
             this.logger.log({
                 message: 'Got commits for PR',
                 context: ForgejoService.name,
-                metadata: { 
-                    owner, 
-                    repoName, 
+                metadata: {
+                    owner,
+                    repoName,
                     prNumber: params.prNumber,
                     commitCount: response.data?.length || 0,
-                    commits: response.data?.map((c: any) => c.sha?.substring(0, 7)),
+                    commits: response.data?.map((c: any) =>
+                        c.sha?.substring(0, 7),
+                    ),
                 },
             });
 
@@ -2086,7 +2570,13 @@ export class ForgejoService implements Omit<
     async minimizeComment(params: {
         organizationAndTeamData: OrganizationAndTeamData;
         commentId: string;
-        reason?: 'ABUSE' | 'OFF_TOPIC' | 'OUTDATED' | 'RESOLVED' | 'DUPLICATE' | 'SPAM';
+        reason?:
+        | 'ABUSE'
+        | 'OFF_TOPIC'
+        | 'OUTDATED'
+        | 'RESOLVED'
+        | 'DUPLICATE'
+        | 'SPAM';
     }): Promise<any | null> {
         // Forgejo doesn't support minimizing comments like GitHub
         // We can delete the comment instead or just return null
@@ -2097,7 +2587,9 @@ export class ForgejoService implements Omit<
         return null;
     }
 
-    async findTeamAndOrganizationIdByConfigKey(params: any): Promise<IntegrationConfigEntity | null> {
+    async findTeamAndOrganizationIdByConfigKey(
+        params: any,
+    ): Promise<IntegrationConfigEntity | null> {
         try {
             return await this.integrationConfigService.findOne({
                 configKey: params.configKey,
@@ -2115,23 +2607,27 @@ export class ForgejoService implements Omit<
 
     async getPullRequestReviewComment(params: any): Promise<any | null> {
         try {
-            const authDetail = await this.getAuthDetails(params.organizationAndTeamData);
+            const authDetail = await this.getAuthDetails(
+                params.organizationAndTeamData,
+            );
             if (!authDetail) {
                 return null;
             }
 
             const api = this.createApiClient(authDetail);
-            
-            const [owner, repoName] = params.repository.name.split('/', 2);
-            
-            if (!owner || !repoName) {
+
+            const repoData = extractOwnerAndRepo(params.repository.name);
+
+            if (!repoData) {
                 this.logger.error({
-                    message: 'Could not determine repository owner/name for getPullRequestReviewComment',
+                    message:
+                        'Could not determine repository owner/name for getPullRequestReviewComment',
                     context: ForgejoService.name,
                     metadata: { repositoryName: params.repository.name },
                 });
                 return null;
             }
+            const { owner, repo: repoName } = repoData;
 
             const response = await api.get(
                 `/repos/${owner}/${repoName}/pulls/comments/${params.commentId}`,
@@ -2150,23 +2646,27 @@ export class ForgejoService implements Omit<
 
     async createResponseToComment(params: any): Promise<any | null> {
         try {
-            const authDetail = await this.getAuthDetails(params.organizationAndTeamData);
+            const authDetail = await this.getAuthDetails(
+                params.organizationAndTeamData,
+            );
             if (!authDetail) {
                 return null;
             }
 
             const api = this.createApiClient(authDetail);
-            
-            const [owner, repoName] = params.repository.name.split('/', 2);
-            
-            if (!owner || !repoName) {
+
+            const repoData = extractOwnerAndRepo(params.repository.name);
+
+            if (!repoData) {
                 this.logger.error({
-                    message: 'Could not determine repository owner/name for createResponseToComment',
+                    message:
+                        'Could not determine repository owner/name for createResponseToComment',
                     context: ForgejoService.name,
                     metadata: { repositoryName: params.repository.name },
                 });
                 return null;
             }
+            const { owner, repo: repoName } = repoData;
 
             // Forgejo uses issue comments for PR discussions
             const response = await api.post(
@@ -2187,23 +2687,27 @@ export class ForgejoService implements Omit<
 
     async updateDescriptionInPullRequest(params: any): Promise<any | null> {
         try {
-            const authDetail = await this.getAuthDetails(params.organizationAndTeamData);
+            const authDetail = await this.getAuthDetails(
+                params.organizationAndTeamData,
+            );
             if (!authDetail) {
                 return null;
             }
 
             const api = this.createApiClient(authDetail);
-            
-            const [owner, repoName] = params.repository.name.split('/', 2);
-            
-            if (!owner || !repoName) {
+
+            const repoData = extractOwnerAndRepo(params.repository.name);
+
+            if (!repoData) {
                 this.logger.error({
-                    message: 'Could not determine repository owner/name for updateDescriptionInPullRequest',
+                    message:
+                        'Could not determine repository owner/name for updateDescriptionInPullRequest',
                     context: ForgejoService.name,
                     metadata: { repositoryName: params.repository.name },
                 });
                 return null;
             }
+            const { owner, repo: repoName } = repoData;
 
             const response = await api.patch(
                 `/repos/${owner}/${repoName}/pulls/${params.prNumber}`,
@@ -2228,25 +2732,31 @@ export class ForgejoService implements Omit<
 
     async getLanguageRepository(params: any): Promise<any | null> {
         try {
-            const authDetail = await this.getAuthDetails(params.organizationAndTeamData);
+            const authDetail = await this.getAuthDetails(
+                params.organizationAndTeamData,
+            );
             if (!authDetail) {
                 return null;
             }
 
             const api = this.createApiClient(authDetail);
-            
-            const [owner, repoName] = params.repository.name.split('/', 2);
-            
-            if (!owner || !repoName) {
+
+            const repoData = extractOwnerAndRepo(params.repository.name);
+
+            if (!repoData) {
                 this.logger.error({
-                    message: 'Could not determine repository owner/name for getLanguageRepository',
+                    message:
+                        'Could not determine repository owner/name for getLanguageRepository',
                     context: ForgejoService.name,
                     metadata: { repositoryName: params.repository.name },
                 });
                 return null;
             }
+            const { owner, repo: repoName } = repoData;
 
-            const response = await api.get(`/repos/${owner}/${repoName}/languages`);
+            const response = await api.get(
+                `/repos/${owner}/${repoName}/languages`,
+            );
             return response.data;
         } catch (error) {
             this.logger.error({
@@ -2284,7 +2794,7 @@ export class ForgejoService implements Omit<
 
             if (params.filters?.filePatterns?.length) {
                 files = files.filter((file: TreeItem) =>
-                    params.filters!.filePatterns!.some(pattern =>
+                    params.filters!.filePatterns!.some((pattern) =>
                         isFileMatchingGlobCaseInsensitive(file.path, [pattern]),
                     ),
                 );
@@ -2293,7 +2803,7 @@ export class ForgejoService implements Omit<
             if (params.filters?.excludePatterns?.length) {
                 files = files.filter(
                     (file: TreeItem) =>
-                        !params.filters!.excludePatterns!.some(pattern =>
+                        !params.filters!.excludePatterns!.some((pattern) =>
                             isFileMatchingGlob(file.path, [pattern]),
                         ),
                 );
@@ -2322,23 +2832,27 @@ export class ForgejoService implements Omit<
 
     async mergePullRequest(params: any): Promise<any> {
         try {
-            const authDetail = await this.getAuthDetails(params.organizationAndTeamData);
+            const authDetail = await this.getAuthDetails(
+                params.organizationAndTeamData,
+            );
             if (!authDetail) {
                 return null;
             }
 
             const api = this.createApiClient(authDetail);
-            
-            const [owner, repoName] = params.repository.name.split('/', 2);
-            
-            if (!owner || !repoName) {
+
+            const repoData = extractOwnerAndRepo(params.repository.name);
+
+            if (!repoData) {
                 this.logger.error({
-                    message: 'Could not determine repository owner/name for mergePullRequest',
+                    message:
+                        'Could not determine repository owner/name for mergePullRequest',
                     context: ForgejoService.name,
                     metadata: { repositoryName: params.repository.name },
                 });
                 return null;
             }
+            const { owner, repo: repoName } = repoData;
 
             const response = await api.post(
                 `/repos/${owner}/${repoName}/pulls/${params.prNumber}/merge`,
@@ -2382,7 +2896,9 @@ export class ForgejoService implements Omit<
         username: string;
     }): Promise<any> {
         try {
-            const authDetail = await this.getAuthDetails(params.organizationAndTeamData);
+            const authDetail = await this.getAuthDetails(
+                params.organizationAndTeamData,
+            );
             if (!authDetail) {
                 return null;
             }
@@ -2406,13 +2922,15 @@ export class ForgejoService implements Omit<
         userName: string;
     }): Promise<any> {
         try {
-            const authDetail = await this.getAuthDetails(params.organizationAndTeamData);
+            const authDetail = await this.getAuthDetails(
+                params.organizationAndTeamData,
+            );
             if (!authDetail) {
                 return null;
             }
 
             const api = this.createApiClient(authDetail);
-            
+
             // Try to search by username first
             try {
                 const response = await api.get(`/users/${params.userName}`);
@@ -2455,7 +2973,9 @@ export class ForgejoService implements Omit<
         userId: string;
     }): Promise<any | null> {
         try {
-            const authDetail = await this.getAuthDetails(params.organizationAndTeamData);
+            const authDetail = await this.getAuthDetails(
+                params.organizationAndTeamData,
+            );
             if (!authDetail) {
                 return null;
             }
@@ -2482,7 +3002,9 @@ export class ForgejoService implements Omit<
         organizationAndTeamData: OrganizationAndTeamData;
     }): Promise<any | null> {
         try {
-            const authDetail = await this.getAuthDetails(params.organizationAndTeamData);
+            const authDetail = await this.getAuthDetails(
+                params.organizationAndTeamData,
+            );
             if (!authDetail) {
                 return null;
             }
@@ -2543,7 +3065,8 @@ export class ForgejoService implements Omit<
 
             // Check if there are any unresolved Kody comments
             const hasUnresolvedKodyComments = comments?.some(
-                (comment: PullRequestReviewComment) => hasKodyMarker(comment.body),
+                (comment: PullRequestReviewComment) =>
+                    hasKodyMarker(comment.body),
             );
 
             return {
@@ -2564,7 +3087,9 @@ export class ForgejoService implements Omit<
         organizationAndTeamData: OrganizationAndTeamData;
     }): Promise<void> {
         try {
-            const authDetail = await this.getAuthDetails(params.organizationAndTeamData);
+            const authDetail = await this.getAuthDetails(
+                params.organizationAndTeamData,
+            );
             if (!authDetail) {
                 return;
             }
@@ -2581,16 +3106,22 @@ export class ForgejoService implements Omit<
             }
 
             const api = this.createApiClient(authDetail);
-            const webhookUrl = this.configService.get('API_FORGEJO_CODE_MANAGEMENT_WEBHOOK');
+            const webhookUrl = this.configService.get(
+                'API_FORGEJO_CODE_MANAGEMENT_WEBHOOK',
+            );
 
             for (const repo of repositories) {
                 try {
                     const [owner, repoName] = repo.name.split('/');
-                    const existingHooks = await api.get(`/repos/${owner}/${repoName}/hooks`);
+                    const existingHooks = await api.get(
+                        `/repos/${owner}/${repoName}/hooks`,
+                    );
 
                     for (const hook of existingHooks.data || []) {
                         if (hook.config?.url === webhookUrl) {
-                            await api.delete(`/repos/${owner}/${repoName}/hooks/${hook.id}`);
+                            await api.delete(
+                                `/repos/${owner}/${repoName}/hooks/${hook.id}`,
+                            );
                         }
                     }
                 } catch (error) {
@@ -2615,7 +3146,9 @@ export class ForgejoService implements Omit<
         repositoryId: string;
     }): Promise<boolean> {
         try {
-            const authDetail = await this.getAuthDetails(params.organizationAndTeamData);
+            const authDetail = await this.getAuthDetails(
+                params.organizationAndTeamData,
+            );
             if (!authDetail) {
                 return false;
             }
@@ -2627,16 +3160,22 @@ export class ForgejoService implements Omit<
                 )
             );
 
-            const repo = repositories?.find(r => r.id === params.repositoryId);
+            const repo = repositories?.find(
+                (r) => r.id === params.repositoryId,
+            );
             if (!repo) {
                 return false;
             }
 
             const api = this.createApiClient(authDetail);
             const [owner, repoName] = repo.name.split('/');
-            const webhookUrl = this.configService.get('API_FORGEJO_CODE_MANAGEMENT_WEBHOOK');
+            const webhookUrl = this.configService.get(
+                'API_FORGEJO_CODE_MANAGEMENT_WEBHOOK',
+            );
 
-            const existingHooks = await api.get(`/repos/${owner}/${repoName}/hooks`);
+            const existingHooks = await api.get(
+                `/repos/${owner}/${repoName}/hooks`,
+            );
             return existingHooks.data?.some(
                 (hook: any) => hook.config?.url === webhookUrl && hook.active,
             );
@@ -2659,13 +3198,19 @@ export class ForgejoService implements Omit<
         organizationAndTeamData: OrganizationAndTeamData;
         suggestionCopyPrompt?: boolean;
     }): Promise<string> {
-        const { suggestion, includeHeader = true, includeFooter = true } = params;
+        const {
+            suggestion,
+            includeHeader = true,
+            includeFooter = true,
+        } = params;
 
         let body = '';
 
         if (includeHeader && suggestion.label) {
             const labelShield = getLabelShield(suggestion.label);
-            const severityShield = getSeverityLevelShield(suggestion.severityLevel);
+            const severityShield = getSeverityLevelShield(
+                suggestion.severityLevel,
+            );
             body += `${labelShield} ${severityShield}\n\n`;
         }
 
@@ -2695,7 +3240,9 @@ export class ForgejoService implements Omit<
                 )
             );
 
-            const repo = repositories?.find(r => r.id === params.repositoryId);
+            const repo = repositories?.find(
+                (r) => r.id === params.repositoryId,
+            );
             if (!repo) {
                 return [];
             }
@@ -2758,7 +3305,10 @@ export class ForgejoService implements Omit<
     }): Promise<any | null> {
         return this.updatePullRequestComment({
             organizationAndTeamData: params.organizationAndTeamData,
-            repository: { name: params.repository.fullName || params.repository.name || '', id: params.repository.id },
+            repository: {
+                name: params.repository.name || '',
+                id: params.repository.id,
+            },
             commentId: parseInt(params.commentId),
             body: params.body,
         });
@@ -2772,7 +3322,10 @@ export class ForgejoService implements Omit<
         try {
             const pr = await this.getPullRequestByNumber({
                 organizationAndTeamData: params.organizationAndTeamData,
-                repository: { name: params.repository.fullName || params.repository.name || '', id: params.repository.id || '' },
+                repository: {
+                    name: params.repository.name || '',
+                    id: params.repository.id || '',
+                },
                 prNumber: params.prNumber,
             });
 
@@ -2804,16 +3357,20 @@ export class ForgejoService implements Omit<
         prNumber: number;
     }): Promise<PullRequestReviewState | null> {
         try {
-            const authDetail = await this.getAuthDetails(params.organizationAndTeamData);
+            const authDetail = await this.getAuthDetails(
+                params.organizationAndTeamData,
+            );
             if (!authDetail) {
                 return null;
             }
 
             const api = this.createApiClient(authDetail);
-            const repoName = params.repository.fullName || params.repository.name || '';
+            const repoName = params.repository.name || '';
             const [owner, repo] = repoName.split('/');
 
-            const response = await api.get(`/repos/${owner}/${repo}/pulls/${params.prNumber}/reviews`);
+            const response = await api.get(
+                `/repos/${owner}/${repo}/pulls/${params.prNumber}/reviews`,
+            );
             const reviews = response.data || [];
 
             // Get the most recent review state
@@ -2866,7 +3423,9 @@ export class ForgejoService implements Omit<
         reaction: any;
     }): Promise<void> {
         try {
-            const authDetail = await this.getAuthDetails(params.organizationAndTeamData);
+            const authDetail = await this.getAuthDetails(
+                params.organizationAndTeamData,
+            );
             if (!authDetail) {
                 return;
             }
@@ -2908,7 +3467,9 @@ export class ForgejoService implements Omit<
         reactions: any[];
     }): Promise<void> {
         try {
-            const authDetail = await this.getAuthDetails(params.organizationAndTeamData);
+            const authDetail = await this.getAuthDetails(
+                params.organizationAndTeamData,
+            );
             if (!authDetail) {
                 return;
             }
