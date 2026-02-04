@@ -62,6 +62,16 @@ export interface IPullRequestsRepository {
     ): Promise<PullRequestsEntity[]>;
 
     /**
+     * PERF: Batch fetch PRs by organization and PR numbers only.
+     * Used for token usage by developer queries where repositoryId is not available.
+     * Returns only user data to minimize data transfer.
+     */
+    findManyByNumbers(
+        prNumbers: number[],
+        organizationId: string,
+    ): Promise<PullRequestsEntity[]>;
+
+    /**
      * PERF: Aggregation query that returns only suggestion counts.
      * Reduces data transfer from ~180k objects to just counts per PR.
      *

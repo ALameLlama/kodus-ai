@@ -18,8 +18,21 @@ export class ObservabilityTelemetryModel extends CoreDocument {
 
     @Prop({ type: Object, required: true })
     attributes: Record<string, any>;
+
+    @Prop({ type: Date })
+    timestamp: Date;
 }
 
 export const ObservabilityTelemetryModelSchema = SchemaFactory.createForClass(
     ObservabilityTelemetryModel,
+);
+
+// Indexes for token usage queries performance
+ObservabilityTelemetryModelSchema.index(
+    { 'attributes.organizationId': 1, timestamp: -1 },
+    { background: true },
+);
+ObservabilityTelemetryModelSchema.index(
+    { 'attributes.organizationId': 1, 'attributes.prNumber': 1, timestamp: -1 },
+    { background: true },
 );

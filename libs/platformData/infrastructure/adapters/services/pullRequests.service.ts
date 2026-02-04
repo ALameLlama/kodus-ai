@@ -122,6 +122,16 @@ export class PullRequestsService implements IPullRequestsService {
         );
     }
 
+    findManyByNumbers(
+        prNumbers: number[],
+        organizationId: string,
+    ): Promise<PullRequestsEntity[]> {
+        return this.pullRequestsRepository.findManyByNumbers(
+            prNumbers,
+            organizationId,
+        );
+    }
+
     /**
      * PERF: Returns only suggestion counts using MongoDB aggregation.
      * Much faster than findManyByNumbersAndRepositoryIds when you only need counts.

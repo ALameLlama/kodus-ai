@@ -71,22 +71,24 @@ export class TokensByDeveloperUseCase {
         usages: { prNumber: number }[],
         organizationId: string,
     ): Promise<Map<number, IPullRequests>> {
+        // Get unique PR numbers
+        const uniquePrNumbers = [...new Set(usages.map((u) => u.prNumber))];
+
+        if (uniquePrNumbers.length === 0) {
+            return new Map();
+        }
+
+        // PERF: Batch fetch all PRs in a single query instead of N+1
+        const pullRequests = await this.pullRequestsService.findManyByNumbers(
+            uniquePrNumbers,
+            organizationId,
+        );
+
+        // Build map from results
         const pullRequestsMap = new Map<number, IPullRequests>();
-
-        for (const usage of usages) {
-            if (!pullRequestsMap.has(usage.prNumber)) {
-                const pr = await this.pullRequestsService.findOne({
-                    organizationId,
-                    number: usage.prNumber,
-                });
-
-                if (!pr) {
-                    continue;
-                }
-
-                const prObj = pr.toObject();
-                pullRequestsMap.set(usage.prNumber, prObj);
-            }
+        for (const pr of pullRequests) {
+            const prObj = pr.toObject();
+            pullRequestsMap.set(prObj.number, prObj);
         }
 
         return pullRequestsMap;

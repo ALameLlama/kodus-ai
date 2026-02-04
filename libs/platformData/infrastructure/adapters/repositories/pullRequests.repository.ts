@@ -177,6 +177,35 @@ export class PullRequestsRepository implements IPullRequestsRepository {
     }
 
     /**
+     * PERF: Batch fetch PRs by organization and PR numbers only.
+     * Used for token usage by developer queries where repositoryId is not available.
+     * Returns only user data to minimize data transfer.
+     */
+    async findManyByNumbers(
+        prNumbers: number[],
+        organizationId: string,
+    ): Promise<PullRequestsEntity[]> {
+        if (!prNumbers.length) {
+            return [];
+        }
+
+        const pullRequests = await this.pullRequestsModel.find(
+            {
+                organizationId,
+                number: { $in: prNumbers },
+            },
+            {
+                // Only fetch fields needed for developer mapping
+                'number': 1,
+                'user': 1,
+                'organizationId': 1,
+            },
+        ).lean().exec();
+
+        return mapSimpleModelsToEntities(pullRequests, PullRequestsEntity);
+    }
+
+    /**
      * PERF: Aggregation query that counts suggestions directly in MongoDB.
      *
      * Instead of transferring ~180k suggestion objects to count SENT vs NOT_SENT,
