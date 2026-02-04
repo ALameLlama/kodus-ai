@@ -6,7 +6,7 @@ export interface CheckImplementationJobPayload {
     repository: { id: string; name: string };
     pullRequestNumber: number;
     commitSha: string;
-    trigger: 'synchronize' | 'closed';
+    trigger: 'synchronize' | 'synchronized' | 'closed';
     correlationId?: string;
     // Optional metadata
     payload?: any;

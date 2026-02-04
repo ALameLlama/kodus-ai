@@ -85,7 +85,7 @@ export interface ChangedFilesWithAST {
 }
 
 export type Repository = {
-    platform: 'github' | 'gitlab' | 'bitbucket' | 'azure-devops';
+    platform: 'github' | 'gitlab' | 'bitbucket' | 'azure-devops' | 'forgejo';
     id: string;
     name: string;
     fullName?: string;

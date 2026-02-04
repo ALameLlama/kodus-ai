@@ -39,6 +39,7 @@ function normalizePlatformType(
         AZUREDEVOPS: PlatformType.AZURE_REPOS,
         AZURE_DEVOPS: PlatformType.AZURE_REPOS,
         AZURE_REPOSITORIES: PlatformType.AZURE_REPOS,
+        FORGEJO: PlatformType.FORGEJO,
     };
 
     const mapped = aliases[normalized];

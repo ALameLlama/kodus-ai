@@ -60,6 +60,7 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
             '/gitlab/webhook',
             '/bitbucket/webhook',
             '/azure-repos/webhook',
+            '/forgejo/webhook',
             '/mcp',
             '/user-log/status-change',
             '/kody-rules/find-library-kody-rules',

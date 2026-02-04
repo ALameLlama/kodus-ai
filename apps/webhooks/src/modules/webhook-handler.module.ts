@@ -12,6 +12,7 @@ import { WebhookEnqueueModule } from './webhook-enqueue.module';
 
 import { AzureReposController } from '../controllers/azureRepos.controller';
 import { BitbucketController } from '../controllers/bitbucket.controller';
+import { ForgejoController } from '../controllers/forgejo.controller';
 import { GithubController } from '../controllers/github.controller';
 import { GitlabController } from '../controllers/gitlab.controller';
 import { WebhookHealthController } from '../controllers/webhook-health.controller';
@@ -42,6 +43,7 @@ import { ConfigService } from '@nestjs/config';
         GitlabController,
         BitbucketController,
         AzureReposController,
+        ForgejoController,
         WebhookHealthController,
     ],
 })

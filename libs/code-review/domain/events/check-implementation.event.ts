@@ -6,6 +6,6 @@ export class CheckImplementationEvent {
         public readonly repository: { id: string; name: string },
         public readonly pullRequestNumber: number,
         public readonly commitSha: string,
-        public readonly trigger: 'synchronize' | 'closed',
+        public readonly trigger: 'synchronize' | 'synchronized' | 'closed',
     ) {}
 }

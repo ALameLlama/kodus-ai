@@ -7,6 +7,7 @@ import { CodeManagementService } from '../infrastructure/adapters/services/codeM
 import { PlatformIntegrationFactory } from '../infrastructure/adapters/services/platformIntegration.factory';
 import { AzureReposModule } from './azure-repos.module';
 import { BitbucketModule } from './bitbucket.module';
+import { ForgejoModule } from './forgejo.module';
 import { GithubModule } from './github.module';
 import { GitlabModule } from './gitlab.module';
 import { ICodeManagementService } from '../domain/platformIntegrations/interfaces/code-management.interface';
@@ -20,6 +21,7 @@ import { ICodeManagementService } from '../domain/platformIntegrations/interface
         forwardRef(() => GitlabModule),
         forwardRef(() => BitbucketModule),
         forwardRef(() => AzureReposModule),
+        forwardRef(() => ForgejoModule),
     ],
     providers: [PlatformIntegrationFactory, CodeManagementService],
     exports: [PlatformIntegrationFactory, CodeManagementService],

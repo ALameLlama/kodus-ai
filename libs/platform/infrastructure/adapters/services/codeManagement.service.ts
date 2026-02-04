@@ -3,6 +3,7 @@ import { Inject, Injectable, forwardRef } from '@nestjs/common';
 import {
     GitHubReaction,
     GitlabReaction,
+    ForgejoReaction,
 } from '@libs/code-review/domain/codeReviewFeedback/enums/codeReviewCommentReaction.enum';
 import { ISuggestionByPR } from '@libs/platformData/domain/pullRequests/interfaces/pullRequests.interface';
 import { IntegrationCategory } from '@libs/core/domain/enums/integration-category.enum';
@@ -1242,7 +1243,7 @@ export class CodeManagementService implements ICodeManagementService {
         organizationAndTeamData: OrganizationAndTeamData;
         repository: { id?: string; name?: string };
         prNumber: number;
-        reaction: GitHubReaction | GitlabReaction;
+        reaction: GitHubReaction | GitlabReaction | ForgejoReaction;
     }): Promise<void> {
         const type = await this.getTypeIntegration(
             params.organizationAndTeamData,
@@ -1263,7 +1264,7 @@ export class CodeManagementService implements ICodeManagementService {
         repository: { id?: string; name?: string };
         prNumber: number;
         commentId: number;
-        reaction: GitHubReaction | GitlabReaction;
+        reaction: GitHubReaction | GitlabReaction | ForgejoReaction;
     }): Promise<void> {
         const type = await this.getTypeIntegration(
             params.organizationAndTeamData,
@@ -1283,7 +1284,7 @@ export class CodeManagementService implements ICodeManagementService {
         organizationAndTeamData: OrganizationAndTeamData;
         repository: { id?: string; name?: string };
         prNumber: number;
-        reactions: (GitHubReaction | GitlabReaction)[];
+        reactions: (GitHubReaction | GitlabReaction | ForgejoReaction)[];
     }): Promise<void> {
         const type = await this.getTypeIntegration(
             params.organizationAndTeamData,
@@ -1304,7 +1305,7 @@ export class CodeManagementService implements ICodeManagementService {
         repository: { id?: string; name?: string };
         prNumber: number;
         commentId: number;
-        reactions: (GitHubReaction | GitlabReaction)[];
+        reactions: (GitHubReaction | GitlabReaction | ForgejoReaction)[];
     }): Promise<void> {
         const type = await this.getTypeIntegration(
             params.organizationAndTeamData,
