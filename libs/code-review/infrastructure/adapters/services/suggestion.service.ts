@@ -1272,22 +1272,31 @@ export class SuggestionService implements ISuggestionService {
                         sortedPrioritizedSuggestions,
                     );
 
-                sortedPrioritizedSuggestions = sortedPrioritizedSuggestions.map(
-                    (suggestion) => {
-                        if (
-                            suggestion.clusteringInformation?.type ===
-                            ClusteringType.RELATED
-                        ) {
-                            return {
-                                ...suggestion,
-                                priorityStatus:
-                                    PriorityStatus.DISCARDED_BY_CLUSTERING,
-                                deliveryStatus: DeliveryStatus.NOT_SENT,
-                            };
-                        }
-                        return suggestion;
-                    },
+                // Separate the RELATED suggestions (discarded by clustering) from the prioritized suggestions
+                const relatedSuggestions = sortedPrioritizedSuggestions.filter(
+                    (suggestion) =>
+                        suggestion.clusteringInformation?.type ===
+                        ClusteringType.RELATED,
                 );
+
+                // Remove the RELATED suggestions from the prioritized suggestions array
+                sortedPrioritizedSuggestions =
+                    sortedPrioritizedSuggestions.filter(
+                        (suggestion) =>
+                            suggestion.clusteringInformation?.type !==
+                            ClusteringType.RELATED,
+                    );
+
+                // Mark the RELATED suggestions as discarded and add to the discarded suggestions array
+                const discardedRelatedSuggestions = relatedSuggestions.map(
+                    (suggestion) => ({
+                        ...suggestion,
+                        priorityStatus: PriorityStatus.DISCARDED_BY_CLUSTERING,
+                        deliveryStatus: DeliveryStatus.NOT_SENT,
+                    }),
+                );
+
+                allDiscardedSuggestions.push(...discardedRelatedSuggestions);
             }
 
             return { sortedPrioritizedSuggestions, allDiscardedSuggestions };
