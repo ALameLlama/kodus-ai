@@ -203,3 +203,13 @@ export interface IPullRequestWithDeliveredSuggestions {
     };
     suggestions: IDeliveredSuggestion[];
 }
+
+/**
+ * Minimal PR data for token usage by developer queries.
+ * Only contains fields needed to map PR numbers to developers.
+ */
+export interface IPullRequestUserMapping {
+    number: number;
+    user: IPullRequestUser;
+    organizationId: string;
+}
