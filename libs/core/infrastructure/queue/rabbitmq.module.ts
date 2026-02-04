@@ -19,6 +19,7 @@ import { RabbitMQLoader } from '@libs/core/infrastructure/config/loaders/rabbitm
 import { RabbitMQErrorHandler } from '@libs/core/infrastructure/queue/rabbitmq-error.handler';
 import { RabbitMQDLQInitializer } from '@libs/core/infrastructure/queue/rabbitmq-dlq.initializer';
 import { MessageBrokerService } from '@libs/core/infrastructure/queue/messageBroker/messageBroker.service';
+import { RabbitMQConnectionLoggerService } from '@libs/core/infrastructure/queue/rabbitmq-connection-logger.service';
 import { RABBITMQ_TOPOLOGY_CONFIG } from './config/rabbitmq-topology.config';
 
 export interface RabbitMQWrapperOptions {
@@ -44,6 +45,7 @@ export class RabbitMQWrapperModule {
                 provide: MESSAGE_BROKER_SERVICE_TOKEN,
                 useClass: MessageBrokerService,
             },
+            RabbitMQConnectionLoggerService,
             RabbitMQDLQInitializer,
         ];
         if (rabbitMQEnabled) {
@@ -89,7 +91,7 @@ export class RabbitMQWrapperModule {
                     prefetchCount:
                         configService.get<number>(
                             'workflowQueue.WORKFLOW_QUEUE_WORKER_PREFETCH',
-                        ) || 5,
+                        ) ?? 5,
                 };
             },
             inject: [ConfigService],

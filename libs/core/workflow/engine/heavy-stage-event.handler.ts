@@ -75,6 +75,12 @@ export class HeavyStageEventHandler {
         exchange: 'workflow.events.delayed',
         routingKey: 'stage.completed.*',
         queue: 'workflow.events.stage.completed',
+        allowNonJsonMessages: false,
+        errorBehavior: MessageHandlerErrorBehavior.ACK,
+        errorHandler: (channel, msg, err) =>
+            RabbitMQErrorHandler.instance?.handle(channel, msg, err, {
+                dlqRoutingKey: 'workflow.events.dlq',
+            }),
         queueOptions: {
             arguments: {
                 'x-queue-type': 'quorum',

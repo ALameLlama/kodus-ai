@@ -118,6 +118,8 @@ specs
 # ESLint Cache
 .eslintcache
 
+.worktrees
+
 
 scripts/pr-creator/accounts.json
 scripts/pr-creator/package-lock.json

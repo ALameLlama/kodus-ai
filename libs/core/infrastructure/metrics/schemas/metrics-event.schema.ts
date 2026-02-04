@@ -23,7 +23,6 @@ export class MetricsEventModel extends Document {
         type: Date,
         required: true,
         index: true,
-        expires: 30 * 24 * 60 * 60, // TTL: 30 days in seconds
     })
     recordedAt: Date;
 }
