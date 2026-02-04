@@ -9,10 +9,12 @@ import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import * as bodyParser from 'body-parser';
 import * as compression from 'compression';
 import { useContainer } from 'class-validator';
 import expressRateLimit from 'express-rate-limit';
+import type { Request, Response } from 'express';
 import helmet from 'helmet';
 import * as volleyball from 'volleyball';
 
@@ -21,6 +23,11 @@ import { ObservabilityService } from '@libs/core/log/observability.service';
 
 import { ApiModule } from './api.module';
 import { LoggerWrapperService } from '@libs/core/log/loggerWrapper.service';
+import {
+    buildDocsConfig,
+    createDocsBasicAuthMiddleware,
+    createDocsIpAllowlistMiddleware,
+} from './docs/docs-guard';
 
 declare const module: any;
 
@@ -120,6 +127,35 @@ async function bootstrap() {
         useContainer(app.select(ApiModule), { fallbackOnErrors: true });
 
         app.enableShutdownHooks();
+
+        const docsConfig = buildDocsConfig(process.env);
+        if (docsConfig.enabled) {
+            app.use(
+                [docsConfig.docsPath, docsConfig.specPath],
+                createDocsIpAllowlistMiddleware(docsConfig.ipAllowlist),
+                createDocsBasicAuthMiddleware(
+                    docsConfig.basicUser,
+                    docsConfig.basicPass,
+                ),
+            );
+
+            const swaggerConfig = new DocumentBuilder()
+                .setTitle('Kodus API')
+                .setVersion('1.0')
+                .build();
+            const document = SwaggerModule.createDocument(app, swaggerConfig);
+
+            SwaggerModule.setup(docsConfig.docsPath, app, document, {
+                swaggerOptions: {
+                    supportedSubmitMethods: [],
+                },
+            });
+
+            const httpAdapter = app.getHttpAdapter().getInstance();
+            httpAdapter.get(docsConfig.specPath, (_req: Request, res: Response) =>
+                res.json(document),
+            );
+        }
 
         const apiPort = process.env.API_PORT
             ? parseInt(process.env.API_PORT, 10)
