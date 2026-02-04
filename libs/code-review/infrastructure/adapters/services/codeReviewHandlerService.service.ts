@@ -10,7 +10,7 @@ import { AutomationStatus } from '@libs/automation/domain/automation/enum/automa
 import {
     GitHubReaction,
     GitlabReaction,
-    Reaction,
+    ForgejoReaction,
     ReviewStatusReaction,
 } from '@libs/code-review/domain/codeReviewFeedback/enums/codeReviewCommentReaction.enum';
 import { CodeReviewPipelineContext } from '@libs/code-review/pipeline/context/code-review-pipeline.context';
@@ -37,6 +37,12 @@ export class CodeReviewHandlerService {
             [ReviewStatusReaction.SUCCESS]: GitlabReaction.TADA,
             [ReviewStatusReaction.ERROR]: GitlabReaction.CONFUSED,
             [ReviewStatusReaction.SKIP]: GitlabReaction.EYES,
+        },
+        [PlatformType.FORGEJO]: {
+            [ReviewStatusReaction.START]: ForgejoReaction.ROCKET,
+            [ReviewStatusReaction.SUCCESS]: ForgejoReaction.HOORAY,
+            [ReviewStatusReaction.ERROR]: ForgejoReaction.CONFUSED,
+            [ReviewStatusReaction.SKIP]: ForgejoReaction.EYES,
         },
     };
 

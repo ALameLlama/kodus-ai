@@ -6,6 +6,7 @@ import {
 import {
     GitHubReaction,
     GitlabReaction,
+    ForgejoReaction,
 } from '@libs/code-review/domain/codeReviewFeedback/enums/codeReviewCommentReaction.enum';
 import {
     OrganizationParametersKey,
@@ -50,6 +51,7 @@ const ERROR_TO_MESSAGE_TYPE: Record<
 const NO_LICENSE_REACTION_MAP = {
     [PlatformType.GITHUB]: GitHubReaction.THUMBS_DOWN,
     [PlatformType.GITLAB]: GitlabReaction.LOCK,
+    [PlatformType.FORGEJO]: ForgejoReaction.THUMBS_DOWN,
 };
 
 @Injectable()

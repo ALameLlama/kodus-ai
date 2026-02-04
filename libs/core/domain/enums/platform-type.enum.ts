@@ -11,4 +11,5 @@ export enum PlatformType {
     AZURE_REPOS = 'AZURE_REPOS',
     KODUS_WEB = 'KODUS_WEB',
     BITBUCKET = 'BITBUCKET',
+    FORGEJO = 'FORGEJO',
 }
