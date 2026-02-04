@@ -9,6 +9,7 @@ import {
     UseGuards,
 } from '@nestjs/common';
 import { REQUEST } from '@nestjs/core';
+import { ApiBody, ApiQuery } from '@nestjs/swagger';
 import { Response } from 'express';
 
 import { CodeReviewVersion } from '@libs/core/infrastructure/config/types/general/codeReview.type';
@@ -64,6 +65,28 @@ export class ParametersController {
 
     //#region Parameters
     @Post('/create-or-update')
+    @ApiBody({
+        schema: {
+            type: 'object',
+            required: ['key', 'configValue', 'organizationAndTeamData'],
+            properties: {
+                key: {
+                    type: 'string',
+                    enum: Object.values(ParametersKey),
+                },
+                configValue: {
+                    type: 'object',
+                },
+                organizationAndTeamData: {
+                    type: 'object',
+                    required: ['teamId'],
+                    properties: {
+                        teamId: { type: 'string' },
+                    },
+                },
+            },
+        },
+    })
     @UseGuards(PolicyGuard)
     @CheckPolicies(
         checkPermissions({
@@ -96,6 +119,8 @@ export class ParametersController {
     }
 
     @Get('/find-by-key')
+    @ApiQuery({ name: 'key', enum: ParametersKey, required: true })
+    @ApiQuery({ name: 'teamId', type: String, required: true })
     @UseGuards(PolicyGuard)
     @CheckPolicies(
         checkPermissions({
@@ -119,6 +144,13 @@ export class ParametersController {
     //#region Code review routes
 
     @Get('/list-code-review-automation-labels')
+    @ApiQuery({
+        name: 'codeReviewVersion',
+        enum: CodeReviewVersion,
+        required: false,
+    })
+    @ApiQuery({ name: 'teamId', type: String, required: false })
+    @ApiQuery({ name: 'repositoryId', type: String, required: false })
     @UseGuards(PolicyGuard)
     @CheckPolicies(
         checkPermissions({
@@ -210,6 +242,7 @@ export class ParametersController {
     }
 
     @Get('/code-review-parameter')
+    @ApiQuery({ name: 'teamId', type: String, required: true })
     @UseGuards(PolicyGuard)
     @CheckPolicies(
         checkPermissions({
@@ -237,6 +270,9 @@ export class ParametersController {
     }
 
     @Get('/generate-kodus-config-file')
+    @ApiQuery({ name: 'teamId', type: String, required: true })
+    @ApiQuery({ name: 'repositoryId', type: String, required: false })
+    @ApiQuery({ name: 'directoryId', type: String, required: false })
     @UseGuards(PolicyGuard)
     @CheckPolicies(
         checkPermissions({

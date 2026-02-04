@@ -36,6 +36,7 @@ import {
     UseGuards,
 } from '@nestjs/common';
 import { REQUEST } from '@nestjs/core';
+import { ApiBody, ApiQuery } from '@nestjs/swagger';
 import { ProviderService } from '@libs/core/infrastructure/services/providers/provider.service';
 
 @Controller('organization-parameters')
@@ -56,6 +57,21 @@ export class OrganizationParametersController {
     ) {}
 
     @Post('/create-or-update')
+    @ApiBody({
+        schema: {
+            type: 'object',
+            required: ['key', 'configValue'],
+            properties: {
+                key: {
+                    type: 'string',
+                    enum: Object.values(OrganizationParametersKey),
+                },
+                configValue: {
+                    type: 'object',
+                },
+            },
+        },
+    })
     @UseGuards(PolicyGuard)
     @CheckPolicies(
         checkPermissions({
@@ -86,6 +102,7 @@ export class OrganizationParametersController {
     }
 
     @Get('/find-by-key')
+    @ApiQuery({ name: 'key', enum: OrganizationParametersKey, required: true })
     @UseGuards(PolicyGuard)
     @CheckPolicies(
         checkPermissions({
