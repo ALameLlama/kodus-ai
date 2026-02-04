@@ -9,6 +9,7 @@ import {
     IFile,
     IPullRequests,
     IPullRequestUser,
+    IPullRequestUserMapping,
     IPullRequestWithDeliveredSuggestions,
     ISuggestion,
     ISuggestionByPR,
@@ -118,6 +119,16 @@ export class PullRequestsService implements IPullRequestsService {
     ): Promise<PullRequestsEntity[]> {
         return this.pullRequestsRepository.findManyByNumbersAndRepositoryIds(
             criteria,
+            organizationId,
+        );
+    }
+
+    findManyByNumbers(
+        prNumbers: number[],
+        organizationId: string,
+    ): Promise<IPullRequestUserMapping[]> {
+        return this.pullRequestsRepository.findManyByNumbers(
+            prNumbers,
             organizationId,
         );
     }

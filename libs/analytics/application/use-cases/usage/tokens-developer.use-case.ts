@@ -15,7 +15,7 @@ import {
     IPullRequestsService,
     PULL_REQUESTS_SERVICE_TOKEN,
 } from '@libs/platformData/domain/pullRequests/contracts/pullRequests.service.contracts';
-import { IPullRequests } from '@libs/platformData/domain/pullRequests/interfaces/pullRequests.interface';
+import { IPullRequestUserMapping } from '@libs/platformData/domain/pullRequests/interfaces/pullRequests.interface';
 
 @Injectable()
 export class TokensByDeveloperUseCase {
@@ -70,23 +70,24 @@ export class TokensByDeveloperUseCase {
     private async getPullRequestsMap(
         usages: { prNumber: number }[],
         organizationId: string,
-    ): Promise<Map<number, IPullRequests>> {
-        const pullRequestsMap = new Map<number, IPullRequests>();
+    ): Promise<Map<number, IPullRequestUserMapping>> {
+        // Get unique PR numbers
+        const uniquePrNumbers = [...new Set(usages.map((u) => u.prNumber))];
 
-        for (const usage of usages) {
-            if (!pullRequestsMap.has(usage.prNumber)) {
-                const pr = await this.pullRequestsService.findOne({
-                    organizationId,
-                    number: usage.prNumber,
-                });
+        if (uniquePrNumbers.length === 0) {
+            return new Map();
+        }
 
-                if (!pr) {
-                    continue;
-                }
+        // PERF: Batch fetch all PRs in a single query instead of N+1
+        const pullRequests = await this.pullRequestsService.findManyByNumbers(
+            uniquePrNumbers,
+            organizationId,
+        );
 
-                const prObj = pr.toObject();
-                pullRequestsMap.set(usage.prNumber, prObj);
-            }
+        // Build map from results
+        const pullRequestsMap = new Map<number, IPullRequestUserMapping>();
+        for (const pr of pullRequests) {
+            pullRequestsMap.set(pr.number, pr);
         }
 
         return pullRequestsMap;
@@ -94,7 +95,7 @@ export class TokensByDeveloperUseCase {
 
     private mapUsagesWithDevelopers(
         usages: (UsageByPrResultContract | DailyUsageByPrResultContract)[],
-        pullRequestsMap: Map<number, IPullRequests>,
+        pullRequestsMap: Map<number, IPullRequestUserMapping>,
     ) {
         return usages.map((usage) => {
             const pr = pullRequestsMap.get(usage.prNumber);

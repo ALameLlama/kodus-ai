@@ -7,6 +7,7 @@ import {
     ICommit,
     IPullRequests,
     IPullRequestUser,
+    IPullRequestUserMapping,
     ISuggestion,
     ISuggestionByPR,
 } from '../interfaces/pullRequests.interface';
@@ -67,6 +68,16 @@ export interface IPullRequestsService extends IPullRequestsRepository {
         }>,
         organizationId: string,
     ): Promise<PullRequestsEntity[]>;
+
+    /**
+     * PERF: Batch fetch PRs by organization and PR numbers only.
+     * Used for token usage by developer queries where repositoryId is not available.
+     * Returns only fields needed for developer mapping (number, user, organizationId).
+     */
+    findManyByNumbers(
+        prNumbers: number[],
+        organizationId: string,
+    ): Promise<IPullRequestUserMapping[]>;
 
     getOnboardingReviewModeSignals(params: {
         organizationAndTeamData: OrganizationAndTeamData;
