@@ -187,46 +187,12 @@ services:
             retries: 20
             start_period: 20s
 
-    rabbitmq:
-        profiles:
-            - local-db
-            - infra
-        build:
-            context: ./docker/rabbitmq
-            dockerfile: Dockerfile
-        container_name: rabbitmq
-        hostname: ${RABBITMQ_HOSTNAME:-rabbitmq}
-        ports:
-            - '5672:5672'
-            - '15672:15672'
-            - '15692:15692'
-        networks:
-            - kodus-backend-services
-        environment:
-            - RABBITMQ_DEFAULT_USER=${RABBITMQ_DEFAULT_USER:-kodus}
-            - RABBITMQ_DEFAULT_PASS=${RABBITMQ_DEFAULT_PASS:-kodus}
-            - RABBITMQ_SERVER_ADDITIONAL_ERL_ARGS=-rabbit heartbeat 60
-        healthcheck:
-            test: ['CMD', 'rabbitmq-diagnostics', '-q', 'check_running']
-            interval: 30s
-            timeout: 10s
-            retries: 5
-        ulimits:
-            nofile:
-                soft: 65536
-                hard: 65536
-        volumes:
-            - rabbitmq-data:/var/lib/rabbitmq
-        command: /usr/local/bin/init-definitions.sh
-        restart: unless-stopped
-
 volumes:
     yalc_store:
     node_modules_cache:
     pgdata:
     mongodbdata:
     pyroscope-data:
-    rabbitmq-data:
 
 networks:
     kodus-backend-services:

@@ -12,8 +12,6 @@ import {
     WebhookForgejoHookIssueAction,
 } from '@libs/platform/domain/platformIntegrations/types/webhooks/webhooks-forgejo.type';
 
-import { extractRepoFullName } from './webhooks.utils';
-
 export class ForgejoMappedPlatform implements IMappedPlatform {
     mapUsers(params: {
         payload: IWebhookForgejoPullRequestEvent;
@@ -39,6 +37,7 @@ export class ForgejoMappedPlatform implements IMappedPlatform {
         }
 
         const { payload } = params;
+
         const rawPullRequest = payload?.pull_request as any;
         const headRepoFullName =
             payload?.pull_request?.head?.repo?.full_name ||
@@ -93,21 +92,15 @@ export class ForgejoMappedPlatform implements IMappedPlatform {
             return null;
         }
 
-        const repository = params?.payload?.repository;
-        const rawRepository = repository as any;
-        const fullName =
-            repository?.full_name ||
-            rawRepository?.full_name ||
-            extractRepoFullName(params?.payload?.pull_request as any) ||
-            repository?.name ||
-            '';
+        const { payload } = params;
+        const repository = payload?.repository;
 
         return {
             ...repository,
             id: repository?.id.toString(),
             name: repository?.full_name,
             language: repository?.language,
-            fullName,
+            fullName: repository?.full_name,
             url: repository?.html_url || repository?.url,
         };
     }
@@ -119,9 +112,11 @@ export class ForgejoMappedPlatform implements IMappedPlatform {
             return null;
         }
 
+        const { payload } = params;
+
         return {
-            id: params?.payload?.comment?.id.toString(),
-            body: params?.payload?.comment?.body,
+            id: payload?.comment?.id.toString(),
+            body: payload?.comment?.body,
         };
     }
 

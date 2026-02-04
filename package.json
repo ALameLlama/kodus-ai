@@ -102,7 +102,8 @@
         "yalc:remove:all": "docker compose -f docker-compose.dev.yml exec api sh -lc \"cd /usr/src/app && yalc remove @kodus/kodus-common && yalc remove @kodus/flow && yarn install\"",
         "tunnel": "node scripts/dev/tunnel.js",
         "tunnel:start": "yarn tunnel",
-        "dev:with-tunnel": "yarn tunnel & yarn docker:start"
+        "dev:with-tunnel": "yarn tunnel & yarn docker:start",
+        "dev:with-tunnel:watch": "yarn dev:with-tunnel && docker logs -f kodus_api kodus_webhooks kodus_worker"
     },
     "dependencies": {
         "@casl/ability": "^6.8.0",

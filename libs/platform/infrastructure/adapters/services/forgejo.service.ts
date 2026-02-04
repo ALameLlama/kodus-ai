@@ -223,6 +223,7 @@ export class ForgejoService implements Omit<
             const authorsSet = new Set<string>();
             const authorsData = new Map<string, PullRequestAuthor>();
 
+            // TODO: should this be full_name?
             for (const repo of repositories) {
                 try {
                     const [owner, repoName] = repo.name.split('/');
@@ -307,6 +308,8 @@ export class ForgejoService implements Omit<
             const response = await api.get(
                 `/repos/${owner}/${repoName}/pulls/${params.prNumber}`,
             );
+
+            // TODO: type this with pull request
             const pr = response.data;
 
             if (!pr) {

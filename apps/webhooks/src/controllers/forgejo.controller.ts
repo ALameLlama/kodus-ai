@@ -5,7 +5,10 @@ import { Request, Response } from 'express';
 import { PlatformType } from '@libs/core/domain/enums/platform-type.enum';
 import { EnqueueWebhookUseCase } from '@libs/platform/application/use-cases/webhook/enqueue-webhook.use-case';
 
-import { WebhookForgejoEvent } from '@libs/platform/domain/platformIntegrations/types/webhooks/webhooks-forgejo.type';
+import {
+    WebhookForgejoEvent,
+    WebhookForgejoHookIssueAction,
+} from '@libs/platform/domain/platformIntegrations/types/webhooks/webhooks-forgejo.type';
 
 @Controller('forgejo')
 export class ForgejoController {
