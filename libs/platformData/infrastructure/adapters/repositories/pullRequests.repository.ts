@@ -15,6 +15,7 @@ import { IPullRequestsRepository } from '@libs/platformData/domain/pullRequests/
 import {
     IFile,
     IPullRequests,
+    IPullRequestUserMapping,
     IPullRequestWithDeliveredSuggestions,
     ISuggestion,
 } from '@libs/platformData/domain/pullRequests/interfaces/pullRequests.interface';
@@ -179,12 +180,12 @@ export class PullRequestsRepository implements IPullRequestsRepository {
     /**
      * PERF: Batch fetch PRs by organization and PR numbers only.
      * Used for token usage by developer queries where repositoryId is not available.
-     * Returns only user data to minimize data transfer.
+     * Returns only fields needed for developer mapping (number, user, organizationId).
      */
     async findManyByNumbers(
         prNumbers: number[],
         organizationId: string,
-    ): Promise<PullRequestsEntity[]> {
+    ): Promise<IPullRequestUserMapping[]> {
         if (!prNumbers.length) {
             return [];
         }
@@ -202,7 +203,11 @@ export class PullRequestsRepository implements IPullRequestsRepository {
             },
         ).lean().exec();
 
-        return mapSimpleModelsToEntities(pullRequests, PullRequestsEntity);
+        return pullRequests.map((pr) => ({
+            number: pr.number,
+            user: pr.user,
+            organizationId: pr.organizationId,
+        }));
     }
 
     /**

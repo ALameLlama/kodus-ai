@@ -18,9 +18,6 @@ export class ObservabilityTelemetryModel extends CoreDocument {
 
     @Prop({ type: Object, required: true })
     attributes: Record<string, any>;
-
-    @Prop({ type: Date })
-    timestamp: Date;
 }
 
 export const ObservabilityTelemetryModelSchema = SchemaFactory.createForClass(
@@ -28,11 +25,12 @@ export const ObservabilityTelemetryModelSchema = SchemaFactory.createForClass(
 );
 
 // Indexes for token usage queries performance
+// Using createdAt from timestamps: true (auto-managed by Mongoose)
 ObservabilityTelemetryModelSchema.index(
-    { 'attributes.organizationId': 1, timestamp: -1 },
+    { 'attributes.organizationId': 1, createdAt: -1 },
     { background: true },
 );
 ObservabilityTelemetryModelSchema.index(
-    { 'attributes.organizationId': 1, 'attributes.prNumber': 1, timestamp: -1 },
+    { 'attributes.organizationId': 1, 'attributes.prNumber': 1, createdAt: -1 },
     { background: true },
 );

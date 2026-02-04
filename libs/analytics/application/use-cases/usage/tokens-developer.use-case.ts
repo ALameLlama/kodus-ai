@@ -15,7 +15,7 @@ import {
     IPullRequestsService,
     PULL_REQUESTS_SERVICE_TOKEN,
 } from '@libs/platformData/domain/pullRequests/contracts/pullRequests.service.contracts';
-import { IPullRequests } from '@libs/platformData/domain/pullRequests/interfaces/pullRequests.interface';
+import { IPullRequestUserMapping } from '@libs/platformData/domain/pullRequests/interfaces/pullRequests.interface';
 
 @Injectable()
 export class TokensByDeveloperUseCase {
@@ -70,7 +70,7 @@ export class TokensByDeveloperUseCase {
     private async getPullRequestsMap(
         usages: { prNumber: number }[],
         organizationId: string,
-    ): Promise<Map<number, IPullRequests>> {
+    ): Promise<Map<number, IPullRequestUserMapping>> {
         // Get unique PR numbers
         const uniquePrNumbers = [...new Set(usages.map((u) => u.prNumber))];
 
@@ -85,10 +85,9 @@ export class TokensByDeveloperUseCase {
         );
 
         // Build map from results
-        const pullRequestsMap = new Map<number, IPullRequests>();
+        const pullRequestsMap = new Map<number, IPullRequestUserMapping>();
         for (const pr of pullRequests) {
-            const prObj = pr.toObject();
-            pullRequestsMap.set(prObj.number, prObj);
+            pullRequestsMap.set(pr.number, pr);
         }
 
         return pullRequestsMap;
@@ -96,7 +95,7 @@ export class TokensByDeveloperUseCase {
 
     private mapUsagesWithDevelopers(
         usages: (UsageByPrResultContract | DailyUsageByPrResultContract)[],
-        pullRequestsMap: Map<number, IPullRequests>,
+        pullRequestsMap: Map<number, IPullRequestUserMapping>,
     ) {
         return usages.map((usage) => {
             const pr = pullRequestsMap.get(usage.prNumber);
