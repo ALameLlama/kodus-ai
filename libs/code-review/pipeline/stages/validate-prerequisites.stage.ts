@@ -31,6 +31,7 @@ import { OrganizationParametersAutoAssignConfig } from '@libs/organization/domai
 import {
     GitHubReaction,
     GitlabReaction,
+    ForgejoReaction,
 } from '@libs/code-review/domain/codeReviewFeedback/enums/codeReviewCommentReaction.enum';
 import { PipelineReasons } from '@libs/core/infrastructure/pipeline/constants/pipeline-reasons.const';
 import { PipelineReason } from '@libs/core/infrastructure/pipeline/interfaces/pipeline-reason.interface';
@@ -50,6 +51,7 @@ const ERROR_TO_MESSAGE_TYPE: Record<
 const NO_LICENSE_REACTION_MAP = {
     [PlatformType.GITHUB]: GitHubReaction.THUMBS_DOWN,
     [PlatformType.GITLAB]: GitlabReaction.LOCK,
+    [PlatformType.FORGEJO]: ForgejoReaction.THUMBS_DOWN,
 };
 
 @Injectable()
