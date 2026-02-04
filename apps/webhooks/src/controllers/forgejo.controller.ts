@@ -10,13 +10,14 @@ import { WebhookForgejoEvent } from '@libs/platform/domain/platformIntegrations/
 @Controller('forgejo')
 export class ForgejoController {
     private readonly logger = createLogger(ForgejoController.name);
+
     constructor(
         private readonly enqueueWebhookUseCase: EnqueueWebhookUseCase,
     ) { }
 
     @Post('/webhook')
     handleWebhook(@Req() req: Request, @Res() res: Response) {
-        // Forgejo uses X-Forgejo-Event header, but also supports X-Gitea-Event, X-Gogs-Event and X-GitHub-Event for compatibilityi
+        // Forgejo uses X-Forgejo-Event header, but also supports X-Gitea-Event, X-Gogs-Event and X-GitHub-Event for compatibility
         // @see https://forgejo.org/docs/next/user/webhooks/#event-information
         const event = (req.headers['x-forgejo-event'] ||
             req.headers['x-gitea-event'] ||
@@ -35,6 +36,21 @@ export class ForgejoController {
             return res
                 .status(HttpStatus.OK)
                 .send('Webhook ignored (event not supported)');
+        }
+
+        if (event === WebhookForgejoEvent.PULL_REQUEST) {
+            const allowedActions: string[] = [
+                WebhookForgejoHookIssueAction.OPENED,
+                WebhookForgejoHookIssueAction.SYNCHRONIZED,
+                WebhookForgejoHookIssueAction.REOPENED,
+                WebhookForgejoHookIssueAction.CLOSED,
+            ];
+
+            if (!allowedActions.includes(payload?.action)) {
+                return res
+                    .status(HttpStatus.OK)
+                    .send('Webhook ignored (action not supported)');
+            }
         }
 
         res.status(HttpStatus.OK).send('Webhook received');
