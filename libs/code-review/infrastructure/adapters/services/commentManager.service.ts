@@ -776,20 +776,32 @@ export class CommentManagerService implements ICommentManagerService {
 
             for (const comment of lineComments) {
                 try {
-                    const createdComment =
-                        await this.codeManagementService.createReviewComment(
-                            {
-                                organizationAndTeamData,
-                                repository,
-                                commit: lastAnalyzedCommit,
+                    const { createdComment, attemptUsed } =
+                        await this.createReviewCommentWithRetry({
+                            organizationAndTeamData,
+                            repository,
+                            commit: lastAnalyzedCommit,
+                            prNumber,
+                            lineComment: comment,
+                            language,
+                            dryRun,
+                            suggestionCopyPrompt,
+                        });
+
+                    if (attemptUsed > 1) {
+                        this.logger.log({
+                            message: `Comment created successfully on attempt ${attemptUsed} for PR#${prNumber}`,
+                            context: CommentManagerService.name,
+                            metadata: {
                                 prNumber,
-                                lineComment: comment,
-                                language,
-                                dryRun,
-                                suggestionCopyPrompt,
+                                repository,
+                                suggestionId: comment.suggestion?.id,
+                                attemptUsed,
+                                originalStartLine: comment.start_line,
+                                originalEndLine: comment.line,
                             },
-                            dryRun?.enabled ? PlatformType.INTERNAL : undefined,
-                        );
+                        });
+                    }
 
                     commentResults.push({
                         comment,
@@ -825,6 +837,141 @@ export class CommentManagerService implements ICommentManagerService {
                 },
             });
             throw error;
+        }
+    }
+
+    /**
+     * Attempts to create a review comment with resilient retry logic.
+     * Strategy:
+     * - Attempt 1: Normal call with original start_line and line
+     * - If line mismatch error: Attempt 2 with start_line = line (single line at end)
+     * - If still line mismatch error: Attempt 3 with line = start_line (single line at start)
+     * - For transient errors (5xx, network): retry once with 500ms delay
+     * - Definitive errors (401, 403, 404) are not retried
+     */
+    private async createReviewCommentWithRetry(params: {
+        organizationAndTeamData: OrganizationAndTeamData;
+        repository: { name: string; id: string; language: string };
+        commit: any;
+        prNumber: number;
+        lineComment: Comment;
+        language: string;
+        dryRun: CodeReviewPipelineContext['dryRun'];
+        suggestionCopyPrompt?: boolean;
+    }): Promise<{ createdComment: any; attemptUsed: number }> {
+        const { lineComment, dryRun, ...restParams } = params;
+        const NON_RETRYABLE_STATUS_CODES = [401, 403, 404];
+        const TRANSIENT_RETRY_DELAY_MS = 500;
+
+        const isLineMismatchError = (error: any): boolean => {
+            return error?.errorType === 'failed_lines_mismatch';
+        };
+
+        const isTransientError = (error: any): boolean => {
+            const status = error?.status || error?.response?.status;
+            if (status >= 500 && status < 600) return true;
+            if (error?.code === 'ECONNRESET' || error?.code === 'ETIMEDOUT') return true;
+            return false;
+        };
+
+        const isNonRetryableError = (error: any): boolean => {
+            const status = error?.status || error?.response?.status;
+            return NON_RETRYABLE_STATUS_CODES.includes(status);
+        };
+
+        const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+        const attemptCreateComment = async (
+            comment: Comment,
+        ): Promise<any> => {
+            return this.codeManagementService.createReviewComment(
+                {
+                    ...restParams,
+                    lineComment: comment,
+                    dryRun,
+                },
+                dryRun?.enabled ? PlatformType.INTERNAL : undefined,
+            );
+        };
+
+        // Attempt 1: Original lines
+        try {
+            const createdComment = await attemptCreateComment(lineComment);
+            return { createdComment, attemptUsed: 1 };
+        } catch (error) {
+            if (isNonRetryableError(error)) {
+                throw error;
+            }
+
+            // For transient errors, retry once with delay
+            if (isTransientError(error)) {
+                this.logger.warn({
+                    message: `Transient error creating comment, retrying after ${TRANSIENT_RETRY_DELAY_MS}ms`,
+                    context: CommentManagerService.name,
+                    metadata: {
+                        prNumber: params.prNumber,
+                        suggestionId: lineComment.suggestion?.id,
+                        errorCode: error?.code,
+                        errorStatus: error?.status,
+                    },
+                });
+
+                await sleep(TRANSIENT_RETRY_DELAY_MS);
+
+                const createdComment = await attemptCreateComment(lineComment);
+                return { createdComment, attemptUsed: 1 };
+            }
+
+            // For line mismatch errors, try adjusting lines
+            if (!isLineMismatchError(error)) {
+                throw error;
+            }
+
+            this.logger.warn({
+                message: `Line mismatch error on attempt 1, trying with start_line = line`,
+                context: CommentManagerService.name,
+                metadata: {
+                    prNumber: params.prNumber,
+                    suggestionId: lineComment.suggestion?.id,
+                    originalStartLine: lineComment.start_line,
+                    originalEndLine: lineComment.line,
+                },
+            });
+
+            // Attempt 2: Set start_line = line (single line at end position)
+            const commentAttempt2: Comment = {
+                ...lineComment,
+                start_line: lineComment.line,
+            };
+
+            try {
+                const createdComment = await attemptCreateComment(commentAttempt2);
+                return { createdComment, attemptUsed: 2 };
+            } catch (error2) {
+                if (isNonRetryableError(error2) || !isLineMismatchError(error2)) {
+                    throw error2;
+                }
+
+                this.logger.warn({
+                    message: `Line mismatch error on attempt 2, trying with line = start_line`,
+                    context: CommentManagerService.name,
+                    metadata: {
+                        prNumber: params.prNumber,
+                        suggestionId: lineComment.suggestion?.id,
+                        originalStartLine: lineComment.start_line,
+                        originalEndLine: lineComment.line,
+                    },
+                });
+
+                // Attempt 3: Set line = start_line (single line at start position)
+                const commentAttempt3: Comment = {
+                    ...lineComment,
+                    line: lineComment.start_line,
+                };
+
+                const createdComment = await attemptCreateComment(commentAttempt3);
+                return { createdComment, attemptUsed: 3 };
+            }
         }
     }
 
