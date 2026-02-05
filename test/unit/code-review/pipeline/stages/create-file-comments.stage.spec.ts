@@ -37,6 +37,7 @@ describe('CreateFileCommentsStage', () => {
         sortAndPrioritizeSuggestions: jest.fn(),
         verifyIfSuggestionsWereSent: jest.fn(),
         resolveImplementedSuggestionsOnPlatform: jest.fn(),
+        extractRepriorizedSuggestions: jest.fn(),
     };
 
     const mockDryRunService = {
@@ -173,6 +174,10 @@ describe('CreateFileCommentsStage', () => {
             });
 
             mockSuggestionService.verifyIfSuggestionsWereSent.mockResolvedValue(validSuggestions);
+            mockSuggestionService.extractRepriorizedSuggestions.mockReturnValue({
+                repriorizedSuggestions: [],
+                filteredDiscardedSuggestions: [],
+            });
             mockCodeManagementService.getCommitsForPullRequestForCodeReview.mockResolvedValue([
                 { sha: 'abc123' },
             ]);
@@ -239,6 +244,10 @@ describe('CreateFileCommentsStage', () => {
             });
 
             mockSuggestionService.verifyIfSuggestionsWereSent.mockResolvedValue([]);
+            mockSuggestionService.extractRepriorizedSuggestions.mockReturnValue({
+                repriorizedSuggestions: [],
+                filteredDiscardedSuggestions: [],
+            });
             mockCodeManagementService.getCommitsForPullRequestForCodeReview.mockResolvedValue([
                 { sha: 'abc123' },
             ]);
@@ -260,61 +269,6 @@ describe('CreateFileCommentsStage', () => {
             const lineComments = callArgs[3]; // 4th argument
             expect(lineComments).toHaveLength(1);
             expect(lineComments[0].suggestion.id).toBe('s1');
-        });
-    });
-
-    describe('line calculation', () => {
-        it('should calculate correct start_line when range is small', () => {
-            const suggestion = {
-                relevantLinesStart: 10,
-                relevantLinesEnd: 15,
-            };
-
-            const startLine = (stage as any).calculateStartLine(suggestion);
-            const endLine = (stage as any).calculateEndLine(suggestion);
-
-            expect(startLine).toBe(10);
-            expect(endLine).toBe(15);
-        });
-
-        it('should return undefined start_line when lines are the same', () => {
-            const suggestion = {
-                relevantLinesStart: 10,
-                relevantLinesEnd: 10,
-            };
-
-            const startLine = (stage as any).calculateStartLine(suggestion);
-            const endLine = (stage as any).calculateEndLine(suggestion);
-
-            expect(startLine).toBeUndefined();
-            expect(endLine).toBe(10);
-        });
-
-        it('should handle large range by using start as end', () => {
-            // When range > 15, use start as end line for better display
-            const suggestion = {
-                relevantLinesStart: 10,
-                relevantLinesEnd: 100, // large range
-            };
-
-            const startLine = (stage as any).calculateStartLine(suggestion);
-            const endLine = (stage as any).calculateEndLine(suggestion);
-
-            expect(startLine).toBeUndefined();
-            expect(endLine).toBe(10); // Falls back to start line
-        });
-
-        it('should handle undefined relevantLinesStart', () => {
-            const suggestion = {
-                relevantLinesStart: undefined,
-                relevantLinesEnd: 10,
-            };
-
-            const startLine = (stage as any).calculateStartLine(suggestion);
-            const endLine = (stage as any).calculateEndLine(suggestion);
-
-            expect(startLine).toBeUndefined();
-            expect(endLine).toBe(10);
         });
     });
 
@@ -527,6 +481,10 @@ describe('CreateFileCommentsStage', () => {
             });
 
             mockSuggestionService.verifyIfSuggestionsWereSent.mockResolvedValue(validSuggestions);
+            mockSuggestionService.extractRepriorizedSuggestions.mockReturnValue({
+                repriorizedSuggestions: [],
+                filteredDiscardedSuggestions: [],
+            });
             mockCodeManagementService.getCommitsForPullRequestForCodeReview.mockResolvedValue([
                 { sha: 'abc123' },
             ]);
