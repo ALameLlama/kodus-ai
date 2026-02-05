@@ -64,10 +64,6 @@ export interface CodeReviewPipelineContext extends PipelineContext {
     codeReviewConfig?: CodeReviewConfig;
     automaticReviewStatus?: AutomaticReviewStatus;
 
-    // GitHub Checks integration
-    githubCheckRunId?: number;
-    pipelineError?: boolean;
-
     /** Commits NOVOS do PR (após lastAnalyzedCommit) - usados para validação de merge-only */
     prCommits?: Commit[];
 

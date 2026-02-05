@@ -1,11 +1,14 @@
-import { v4 as uuid } from 'uuid';
-import { produce } from 'immer';
-import { PipelineContext } from '../interfaces/pipeline-context.interface';
 import { createLogger } from '@kodus/flow';
-import { PipelineStage } from '../interfaces/pipeline.interface';
 import { AutomationStatus } from '@libs/automation/domain/automation/enum/automation-status';
 import { MetricsCollectorService } from '@libs/core/infrastructure/metrics/metrics-collector.service';
-import { IPipelineObserver } from '../interfaces/pipeline-observer.interface';
+import { produce } from 'immer';
+import { v4 as uuid } from 'uuid';
+import { PipelineContext } from '../interfaces/pipeline-context.interface';
+import {
+    IPipelineObserver,
+    PipelineObserverContext,
+} from '../interfaces/pipeline-observer.interface';
+import { PipelineStage } from '../interfaces/pipeline.interface';
 
 type SkipDecision = 'EXECUTE_STAGE' | 'SKIP_STAGE' | 'ABORT_PIPELINE';
 
@@ -45,6 +48,14 @@ export class PipelineExecutor<TContext extends PipelineContext> {
             },
         });
 
+        const observersContext = {};
+
+        await this.notifyObservers(
+            observers,
+            (obs) => obs.onPipelineStart(context, observersContext),
+            'onPipelineStart',
+        );
+
         for (const stage of stages) {
             // Check if we need to handle skip/jump logic
             if (context.statusInfo.status === AutomationStatus.SKIPPED) {
@@ -72,17 +83,27 @@ export class PipelineExecutor<TContext extends PipelineContext> {
             await this.notifyObservers(
                 observers,
                 (obs) =>
-                    obs.onStageStart(stage.stageName, context, {
-                        visibility: stage.visibility,
-                        label: stage.label,
-                    }),
+                    obs.onStageStart(
+                        stage.stageName,
+                        context,
+                        observersContext,
+                        {
+                            visibility: stage.visibility,
+                            label: stage.label,
+                        },
+                    ),
                 'onStageStart',
             );
 
             try {
                 context = await stage.execute(context);
 
-                await this.notifyStageCompletion(stage, context, observers);
+                await this.notifyStageCompletion(
+                    stage,
+                    context,
+                    observers,
+                    observersContext,
+                );
 
                 const stageDurationMs = Date.now() - start;
                 this.metricsCollector?.recordHistogram(
@@ -108,10 +129,16 @@ export class PipelineExecutor<TContext extends PipelineContext> {
                 await this.notifyObservers(
                     observers,
                     (obs) =>
-                        obs.onStageError(stage.stageName, error, context, {
-                            visibility: stage.visibility,
-                            label: stage.label,
-                        }),
+                        obs.onStageError(
+                            stage.stageName,
+                            error,
+                            context,
+                            observersContext,
+                            {
+                                visibility: stage.visibility,
+                                label: stage.label,
+                            },
+                        ),
                     'onStageError',
                 );
 
@@ -176,6 +203,12 @@ export class PipelineExecutor<TContext extends PipelineContext> {
             },
         });
 
+        await this.notifyObservers(
+            observers,
+            (obs) => obs.onPipelineFinish(context, observersContext),
+            'onPipelineFinish',
+        );
+
         return context;
     }
 
@@ -183,6 +216,7 @@ export class PipelineExecutor<TContext extends PipelineContext> {
         stage: PipelineStage<TContext>,
         context: TContext,
         observers: IPipelineObserver[],
+        observersContext: PipelineObserverContext,
     ): Promise<void> {
         if (context.statusInfo.status === AutomationStatus.SKIPPED) {
             await this.notifyObservers(
@@ -192,6 +226,7 @@ export class PipelineExecutor<TContext extends PipelineContext> {
                         stage.stageName,
                         context.statusInfo.message || 'Stage skipped',
                         context,
+                        observersContext,
                         {
                             visibility: stage.visibility,
                             label: stage.label,
@@ -203,10 +238,15 @@ export class PipelineExecutor<TContext extends PipelineContext> {
             await this.notifyObservers(
                 observers,
                 (obs) =>
-                    obs.onStageFinish(stage.stageName, context, {
-                        visibility: stage.visibility,
-                        label: stage.label,
-                    }),
+                    obs.onStageFinish(
+                        stage.stageName,
+                        context,
+                        observersContext,
+                        {
+                            visibility: stage.visibility,
+                            label: stage.label,
+                        },
+                    ),
                 'onStageFinish',
             );
         }

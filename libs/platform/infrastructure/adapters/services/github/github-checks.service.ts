@@ -1,41 +1,44 @@
-import { Injectable } from '@nestjs/common';
 import { createLogger } from '@kodus/flow';
-import { OrganizationAndTeamData } from '@libs/core/infrastructure/config/types/general/organizationAndTeamData';
+import {
+    CheckConclusion,
+    CheckStatus,
+    CreateCheckRunParams,
+    IChecksAdapter,
+    UpdateCheckRunParams,
+} from '@libs/core/infrastructure/pipeline/interfaces/checks-adapter.interface';
+import { Injectable } from '@nestjs/common';
+import { Octokit } from '@octokit/rest';
 import { GithubService } from './github.service';
 
-export enum CheckStatus {
+enum GithubCheckStatus {
+    QUEUED = 'queued',
     IN_PROGRESS = 'in_progress',
     COMPLETED = 'completed',
 }
 
-export interface CreateCheckRunParams {
-    organizationAndTeamData: OrganizationAndTeamData;
-    repository: {
-        owner: string;
-        name: string;
-    };
-    headSha: string;
-    status: CheckStatus;
-    name?: string;
+enum GithubCheckConclusion {
+    ACTION_REQUIRED = 'action_required',
+    CANCELLED = 'cancelled',
+    FAILURE = 'failure',
+    NEUTRAL = 'neutral',
+    SUCCESS = 'success',
+    SKIPPED = 'skipped',
+    STALE = 'stale',
+    TIMED_OUT = 'timed_out',
 }
 
-export interface UpdateCheckRunParams {
-    organizationAndTeamData: OrganizationAndTeamData;
-    repository: {
-        owner: string;
-        name: string;
-    };
-    checkRunId: number;
-    status?: CheckStatus;
-    output?: {
-        title: string;
-        summary: string;
-        text?: string;
-    };
-}
+const checkStatusMap = {
+    [CheckStatus.IN_PROGRESS]: GithubCheckStatus.IN_PROGRESS,
+    [CheckStatus.COMPLETED]: GithubCheckStatus.COMPLETED,
+} as const;
 
+const checkConclusionMap = {
+    [CheckConclusion.FAILURE]: GithubCheckConclusion.FAILURE,
+    [CheckConclusion.SUCCESS]: GithubCheckConclusion.SUCCESS,
+    [CheckConclusion.SKIPPED]: GithubCheckConclusion.SKIPPED,
+} as const;
 @Injectable()
-export class GithubChecksService {
+export class GithubChecksService implements IChecksAdapter {
     private readonly logger = createLogger(GithubChecksService.name);
 
     constructor(private readonly gitHubService: GithubService) {}
@@ -45,7 +48,9 @@ export class GithubChecksService {
             organizationAndTeamData,
             repository,
             headSha,
-            name = 'Kody',
+            name,
+            output,
+            status,
         } = params;
 
         try {
@@ -58,13 +63,9 @@ export class GithubChecksService {
                 repo: repository.name,
                 name,
                 head_sha: headSha,
-                status: CheckStatus.IN_PROGRESS,
-                // conclusion: CheckConclusion.SUCCESS,
+                status: checkStatusMap[status] || GithubCheckStatus.IN_PROGRESS,
                 started_at: new Date().toISOString(),
-                output: {
-                    title: 'Code Review Starting',
-                    summary: 'Kody is analyzing your code changes...',
-                },
+                output,
             });
 
             this.logger.log({
@@ -92,15 +93,15 @@ export class GithubChecksService {
         }
     }
 
-    private async updateCheckRun(
-        params: UpdateCheckRunParams,
-    ): Promise<boolean> {
+    async updateCheckRun(params: UpdateCheckRunParams): Promise<boolean> {
         const {
             organizationAndTeamData,
             repository,
             checkRunId,
             status,
+            name,
             output,
+            conclusion,
         } = params;
 
         try {
@@ -108,21 +109,31 @@ export class GithubChecksService {
                 organizationAndTeamData,
             );
 
-            const updateData: any = {
+            const updateData: Parameters<Octokit['checks']['update']>[0] = {
                 owner: repository.owner,
                 repo: repository.name,
-                check_run_id: checkRunId,
+                check_run_id:
+                    typeof checkRunId === 'string'
+                        ? parseInt(checkRunId, 10)
+                        : checkRunId,
             };
 
             if (status) {
-                updateData.status = status;
+                updateData.status =
+                    checkStatusMap[status] || GithubCheckStatus.IN_PROGRESS;
             }
-            if (status === CheckStatus.COMPLETED) {
-                updateData.conclusion = 'success';
+            if (status === CheckStatus.COMPLETED || conclusion) {
+                updateData.conclusion =
+                    checkConclusionMap[conclusion] ||
+                    GithubCheckConclusion.SUCCESS;
             }
 
             if (output) {
                 updateData.output = output;
+            }
+
+            if (name) {
+                updateData.name = name;
             }
 
             await octokit.checks.update(updateData);
@@ -152,35 +163,5 @@ export class GithubChecksService {
             });
             return false;
         }
-    }
-
-    /**
-     * Marks a check as completed successfully
-     */
-    async markSuccess(params: UpdateCheckRunParams): Promise<boolean> {
-        return this.updateCheckRun({
-            ...params,
-            status: CheckStatus.COMPLETED,
-            output: params.output || {
-                title: 'Code Review Complete',
-                summary:
-                    'Kody has finished analyzing your code. Check the comments for feedback.',
-            },
-        });
-    }
-
-    /**
-     * Marks a check as failed
-     */
-    async markFailure(params: UpdateCheckRunParams): Promise<boolean> {
-        return this.updateCheckRun({
-            ...params,
-            status: CheckStatus.COMPLETED,
-            output: params.output || {
-                title: 'Code Review Failed',
-                summary:
-                    'An error occurred during code review. Please check the logs.',
-            },
-        });
     }
 }

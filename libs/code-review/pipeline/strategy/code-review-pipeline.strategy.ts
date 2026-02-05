@@ -14,11 +14,9 @@ import {
     LOAD_EXTERNAL_CONTEXT_STAGE_TOKEN,
 } from '../stages/contracts/loadExternalContextStage.contract';
 import { CreateFileCommentsStage } from '../stages/create-file-comments.stage';
-import { CreateGithubCheckStage } from '../stages/create-github-check.stage';
 import { CreatePrLevelCommentsStage } from '../stages/create-pr-level-comments.stage';
 import { FetchChangedFilesStage } from '../stages/fetch-changed-files.stage';
 import { FileContextGateStage } from '../stages/file-context-gate.stage';
-import { FinalizeGithubCheckStage } from '../stages/finalize-github-check.stage';
 import { UpdateCommentsAndGenerateSummaryStage } from '../stages/finish-comments.stage';
 import { RequestChangesOrApproveStage } from '../stages/finish-process-review.stage';
 import { InitialCommentStage } from '../stages/initial-comment.stage';
@@ -48,8 +46,6 @@ export class CodeReviewPipelineStrategy implements IPipelineStrategy<CodeReviewP
         private readonly aggregateResultsStage: AggregateResultsStage,
         private readonly updateCommentsAndGenerateSummaryStage: UpdateCommentsAndGenerateSummaryStage,
         private readonly requestChangesOrApproveStage: RequestChangesOrApproveStage,
-        private readonly createGithubCheckStage: CreateGithubCheckStage,
-        private readonly finalizeGithubCheckStage: FinalizeGithubCheckStage,
         private readonly validateSuggestionsStage: ValidateSuggestionsStage,
     ) {}
 
@@ -59,7 +55,6 @@ export class CodeReviewPipelineStrategy implements IPipelineStrategy<CodeReviewP
             this.validateNewCommitsStage,
             this.resolveConfigStage,
             this.validateConfigStage,
-            this.createGithubCheckStage,
             this.fetchChangedFilesStage,
             this.loadExternalContextStage,
             this.fileContextGateStage,
@@ -72,7 +67,6 @@ export class CodeReviewPipelineStrategy implements IPipelineStrategy<CodeReviewP
             this.aggregateResultsStage,
             this.updateCommentsAndGenerateSummaryStage,
             this.requestChangesOrApproveStage,
-            this.finalizeGithubCheckStage,
         ];
     }
 
