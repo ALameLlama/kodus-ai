@@ -28,8 +28,8 @@ You will receive an input in the following JSON format:
             "existingCode": "Relevant new code from the PR",
             "improvedCode": "Improved proposal",
             "oneSentenceSummary": "Concise summary of the suggestion",
-            "relevantLinesStart": "starting_line",
-            "relevantLinesEnd": "ending_line",
+            "relevantLinesStart": 1,
+            "relevantLinesEnd": 10,
             "label": "selected_label",
         }
     ]

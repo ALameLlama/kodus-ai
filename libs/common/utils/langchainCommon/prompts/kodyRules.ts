@@ -543,8 +543,8 @@ DISCUSSION HERE
             "existingCode": "Relevant code from the PR",
             "improvedCode": "Improved proposal",
             "oneSentenceSummary": "Concise summary",
-            "relevantLinesStart": "starting_line",
-            "relevantLinesEnd": "ending_line",
+            "relevantLinesStart": 1,
+            "relevantLinesEnd": 10,
             "label": "kody_rules",
             "llmPrompt": "Prompt for LLMs",
             "brokenKodyRulesIds": [

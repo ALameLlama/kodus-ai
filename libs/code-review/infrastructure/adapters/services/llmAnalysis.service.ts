@@ -271,10 +271,10 @@ ${JSON.stringify(context?.suggestions) || 'No suggestions provided'}
                                 improvedCode: z.string(),
                                 oneSentenceSummary: z.string().optional(),
                                 relevantLinesStart: z
-                                    .number()
+                                    .coerce.number()
                                     .min(1)
                                     .optional(),
-                                relevantLinesEnd: z.number().min(1).optional(),
+                                relevantLinesEnd: z.coerce.number().min(1).optional(),
                                 label: z.string(),
                                 severity: z.string().optional(),
                                 rankScore: z.number().optional(),
