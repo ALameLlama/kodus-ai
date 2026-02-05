@@ -8,6 +8,26 @@ import {
     UseGuards,
 } from '@nestjs/common';
 import { REQUEST } from '@nestjs/core';
+import {
+    ApiBody,
+    ApiBearerAuth,
+    ApiCreatedResponse,
+    ApiExtraModels,
+    ApiOkResponse,
+    ApiOperation,
+    ApiQuery,
+    ApiTags,
+} from '@nestjs/swagger';
+import { ApiStandardResponses } from '../docs/api-standard-responses.decorator';
+import {
+    ApiBooleanResponseDto,
+    ApiStringArrayResponseDto,
+} from '../dtos/api-response.dto';
+import {
+    PermissionActionScopeDto,
+    PermissionResourceDto,
+    PermissionsResponseDto,
+} from '../dtos/permissions-response.dto';
 
 import { AssignReposUseCase } from '@libs/identity/application/use-cases/permissions/assign-repos.use-case';
 import { CanAccessUseCase } from '@libs/identity/application/use-cases/permissions/can-access.use-case';
@@ -25,6 +45,10 @@ import {
 import { checkPermissions } from '@libs/identity/infrastructure/adapters/services/permissions/policy.handlers';
 import { createLogger } from '@kodus/flow';
 
+@ApiTags('Permissions')
+@ApiBearerAuth('jwt')
+@ApiStandardResponses()
+@ApiExtraModels(PermissionResourceDto, PermissionActionScopeDto)
 @Controller('permissions')
 export class PermissionsController {
     private readonly logger = createLogger(PermissionsController.name);
@@ -42,6 +66,11 @@ export class PermissionsController {
     ) {}
 
     @Get()
+    @ApiOperation({
+        summary: 'List permissions',
+        description: 'Return permissions grouped by resource and action.',
+    })
+    @ApiOkResponse({ type: PermissionsResponseDto })
     async getPermissions(): ReturnType<GetPermissionsUseCase['execute']> {
         const { user } = this.request;
 
@@ -58,6 +87,19 @@ export class PermissionsController {
     }
 
     @Get('can-access')
+    @ApiQuery({ name: 'action', enum: Action, type: String, required: true })
+    @ApiQuery({
+        name: 'resource',
+        enum: ResourceType,
+        type: String,
+        required: true,
+    })
+    @ApiOperation({
+        summary: 'Check permission',
+        description:
+            'Return whether the authenticated user can perform an action on a resource.',
+    })
+    @ApiOkResponse({ type: ApiBooleanResponseDto })
     async can(
         @Query('action') action: Action,
         @Query('resource') resource: ResourceType,
@@ -77,6 +119,11 @@ export class PermissionsController {
     }
 
     @Get('assigned-repos')
+    @ApiOperation({
+        summary: 'List assigned repositories',
+        description: 'Return repository IDs assigned to a user.',
+    })
+    @ApiOkResponse({ type: ApiStringArrayResponseDto })
     async getAssignedRepos(
         @Query('userId') userId?: string,
     ): Promise<string[]> {
@@ -91,6 +138,27 @@ export class PermissionsController {
             resource: ResourceType.UserSettings,
         }),
     )
+    @ApiOperation({
+        summary: 'Assign repositories',
+        description: 'Assign repository IDs to a user within a team.',
+    })
+    @ApiBody({
+        schema: {
+            type: 'object',
+            properties: {
+                repositoryIds: { type: 'array', items: { type: 'string' } },
+                userId: { type: 'string' },
+                teamId: { type: 'string' },
+            },
+            required: ['repositoryIds', 'userId', 'teamId'],
+            example: {
+                repositoryIds: ['1135722979', '1135722980'],
+                userId: 'user_123',
+                teamId: 'c33ef663-70e7-4f43-9605-0bbef979b8e0',
+            },
+        },
+    })
+    @ApiCreatedResponse({ type: ApiStringArrayResponseDto })
     async assignRepos(
         @Body()
         body: {

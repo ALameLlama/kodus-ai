@@ -22,7 +22,9 @@ describe('AggregateResultsStage', () => {
         teamId: 'team-456',
     };
 
-    const createBaseContext = (overrides: Partial<CodeReviewPipelineContext> = {}): CodeReviewPipelineContext => ({
+    const createBaseContext = (
+        overrides: Partial<CodeReviewPipelineContext> = {},
+    ): CodeReviewPipelineContext => ({
         dryRun: { enabled: false },
         organizationAndTeamData: mockOrganizationAndTeamData as any,
         repository: { id: 'repo-1', name: 'test-repo' } as any,
@@ -72,15 +74,27 @@ describe('AggregateResultsStage', () => {
                 fileAnalysisResults: [
                     {
                         validSuggestionsToAnalyze: [
-                            { id: 's1', relevantFile: 'a.ts', severity: 'high' },
-                            { id: 's2', relevantFile: 'a.ts', severity: 'medium' },
+                            {
+                                id: 's1',
+                                relevantFile: 'a.ts',
+                                severity: 'high',
+                            },
+                            {
+                                id: 's2',
+                                relevantFile: 'a.ts',
+                                severity: 'medium',
+                            },
                         ],
                         discardedSuggestionsBySafeGuard: [],
                         file: { filename: 'a.ts' } as any,
                     },
                     {
                         validSuggestionsToAnalyze: [
-                            { id: 's3', relevantFile: 'b.ts', severity: 'critical' },
+                            {
+                                id: 's3',
+                                relevantFile: 'b.ts',
+                                severity: 'critical',
+                            },
                         ],
                         discardedSuggestionsBySafeGuard: [],
                         file: { filename: 'b.ts' } as any,
@@ -91,9 +105,9 @@ describe('AggregateResultsStage', () => {
             const result = await (stage as any).executeStage(context);
 
             expect(result.validSuggestions).toHaveLength(3);
-            expect(result.validSuggestions.map(s => s.id)).toContain('s1');
-            expect(result.validSuggestions.map(s => s.id)).toContain('s2');
-            expect(result.validSuggestions.map(s => s.id)).toContain('s3');
+            expect(result.validSuggestions.map((s) => s.id)).toContain('s1');
+            expect(result.validSuggestions.map((s) => s.id)).toContain('s2');
+            expect(result.validSuggestions.map((s) => s.id)).toContain('s3');
         });
 
         it('should aggregate discarded suggestions from multiple file results', async () => {
@@ -168,8 +182,14 @@ describe('AggregateResultsStage', () => {
                 fileAnalysisResults: [],
                 prAnalysisResults: {
                     validSuggestionsByPR: [
-                        { id: 'pr1', suggestionContent: 'PR suggestion 1' } as any,
-                        { id: 'pr2', suggestionContent: 'PR suggestion 2' } as any,
+                        {
+                            id: 'pr1',
+                            suggestionContent: 'PR suggestion 1',
+                        } as any,
+                        {
+                            id: 'pr2',
+                            suggestionContent: 'PR suggestion 2',
+                        } as any,
                     ],
                     validCrossFileSuggestions: [],
                 },
@@ -235,12 +255,8 @@ describe('AggregateResultsStage', () => {
                     },
                 ],
                 prAnalysisResults: {
-                    validSuggestionsByPR: [
-                        { id: 'pr1' } as any,
-                    ],
-                    validCrossFileSuggestions: [
-                        { id: 'cf1' } as any,
-                    ],
+                    validSuggestionsByPR: [{ id: 'pr1' } as any],
+                    validCrossFileSuggestions: [{ id: 'cf1' } as any],
                 },
             });
 
@@ -278,7 +294,9 @@ describe('AggregateResultsStage', () => {
 
             const result = await (stage as any).executeStage(context);
 
-            const aggregatedSuggestion = result.validSuggestions.find(s => s.id === 's1');
+            const aggregatedSuggestion = result.validSuggestions.find(
+                (s) => s.id === 's1',
+            );
             expect(aggregatedSuggestion).toEqual(originalSuggestion);
         });
     });
@@ -314,11 +332,14 @@ describe('AggregateResultsStage', () => {
                             {
                                 id: 's1',
                                 relevantFile: 'path/to/file with spaces.ts',
-                                suggestionContent: 'Handle \n newlines and "quotes"',
+                                suggestionContent:
+                                    'Handle \n newlines and "quotes"',
                             },
                         ],
                         discardedSuggestionsBySafeGuard: [],
-                        file: { filename: 'path/to/file with spaces.ts' } as any,
+                        file: {
+                            filename: 'path/to/file with spaces.ts',
+                        } as any,
                     },
                 ],
             });
@@ -326,7 +347,9 @@ describe('AggregateResultsStage', () => {
             const result = await (stage as any).executeStage(context);
 
             expect(result.validSuggestions).toHaveLength(1);
-            expect(result.validSuggestions[0].suggestionContent).toContain('newlines');
+            expect(result.validSuggestions[0].suggestionContent).toContain(
+                'newlines',
+            );
         });
 
         it('should not mutate original context arrays', async () => {

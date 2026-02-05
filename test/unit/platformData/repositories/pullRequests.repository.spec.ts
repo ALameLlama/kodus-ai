@@ -93,25 +93,27 @@ function createMockPRFromMongoProjection(config: {
         status: 'modified',
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
-        suggestions: fileConfig.suggestionsConfig.map((suggConfig, suggIndex) => ({
-            id: `suggestion-${fileIndex}-${suggIndex}`,
-            relevantFile: `src/file${fileIndex}.ts`,
-            language: 'typescript',
-            // These fields are EXCLUDED by projection but we include empty strings
-            // to simulate what MongoDB returns (fields simply don't exist)
-            suggestionContent: '', // EXCLUDED by projection
-            existingCode: '', // EXCLUDED by projection
-            improvedCode: '', // EXCLUDED by projection
-            oneSentenceSummary: 'Test summary',
-            relevantLinesStart: 1,
-            relevantLinesEnd: 10,
-            label: 'code_style',
-            severity: 'low',
-            priorityStatus: 'medium' as any,
-            deliveryStatus: suggConfig.deliveryStatus, // INCLUDED - critical!
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-        })),
+        suggestions: fileConfig.suggestionsConfig.map(
+            (suggConfig, suggIndex) => ({
+                id: `suggestion-${fileIndex}-${suggIndex}`,
+                relevantFile: `src/file${fileIndex}.ts`,
+                language: 'typescript',
+                // These fields are EXCLUDED by projection but we include empty strings
+                // to simulate what MongoDB returns (fields simply don't exist)
+                suggestionContent: '', // EXCLUDED by projection
+                existingCode: '', // EXCLUDED by projection
+                improvedCode: '', // EXCLUDED by projection
+                oneSentenceSummary: 'Test summary',
+                relevantLinesStart: 1,
+                relevantLinesEnd: 10,
+                label: 'code_style',
+                severity: 'low',
+                priorityStatus: 'medium' as any,
+                deliveryStatus: suggConfig.deliveryStatus, // INCLUDED - critical!
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+            }),
+        ),
     }));
 
     return {
@@ -230,7 +232,11 @@ describe('PullRequestsRepository - findManyByNumbersAndRepositoryIds Contract', 
                 number: 1,
                 repositoryId: 'r1',
                 filesConfig: [
-                    { suggestionsConfig: [{ deliveryStatus: DeliveryStatus.SENT }] },
+                    {
+                        suggestionsConfig: [
+                            { deliveryStatus: DeliveryStatus.SENT },
+                        ],
+                    },
                 ],
             });
 
@@ -243,12 +249,18 @@ describe('PullRequestsRepository - findManyByNumbersAndRepositoryIds Contract', 
                 number: 1,
                 repositoryId: 'r1',
                 filesConfig: [
-                    { suggestionsConfig: [{ deliveryStatus: DeliveryStatus.SENT }] },
+                    {
+                        suggestionsConfig: [
+                            { deliveryStatus: DeliveryStatus.SENT },
+                        ],
+                    },
                 ],
             });
 
             expect(pr.files[0].suggestions[0].deliveryStatus).toBeDefined();
-            expect(pr.files[0].suggestions[0].deliveryStatus).toBe(DeliveryStatus.SENT);
+            expect(pr.files[0].suggestions[0].deliveryStatus).toBe(
+                DeliveryStatus.SENT,
+            );
         });
     });
 

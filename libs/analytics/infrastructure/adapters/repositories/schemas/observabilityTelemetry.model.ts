@@ -27,10 +27,14 @@ export const ObservabilityTelemetryModelSchema = SchemaFactory.createForClass(
 // Indexes for token usage queries performance
 // Using createdAt from timestamps: true (auto-managed by Mongoose)
 ObservabilityTelemetryModelSchema.index(
-    { 'attributes.organizationId': 1, createdAt: -1 },
+    { 'attributes.organizationId': 1, 'createdAt': -1 },
     { background: true },
 );
 ObservabilityTelemetryModelSchema.index(
-    { 'attributes.organizationId': 1, 'attributes.prNumber': 1, createdAt: -1 },
+    {
+        'attributes.organizationId': 1,
+        'attributes.prNumber': 1,
+        'createdAt': -1,
+    },
     { background: true },
 );

@@ -106,7 +106,10 @@ export class GetEnrichedPullRequestsUseCase implements IUseCase {
                     resource: ResourceType.PullRequests,
                 });
 
-            if (assignedRepositoryIds !== null && assignedRepositoryIds.length === 0) {
+            if (
+                assignedRepositoryIds !== null &&
+                assignedRepositoryIds.length === 0
+            ) {
                 return this.buildEmptyResponse(limit, page);
             }
 
@@ -152,13 +155,16 @@ export class GetEnrichedPullRequestsUseCase implements IUseCase {
             let hasMoreExecutions = true;
 
             // If filtering by title, fetch PR numbers from MongoDB first
-            let prFilters: Array<{ number: number; repositoryId: string }> | undefined;
+            let prFilters:
+                | Array<{ number: number; repositoryId: string }>
+                | undefined;
             if (pullRequestTitle) {
-                const prNumbers = await this.pullRequestsService.findPRNumbersByTitleAndOrganization(
-                    pullRequestTitle,
-                    organizationId,
-                    allowedRepositoryIds,
-                );
+                const prNumbers =
+                    await this.pullRequestsService.findPRNumbersByTitleAndOrganization(
+                        pullRequestTitle,
+                        organizationId,
+                        allowedRepositoryIds,
+                    );
 
                 if (prNumbers.length === 0) {
                     // No PRs match the title filter
@@ -223,56 +229,64 @@ export class GetEnrichedPullRequestsUseCase implements IUseCase {
                 // - PRs: basic data only (no files array)
                 // - Suggestion counts: computed via MongoDB aggregation (not in-memory)
                 // - Code reviews: timeline data
-                const [pullRequestsList, suggestionCountsMap, codeReviewsList] = await Promise.all([
-                    this.pullRequestsService
-                        .findManyByNumbersAndRepositoryIds(
-                            prCriteria,
-                            organizationId,
-                        )
-                        .catch((error) => {
-                            this.logger.error({
-                                message: 'Error bulk fetching pull requests',
-                                context: GetEnrichedPullRequestsUseCase.name,
-                                error,
-                                metadata: {
-                                    organizationId,
-                                },
-                            });
-                            return [];
-                        }),
-                    // PERF: Fetch counts via aggregation instead of loading 180k objects
-                    this.pullRequestsService
-                        .findSuggestionCountsByNumbersAndRepositoryIds(
-                            prCriteria,
-                            organizationId,
-                        )
-                        .catch((error) => {
-                            this.logger.error({
-                                message: 'Error fetching suggestion counts',
-                                context: GetEnrichedPullRequestsUseCase.name,
-                                error,
-                                metadata: {
-                                    organizationId,
-                                },
-                            });
-                            return new Map<string, { sent: number; filtered: number }>();
-                        }),
-                    this.codeReviewExecutionService
-                        .findManyByAutomationExecutionIds(executionUuids, {
-                            visibility: StageVisibility.PRIMARY,
-                        })
-                        .catch((error) => {
-                            this.logger.error({
-                                message: 'Error bulk fetching code reviews',
-                                context: GetEnrichedPullRequestsUseCase.name,
-                                error,
-                                metadata: {
-                                    organizationId,
-                                },
-                            });
-                            return [];
-                        }),
-                ]);
+                const [pullRequestsList, suggestionCountsMap, codeReviewsList] =
+                    await Promise.all([
+                        this.pullRequestsService
+                            .findManyByNumbersAndRepositoryIds(
+                                prCriteria,
+                                organizationId,
+                            )
+                            .catch((error) => {
+                                this.logger.error({
+                                    message:
+                                        'Error bulk fetching pull requests',
+                                    context:
+                                        GetEnrichedPullRequestsUseCase.name,
+                                    error,
+                                    metadata: {
+                                        organizationId,
+                                    },
+                                });
+                                return [];
+                            }),
+                        // PERF: Fetch counts via aggregation instead of loading 180k objects
+                        this.pullRequestsService
+                            .findSuggestionCountsByNumbersAndRepositoryIds(
+                                prCriteria,
+                                organizationId,
+                            )
+                            .catch((error) => {
+                                this.logger.error({
+                                    message: 'Error fetching suggestion counts',
+                                    context:
+                                        GetEnrichedPullRequestsUseCase.name,
+                                    error,
+                                    metadata: {
+                                        organizationId,
+                                    },
+                                });
+                                return new Map<
+                                    string,
+                                    { sent: number; filtered: number }
+                                >();
+                            }),
+                        this.codeReviewExecutionService
+                            .findManyByAutomationExecutionIds(executionUuids, {
+                                visibility: StageVisibility.PRIMARY,
+                            })
+                            .catch((error) => {
+                                this.logger.error({
+                                    message: 'Error bulk fetching code reviews',
+                                    context:
+                                        GetEnrichedPullRequestsUseCase.name,
+                                    error,
+                                    metadata: {
+                                        organizationId,
+                                    },
+                                });
+                                return [];
+                            }),
+                    ]);
 
                 // Map results for O(1) access
                 const prMap = new Map<string, IPullRequests>();
@@ -296,7 +310,7 @@ export class GetEnrichedPullRequestsUseCase implements IUseCase {
                 // Process executions
                 for (let i = 0; i < executionsBatch.length; i++) {
                     const execution = executionsBatch[i];
-                    
+
                     const prKey = `${execution.repositoryId}_${execution.pullRequestNumber}`;
                     const pullRequest = prMap.get(prKey);
                     const codeReviewExecutions =
@@ -540,8 +554,7 @@ export class GetEnrichedPullRequestsUseCase implements IUseCase {
                 ].filter(Boolean) as string[];
 
                 return candidates.some(
-                    (candidate) =>
-                        candidate.toLowerCase() === normalizedName,
+                    (candidate) => candidate.toLowerCase() === normalizedName,
                 );
             })
             .map((repo) => String(repo.id));

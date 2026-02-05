@@ -34,7 +34,10 @@ export class GetSelectedRepositoriesUseCase implements IUseCase {
         perPage?: number;
     }): Promise<
         | Repositories[]
-        | { data: Repositories[]; pagination: { page: number; perPage: number; total: number } }
+        | {
+              data: Repositories[];
+              pagination: { page: number; perPage: number; total: number };
+          }
     > {
         try {
             const organizationId = this.request.user.organization.uuid;

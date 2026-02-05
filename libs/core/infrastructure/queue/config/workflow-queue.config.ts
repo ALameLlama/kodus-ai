@@ -6,5 +6,7 @@ export const WORKFLOW_QUEUE_MAX_RETRIES = (() => {
         10,
     );
 
-    return Number.isFinite(parsed) ? parsed : DEFAULT_WORKFLOW_QUEUE_MAX_RETRIES;
+    return Number.isFinite(parsed)
+        ? parsed
+        : DEFAULT_WORKFLOW_QUEUE_MAX_RETRIES;
 })();

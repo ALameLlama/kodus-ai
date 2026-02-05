@@ -39,7 +39,9 @@ export const shouldSkipEmailTest = (extraKeys: string[] = []): boolean => {
 export const getTestRecipient = (): TestRecipient => {
     const email = getEnv('API_CUSTOMERIO_TEST_EMAIL') || 'test@example.com';
     const name =
-        getEnv('API_CUSTOMERIO_TEST_NAME') || email.split('@')[0] || 'Test User';
+        getEnv('API_CUSTOMERIO_TEST_NAME') ||
+        email.split('@')[0] ||
+        'Test User';
 
     return { email, name };
 };

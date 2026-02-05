@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { AuthGuard } from '@nestjs/passport';
+import { IS_PUBLIC_KEY } from './public.decorator';
 
 @Injectable()
 export class JwtAuthGuard extends AuthGuard('jwt') {
@@ -24,6 +25,14 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
     }
 
     handleHttpRequest(context: ExecutionContext) {
+        const isPublic = this.reflector.getAllAndOverride<boolean>(
+            IS_PUBLIC_KEY,
+            [context.getHandler(), context.getClass()],
+        );
+        if (isPublic) {
+            return true;
+        }
+
         const request = context.switchToHttp().getRequest();
 
         // We can use this to allow public routes;
@@ -39,39 +48,15 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
             '/auth/reset-password',
             '/auth/oauth',
             '/user/email',
-            '/diagnostic/updateDiagnostic',
             '/github/webhook/installation',
             '/github/integration',
-            '/agent/has-active-sessions',
-            '/agent/create-session',
-            '/agent/router',
-            '/agent/memory',
-            '/agent/auth-details',
-            '/agent/execute-router-prompt',
-            '/agent/waiting-columns',
-            '/agent/guild-by-member',
-            '/agent/auth-details-organization',
-            '/agent/metrics',
-            '/communication/create-auth-integration',
-            '/communication/update-auth-integration',
-            '/communication/create-or-update-integration-config',
-            '/project-management/create-auth-integration',
             '/code-management/create-auth-integration',
-            '/automation/run',
             '/organization/name-by-tenant',
-            '/insights',
             '/interaction/users',
-            '/daily-checkin-automation/generate-changelog',
-            '/daily-checkin-automation/view-delivery-status-items-wip',
-            '/daily-checkin-automation/get-insights',
-            '/weekly-checkin-automation/get-insights',
-            '/agent/has-team-config',
-            '/communication/button-disabled',
             '/team/team-infos',
             '/user/invite',
             '/user/invite/complete-invitation',
             '/github/webhook',
-            '/snoozed-items/slack',
             '/gitlab/webhook',
             '/bitbucket/webhook',
             '/azure-repos/webhook',
@@ -92,9 +77,7 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
             '/api/pull-requests/suggestions',
         ];
 
-        const wildCardExcludePaths = [
-            '/auth/sso/',
-        ];
+        const wildCardExcludePaths = ['/auth/sso/'];
 
         // Allow access to public routes
         if (

@@ -1,11 +1,14 @@
 import { Transform } from 'class-transformer';
 import { IsBoolean, IsOptional, IsString } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class GetRepositoryTreeByDirectoryDto {
     @IsString()
+    @ApiProperty()
     teamId: string;
 
     @IsString()
+    @ApiProperty()
     repositoryId: string;
 
     /**
@@ -16,6 +19,7 @@ export class GetRepositoryTreeByDirectoryDto {
      */
     @IsOptional()
     @IsString()
+    @ApiPropertyOptional()
     directoryPath?: string;
 
     /**
@@ -29,5 +33,6 @@ export class GetRepositoryTreeByDirectoryDto {
         if (value === 'false') return false;
         return value;
     })
+    @ApiPropertyOptional()
     useCache?: boolean = true;
 }

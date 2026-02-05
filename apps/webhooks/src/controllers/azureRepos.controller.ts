@@ -5,7 +5,9 @@ import { Response, Request } from 'express';
 import { PlatformType } from '@libs/core/domain/enums/platform-type.enum';
 import { EnqueueWebhookUseCase } from '@libs/platform/application/use-cases/webhook/enqueue-webhook.use-case';
 import { validateWebhookToken } from '@libs/common/utils/webhooks/webhookTokenCrypto';
+import { Public } from '@libs/identity/infrastructure/adapters/services/auth/public.decorator';
 
+@Public()
 @Controller('azure-repos')
 export class AzureReposController {
     private readonly logger = createLogger(AzureReposController.name);

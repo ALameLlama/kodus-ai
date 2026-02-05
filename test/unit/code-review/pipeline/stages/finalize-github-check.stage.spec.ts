@@ -195,11 +195,7 @@ describe('FinalizeGithubCheckStage', () => {
                 ],
                 prLevelCommentResults: [],
                 // Old code would count these:
-                validSuggestions: [
-                    { id: 's1' },
-                    { id: 's2' },
-                    { id: 'cf1' },
-                ], // 3
+                validSuggestions: [{ id: 's1' }, { id: 's2' }, { id: 'cf1' }], // 3
                 validCrossFileSuggestions: [{ id: 'cf1' }], // 1 (double-counted!)
                 // Old total: 3 + 0 + 1 = 4 (WRONG)
                 // New total: 3 sent line comments (CORRECT)
@@ -242,9 +238,7 @@ describe('FinalizeGithubCheckStage', () => {
         it('should use singular "suggestion" for exactly 1 sent comment', async () => {
             const context = {
                 ...baseContext,
-                lineComments: [
-                    buildCommentResult(DeliveryStatus.SENT, 's1'),
-                ],
+                lineComments: [buildCommentResult(DeliveryStatus.SENT, 's1')],
                 prLevelCommentResults: [],
             } as any;
 

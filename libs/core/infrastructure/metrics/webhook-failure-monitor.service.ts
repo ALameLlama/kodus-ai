@@ -10,9 +10,7 @@ import { IncidentManagerService } from '../incident/incident-manager.service';
 
 @Injectable()
 export class WebhookFailureMonitorService {
-    private readonly logger = createLogger(
-        WebhookFailureMonitorService.name,
-    );
+    private readonly logger = createLogger(WebhookFailureMonitorService.name);
 
     private readonly thresholdPercent: number;
     private readonly windowMinutes: number;
@@ -36,9 +34,7 @@ export class WebhookFailureMonitorService {
     @Cron('*/5 * * * *') // every 5 minutes
     async checkWebhookFailureRate(): Promise<void> {
         try {
-            const since = new Date(
-                Date.now() - this.windowMinutes * 60 * 1000,
-            );
+            const since = new Date(Date.now() - this.windowMinutes * 60 * 1000);
 
             const result = await this.jobRepository
                 .createQueryBuilder('job')
@@ -90,5 +86,4 @@ export class WebhookFailureMonitorService {
             });
         }
     }
-
 }

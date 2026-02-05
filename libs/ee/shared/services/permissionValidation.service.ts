@@ -115,7 +115,8 @@ export class PermissionValidationService {
             }
 
             this.logger.log({
-                message: '@@VALID PERMISSION@@ - Validating execution permissions',
+                message:
+                    '@@VALID PERMISSION@@ - Validating execution permissions',
                 context: contextName || PermissionValidationService.name,
                 metadata: { organizationAndTeamData, userGitId },
             });
@@ -127,7 +128,8 @@ export class PermissionValidationService {
                 );
 
             this.logger.log({
-                message: '@@VALID PERMISSION@@ - Organization license validated',
+                message:
+                    '@@VALID PERMISSION@@ - Organization license validated',
                 context: contextName || PermissionValidationService.name,
                 metadata: { organizationAndTeamData, result: validation },
             });

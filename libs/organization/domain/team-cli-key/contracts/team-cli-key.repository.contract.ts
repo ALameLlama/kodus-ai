@@ -5,7 +5,9 @@ export const TEAM_CLI_KEY_REPOSITORY_TOKEN = Symbol.for('TeamCliKeyRepository');
 
 export interface ITeamCliKeyRepository {
     find(filter?: Partial<ITeamCliKey>): Promise<TeamCliKeyEntity[]>;
-    findOne(filter: Partial<ITeamCliKey>): Promise<TeamCliKeyEntity | undefined>;
+    findOne(
+        filter: Partial<ITeamCliKey>,
+    ): Promise<TeamCliKeyEntity | undefined>;
     findById(uuid: string): Promise<TeamCliKeyEntity | undefined>;
     findByTeamId(teamId: string): Promise<TeamCliKeyEntity[]>;
     create(data: Partial<ITeamCliKey>): Promise<TeamCliKeyEntity | undefined>;

@@ -35,9 +35,8 @@ describe('GitHub getChangedFilesSinceLastCommit - integration tests for merge co
 
     beforeAll(async () => {
         // Import GithubService dinamicamente
-        const module = await import(
-            '@libs/platform/infrastructure/adapters/services/github/github.service'
-        );
+        const module =
+            await import('@libs/platform/infrastructure/adapters/services/github/github.service');
         GithubService = (module as any).default || module.GithubService;
     });
 
@@ -106,7 +105,9 @@ describe('GitHub getChangedFilesSinceLastCommit - integration tests for merge co
             token: 'test-token',
         });
 
-        jest.spyOn(githubService, 'instanceOctokit').mockResolvedValue(mockOctokit);
+        jest.spyOn(githubService, 'instanceOctokit').mockResolvedValue(
+            mockOctokit,
+        );
     });
 
     afterEach(() => {
@@ -117,9 +118,18 @@ describe('GitHub getChangedFilesSinceLastCommit - integration tests for merge co
         it('should return only 1 file (the one actually changed on branch A)', async () => {
             // Setup: Branch A commits
             const commits = [
-                { sha: 'commit-a1', commit: { author: { date: '2024-01-02T00:00:00Z' } } },
-                { sha: 'commit-a2', commit: { author: { date: '2024-01-05T00:00:00Z' } } },
-                { sha: 'merge-main', commit: { author: { date: '2024-01-06T00:00:00Z' } } },
+                {
+                    sha: 'commit-a1',
+                    commit: { author: { date: '2024-01-02T00:00:00Z' } },
+                },
+                {
+                    sha: 'commit-a2',
+                    commit: { author: { date: '2024-01-05T00:00:00Z' } },
+                },
+                {
+                    sha: 'merge-main',
+                    commit: { author: { date: '2024-01-06T00:00:00Z' } },
+                },
             ];
 
             // Compare returns 4 files: 1 real change + 3 from merge
@@ -187,15 +197,49 @@ describe('GitHub getChangedFilesSinceLastCommit - integration tests for merge co
 
         it('should NOT include files from branch B that came via merge of main', async () => {
             const commits = [
-                { sha: 'commit-a1', commit: { author: { date: '2024-01-02T00:00:00Z' } } },
-                { sha: 'merge-main', commit: { author: { date: '2024-01-06T00:00:00Z' } } },
+                {
+                    sha: 'commit-a1',
+                    commit: { author: { date: '2024-01-02T00:00:00Z' } },
+                },
+                {
+                    sha: 'merge-main',
+                    commit: { author: { date: '2024-01-06T00:00:00Z' } },
+                },
             ];
 
             const compareFiles = [
-                { filename: 'src/app.ts', status: 'modified', additions: 5, deletions: 2, changes: 7, patch: '+new' },
-                { filename: 'src/feature-b/component1.ts', status: 'added', additions: 50, deletions: 0, changes: 50, patch: '+comp1' },
-                { filename: 'src/feature-b/component2.ts', status: 'added', additions: 30, deletions: 0, changes: 30, patch: '+comp2' },
-                { filename: 'src/feature-b/component3.ts', status: 'added', additions: 40, deletions: 0, changes: 40, patch: '+comp3' },
+                {
+                    filename: 'src/app.ts',
+                    status: 'modified',
+                    additions: 5,
+                    deletions: 2,
+                    changes: 7,
+                    patch: '+new',
+                },
+                {
+                    filename: 'src/feature-b/component1.ts',
+                    status: 'added',
+                    additions: 50,
+                    deletions: 0,
+                    changes: 50,
+                    patch: '+comp1',
+                },
+                {
+                    filename: 'src/feature-b/component2.ts',
+                    status: 'added',
+                    additions: 30,
+                    deletions: 0,
+                    changes: 30,
+                    patch: '+comp2',
+                },
+                {
+                    filename: 'src/feature-b/component3.ts',
+                    status: 'added',
+                    additions: 40,
+                    deletions: 0,
+                    changes: 40,
+                    patch: '+comp3',
+                },
             ];
 
             const prFiles = [{ filename: 'src/app.ts' }];
@@ -223,14 +267,34 @@ describe('GitHub getChangedFilesSinceLastCommit - integration tests for merge co
 
         it('should handle large merge with many files from main', async () => {
             const commits = [
-                { sha: 'commit-a1', commit: { author: { date: '2024-01-02T00:00:00Z' } } },
-                { sha: 'merge-main', commit: { author: { date: '2024-01-06T00:00:00Z' } } },
+                {
+                    sha: 'commit-a1',
+                    commit: { author: { date: '2024-01-02T00:00:00Z' } },
+                },
+                {
+                    sha: 'merge-main',
+                    commit: { author: { date: '2024-01-06T00:00:00Z' } },
+                },
             ];
 
             // Simulate 2 real files + 20 from merge
             const compareFiles = [
-                { filename: 'src/real-file-0.ts', status: 'modified', additions: 5, deletions: 2, changes: 7, patch: '+real' },
-                { filename: 'src/real-file-1.ts', status: 'modified', additions: 3, deletions: 1, changes: 4, patch: '+real' },
+                {
+                    filename: 'src/real-file-0.ts',
+                    status: 'modified',
+                    additions: 5,
+                    deletions: 2,
+                    changes: 7,
+                    patch: '+real',
+                },
+                {
+                    filename: 'src/real-file-1.ts',
+                    status: 'modified',
+                    additions: 3,
+                    deletions: 1,
+                    changes: 4,
+                    patch: '+real',
+                },
                 ...Array.from({ length: 20 }, (_, i) => ({
                     filename: `src/from-merge/file-${i}.ts`,
                     status: 'added',
@@ -262,17 +326,34 @@ describe('GitHub getChangedFilesSinceLastCommit - integration tests for merge co
             });
 
             expect(result).toHaveLength(2);
-            expect(result.every((f: any) => f.filename.startsWith('src/real-file'))).toBe(true);
+            expect(
+                result.every((f: any) =>
+                    f.filename.startsWith('src/real-file'),
+                ),
+            ).toBe(true);
         });
 
         it('should return empty when all compare files are from merge (nothing to review)', async () => {
             const commits = [
-                { sha: 'commit-a1', commit: { author: { date: '2024-01-02T00:00:00Z' } } },
-                { sha: 'merge-main', commit: { author: { date: '2024-01-06T00:00:00Z' } } },
+                {
+                    sha: 'commit-a1',
+                    commit: { author: { date: '2024-01-02T00:00:00Z' } },
+                },
+                {
+                    sha: 'merge-main',
+                    commit: { author: { date: '2024-01-06T00:00:00Z' } },
+                },
             ];
 
             const compareFiles = [
-                { filename: 'src/from-main.ts', status: 'added', additions: 10, deletions: 0, changes: 10, patch: '+from main' },
+                {
+                    filename: 'src/from-main.ts',
+                    status: 'added',
+                    additions: 10,
+                    deletions: 0,
+                    changes: 10,
+                    patch: '+from main',
+                },
             ];
 
             const prFiles: any[] = [];

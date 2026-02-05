@@ -49,8 +49,7 @@ export function createToolResponse<T>(
     if (includeJsonText) {
         content.push({
             type: 'text',
-            text:
-                typeof data === 'string' ? data : JSON.stringify(data),
+            text: typeof data === 'string' ? data : JSON.stringify(data),
         });
     }
     for (const r of resources) {

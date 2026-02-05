@@ -53,9 +53,7 @@ const shouldSkip = !MONGODB_URI;
         ];
 
         // Commits that the Git API would return
-        const API_COMMITS = [
-            { sha: 'api-commit-sha', message: 'from api' },
-        ];
+        const API_COMMITS = [{ sha: 'api-commit-sha', message: 'from api' }];
 
         // Files already saved in the DB (REAL IFile format from MongoDB)
         const DB_FILES = [
@@ -120,11 +118,15 @@ const shouldSkip = !MONGODB_URI;
 
             mockCodeManagementService = {
                 getFilesByPullRequestId: jest.fn().mockResolvedValue(API_FILES),
-                getCommitsForPullRequestForCodeReview: jest.fn().mockResolvedValue(API_COMMITS),
+                getCommitsForPullRequestForCodeReview: jest
+                    .fn()
+                    .mockResolvedValue(API_COMMITS),
             };
 
             mockPullRequestsService = {
-                aggregateAndSaveDataStructure: jest.fn().mockResolvedValue(null),
+                aggregateAndSaveDataStructure: jest
+                    .fn()
+                    .mockResolvedValue(null),
             };
 
             mockIntegrationConfigService = {
@@ -143,7 +145,10 @@ const shouldSkip = !MONGODB_URI;
                     ConfigModule.forRoot(),
                     MongooseModule.forRoot(mongoUri),
                     MongooseModule.forFeature([
-                        { name: PullRequestsModel.name, schema: PullRequestsSchema },
+                        {
+                            name: PullRequestsModel.name,
+                            schema: PullRequestsSchema,
+                        },
                     ]),
                 ],
                 providers: [
@@ -167,7 +172,9 @@ const shouldSkip = !MONGODB_URI;
                 ],
             }).compile();
 
-            useCase = module.get<SavePullRequestUseCase>(SavePullRequestUseCase);
+            useCase = module.get<SavePullRequestUseCase>(
+                SavePullRequestUseCase,
+            );
             model = module.get<Model<PullRequestsModel>>(
                 getModelToken(PullRequestsModel.name),
             );
@@ -226,13 +233,19 @@ const shouldSkip = !MONGODB_URI;
                 });
 
                 // MUST call Git API
-                expect(mockCodeManagementService.getFilesByPullRequestId).toHaveBeenCalledTimes(1);
-                expect(mockCodeManagementService.getCommitsForPullRequestForCodeReview).toHaveBeenCalledTimes(1);
+                expect(
+                    mockCodeManagementService.getFilesByPullRequestId,
+                ).toHaveBeenCalledTimes(1);
+                expect(
+                    mockCodeManagementService.getCommitsForPullRequestForCodeReview,
+                ).toHaveBeenCalledTimes(1);
 
                 // aggregateAndSaveDataStructure receives API data
-                const callArgs = mockPullRequestsService.aggregateAndSaveDataStructure.mock.calls[0];
-                const filesArg = callArgs[2];    // 3rd param = changedFiles
-                const commitsArg = callArgs[7];  // 8th param = pullRequestCommits
+                const callArgs =
+                    mockPullRequestsService.aggregateAndSaveDataStructure.mock
+                        .calls[0];
+                const filesArg = callArgs[2]; // 3rd param = changedFiles
+                const commitsArg = callArgs[7]; // 8th param = pullRequestCommits
 
                 expect(filesArg).toEqual(API_FILES);
                 expect(commitsArg).toEqual(API_COMMITS);
@@ -250,11 +263,17 @@ const shouldSkip = !MONGODB_URI;
                 });
 
                 // MUST call Git API (new commits pushed)
-                expect(mockCodeManagementService.getFilesByPullRequestId).toHaveBeenCalledTimes(1);
-                expect(mockCodeManagementService.getCommitsForPullRequestForCodeReview).toHaveBeenCalledTimes(1);
+                expect(
+                    mockCodeManagementService.getFilesByPullRequestId,
+                ).toHaveBeenCalledTimes(1);
+                expect(
+                    mockCodeManagementService.getCommitsForPullRequestForCodeReview,
+                ).toHaveBeenCalledTimes(1);
 
                 // aggregateAndSaveDataStructure receives API data, NOT DB data
-                const callArgs = mockPullRequestsService.aggregateAndSaveDataStructure.mock.calls[0];
+                const callArgs =
+                    mockPullRequestsService.aggregateAndSaveDataStructure.mock
+                        .calls[0];
                 const filesArg = callArgs[2];
                 const commitsArg = callArgs[7];
 
@@ -274,11 +293,17 @@ const shouldSkip = !MONGODB_URI;
                 });
 
                 // MUST NOT call Git API
-                expect(mockCodeManagementService.getFilesByPullRequestId).not.toHaveBeenCalled();
-                expect(mockCodeManagementService.getCommitsForPullRequestForCodeReview).not.toHaveBeenCalled();
+                expect(
+                    mockCodeManagementService.getFilesByPullRequestId,
+                ).not.toHaveBeenCalled();
+                expect(
+                    mockCodeManagementService.getCommitsForPullRequestForCodeReview,
+                ).not.toHaveBeenCalled();
 
                 // aggregateAndSaveDataStructure receives data FROM THE DATABASE
-                const callArgs = mockPullRequestsService.aggregateAndSaveDataStructure.mock.calls[0];
+                const callArgs =
+                    mockPullRequestsService.aggregateAndSaveDataStructure.mock
+                        .calls[0];
                 const filesArg = callArgs[2];
                 const commitsArg = callArgs[7];
 
@@ -312,11 +337,17 @@ const shouldSkip = !MONGODB_URI;
                 });
 
                 // MUST NOT call Git API
-                expect(mockCodeManagementService.getFilesByPullRequestId).not.toHaveBeenCalled();
-                expect(mockCodeManagementService.getCommitsForPullRequestForCodeReview).not.toHaveBeenCalled();
+                expect(
+                    mockCodeManagementService.getFilesByPullRequestId,
+                ).not.toHaveBeenCalled();
+                expect(
+                    mockCodeManagementService.getCommitsForPullRequestForCodeReview,
+                ).not.toHaveBeenCalled();
 
                 // aggregateAndSaveDataStructure receives empty arrays
-                const callArgs = mockPullRequestsService.aggregateAndSaveDataStructure.mock.calls[0];
+                const callArgs =
+                    mockPullRequestsService.aggregateAndSaveDataStructure.mock
+                        .calls[0];
                 const filesArg = callArgs[2];
                 const commitsArg = callArgs[7];
 
@@ -335,10 +366,16 @@ const shouldSkip = !MONGODB_URI;
                     event: 'pull_request',
                 });
 
-                expect(mockCodeManagementService.getFilesByPullRequestId).not.toHaveBeenCalled();
-                expect(mockCodeManagementService.getCommitsForPullRequestForCodeReview).not.toHaveBeenCalled();
+                expect(
+                    mockCodeManagementService.getFilesByPullRequestId,
+                ).not.toHaveBeenCalled();
+                expect(
+                    mockCodeManagementService.getCommitsForPullRequestForCodeReview,
+                ).not.toHaveBeenCalled();
 
-                const callArgs = mockPullRequestsService.aggregateAndSaveDataStructure.mock.calls[0];
+                const callArgs =
+                    mockPullRequestsService.aggregateAndSaveDataStructure.mock
+                        .calls[0];
                 const filesArg = callArgs[2];
                 const commitsArg = callArgs[7];
 
@@ -357,10 +394,16 @@ const shouldSkip = !MONGODB_URI;
                     event: 'pull_request',
                 });
 
-                expect(mockCodeManagementService.getFilesByPullRequestId).toHaveBeenCalledTimes(1);
-                expect(mockCodeManagementService.getCommitsForPullRequestForCodeReview).toHaveBeenCalledTimes(1);
+                expect(
+                    mockCodeManagementService.getFilesByPullRequestId,
+                ).toHaveBeenCalledTimes(1);
+                expect(
+                    mockCodeManagementService.getCommitsForPullRequestForCodeReview,
+                ).toHaveBeenCalledTimes(1);
 
-                const callArgs = mockPullRequestsService.aggregateAndSaveDataStructure.mock.calls[0];
+                const callArgs =
+                    mockPullRequestsService.aggregateAndSaveDataStructure.mock
+                        .calls[0];
                 expect(callArgs[2]).toEqual(API_FILES);
                 expect(callArgs[7]).toEqual(API_COMMITS);
             });

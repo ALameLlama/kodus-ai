@@ -24,7 +24,22 @@ import { UpdateIssuePropertyUseCase } from '@libs/issues/application/use-cases/u
 import { IssuesEntity } from '@libs/issues/domain/entities/issues.entity';
 
 import { GetIssuesByFiltersDto } from '../dtos/get-issues-by-filters.dto';
+import {
+    ApiBearerAuth,
+    ApiOkResponse,
+    ApiOperation,
+    ApiTags,
+} from '@nestjs/swagger';
+import { ApiStandardResponses } from '../docs/api-standard-responses.decorator';
+import { ApiArrayResponseDto } from '../dtos/api-response.dto';
+import {
+    IssueResponseDto,
+    IssuesCountResponseDto,
+} from '../dtos/issues-response.dto';
 
+@ApiTags('Issues')
+@ApiBearerAuth('jwt')
+@ApiStandardResponses()
 @Controller('issues')
 export class IssuesController {
     constructor(
@@ -42,6 +57,11 @@ export class IssuesController {
             resource: ResourceType.Issues,
         }),
     )
+    @ApiOperation({
+        summary: 'List issues',
+        description: 'Return issues filtered by query parameters.',
+    })
+    @ApiOkResponse({ type: ApiArrayResponseDto })
     async getIssues(@Query() query: GetIssuesByFiltersDto) {
         return this.getIssuesUseCase.execute(query);
     }
@@ -54,6 +74,11 @@ export class IssuesController {
             resource: ResourceType.Issues,
         }),
     )
+    @ApiOperation({
+        summary: 'Count issues',
+        description: 'Return the number of issues matching the filters.',
+    })
+    @ApiOkResponse({ type: IssuesCountResponseDto })
     async countIssues(@Query() query: GetIssuesByFiltersDto) {
         return await this.getTotalIssuesUseCase.execute(query);
     }
@@ -66,6 +91,11 @@ export class IssuesController {
             resource: ResourceType.Issues,
         }),
     )
+    @ApiOperation({
+        summary: 'Get issue by id',
+        description: 'Return a single issue by UUID.',
+    })
+    @ApiOkResponse({ type: IssueResponseDto })
     async getIssueById(@Param('id') id: string) {
         return await this.getIssueByIdUseCase.execute(id);
     }
@@ -78,6 +108,11 @@ export class IssuesController {
             resource: ResourceType.Issues,
         }),
     )
+    @ApiOperation({
+        summary: 'Update issue property',
+        description: 'Update issue status, label, or severity.',
+    })
+    @ApiOkResponse({ type: IssueResponseDto })
     async updateIssueProperty(
         @Param('id') id: string,
         @Body() body: { field: 'severity' | 'label' | 'status'; value: string },

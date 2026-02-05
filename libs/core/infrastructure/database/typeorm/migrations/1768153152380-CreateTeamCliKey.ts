@@ -1,7 +1,7 @@
-import { MigrationInterface, QueryRunner } from "typeorm";
+import { MigrationInterface, QueryRunner } from 'typeorm';
 
 export class CreateTeamCliKey1768153152380 implements MigrationInterface {
-    name = 'CreateTeamCliKey1768153152380'
+    name = 'CreateTeamCliKey1768153152380';
 
     // Disable transaction because CONCURRENTLY cannot run inside transaction
     transaction = false;
@@ -61,5 +61,4 @@ export class CreateTeamCliKey1768153152380 implements MigrationInterface {
             DROP TABLE "team_cli_key"
         `);
     }
-
 }

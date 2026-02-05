@@ -134,7 +134,9 @@ export default class CodeBaseConfigService implements ICodeBaseConfigService {
                 mergedConfigs.directoryId,
             );
 
-            const globalIgnorePaths = await this.getGlobalIgnorePaths(organizationAndTeamData);
+            const globalIgnorePaths = await this.getGlobalIgnorePaths(
+                organizationAndTeamData,
+            );
 
             const fullConfig = {
                 ...mergedConfigs,
@@ -145,7 +147,8 @@ export default class CodeBaseConfigService implements ICodeBaseConfigService {
                 kodyRules,
                 reviewModeConfig,
                 kodyFineTuningConfig,
-                ignorePaths: mergedConfigs.ignorePaths.concat(globalIgnorePaths),
+                ignorePaths:
+                    mergedConfigs.ignorePaths.concat(globalIgnorePaths),
                 // v2-only prompt overrides (categories and severity guidance). Read from repo/global parameters.
                 v2PromptOverrides: this.sanitizeV2PromptOverrides(
                     mergedConfigs.v2PromptOverrides,
@@ -658,22 +661,28 @@ export default class CodeBaseConfigService implements ICodeBaseConfigService {
         };
     }
 
-    private async getGlobalIgnorePaths(organizationAndTeamData: OrganizationAndTeamData): Promise<string[]> {
+    private async getGlobalIgnorePaths(
+        organizationAndTeamData: OrganizationAndTeamData,
+    ): Promise<string[]> {
         try {
             // Try to get from cache first
-            const cachedData =
-                await this.cacheService.getFromCache<{ paths: string[]; updatedAt: string }>(
-                    GLOBAL_IGNORE_PATHS_CACHE_KEY,
-                );
+            const cachedData = await this.cacheService.getFromCache<{
+                paths: string[];
+                updatedAt: string;
+            }>(GLOBAL_IGNORE_PATHS_CACHE_KEY);
 
             if (cachedData) {
                 // Light query: fetch only updatedAt to check if cache is stale
-                const dbUpdatedAt = await this.globalParametersService.findUpdatedAtByKey(
-                    GlobalParametersKey.IGNORE_PATHS_GLOBAL,
-                );
+                const dbUpdatedAt =
+                    await this.globalParametersService.findUpdatedAtByKey(
+                        GlobalParametersKey.IGNORE_PATHS_GLOBAL,
+                    );
 
                 // If no record in DB or cache is still valid, use cached data
-                if (!dbUpdatedAt || new Date(cachedData.updatedAt) >= new Date(dbUpdatedAt)) {
+                if (
+                    !dbUpdatedAt ||
+                    new Date(cachedData.updatedAt) >= new Date(dbUpdatedAt)
+                ) {
                     this.logger.log({
                         message: 'Global ignore paths loaded from cache',
                         context: CodeBaseConfigService.name,
@@ -684,9 +693,10 @@ export default class CodeBaseConfigService implements ICodeBaseConfigService {
             }
 
             // Fetch full record from database
-            const globalParameters = await this.globalParametersService.findByKey(
-                GlobalParametersKey.IGNORE_PATHS_GLOBAL,
-            );
+            const globalParameters =
+                await this.globalParametersService.findByKey(
+                    GlobalParametersKey.IGNORE_PATHS_GLOBAL,
+                );
 
             if (globalParameters?.configValue?.paths) {
                 const paths = globalParameters.configValue.paths as string[];
@@ -696,13 +706,16 @@ export default class CodeBaseConfigService implements ICodeBaseConfigService {
                     GLOBAL_IGNORE_PATHS_CACHE_KEY,
                     {
                         paths,
-                        updatedAt: globalParameters.updatedAt?.toISOString() ?? new Date().toISOString(),
+                        updatedAt:
+                            globalParameters.updatedAt?.toISOString() ??
+                            new Date().toISOString(),
                     },
                     GLOBAL_IGNORE_PATHS_CACHE_TTL,
                 );
 
                 this.logger.log({
-                    message: 'Global ignore paths loaded from global parameters',
+                    message:
+                        'Global ignore paths loaded from global parameters',
                     context: CodeBaseConfigService.name,
                     metadata: { organizationAndTeamData },
                 });
@@ -720,7 +733,8 @@ export default class CodeBaseConfigService implements ICodeBaseConfigService {
             return globalIgnorePathsJson?.paths ?? [];
         } catch (error) {
             this.logger.error({
-                message: 'Error getting global ignore paths, using file fallback',
+                message:
+                    'Error getting global ignore paths, using file fallback',
                 context: CodeBaseConfigService.name,
                 error,
                 metadata: { organizationAndTeamData },
@@ -728,7 +742,7 @@ export default class CodeBaseConfigService implements ICodeBaseConfigService {
 
             return globalIgnorePathsJson?.paths ?? [];
         }
-    } 
+    }
     private resolveConfigByDirectories(
         organizationAndTeamData: OrganizationAndTeamData,
         repoConfig: RepositoryCodeReviewConfig,

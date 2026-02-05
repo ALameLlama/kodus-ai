@@ -45,8 +45,30 @@ describe('SavePullRequestUseCase', () => {
 
     // DB format (what findByNumberAndRepositoryId returns - IFile structure)
     const mockDbFiles = [
-        { path: 'file1.ts', filename: 'file1.ts', added: 10, deleted: 5, changes: 15, patch: '', sha: '', status: 'modified', previousName: '', suggestions: [] },
-        { path: 'file2.ts', filename: 'file2.ts', added: 20, deleted: 10, changes: 30, patch: '', sha: '', status: 'modified', previousName: '', suggestions: [] },
+        {
+            path: 'file1.ts',
+            filename: 'file1.ts',
+            added: 10,
+            deleted: 5,
+            changes: 15,
+            patch: '',
+            sha: '',
+            status: 'modified',
+            previousName: '',
+            suggestions: [],
+        },
+        {
+            path: 'file2.ts',
+            filename: 'file2.ts',
+            added: 20,
+            deleted: 10,
+            changes: 30,
+            patch: '',
+            sha: '',
+            status: 'modified',
+            previousName: '',
+            suggestions: [],
+        },
     ];
 
     const mockExistingPR = {
@@ -63,14 +85,18 @@ describe('SavePullRequestUseCase', () => {
                 {
                     team: {
                         uuid: mockOrganizationAndTeamData.teamId,
-                        organization: { uuid: mockOrganizationAndTeamData.organizationId },
+                        organization: {
+                            uuid: mockOrganizationAndTeamData.organizationId,
+                        },
                     },
                 },
             ]),
         };
 
         mockPullRequestsService = {
-            aggregateAndSaveDataStructure: jest.fn().mockResolvedValue(mockExistingPR),
+            aggregateAndSaveDataStructure: jest
+                .fn()
+                .mockResolvedValue(mockExistingPR),
         };
 
         mockPullRequestsRepository = {
@@ -79,7 +105,9 @@ describe('SavePullRequestUseCase', () => {
 
         mockCodeManagementService = {
             getFilesByPullRequestId: jest.fn().mockResolvedValue(mockApiFiles),
-            getCommitsForPullRequestForCodeReview: jest.fn().mockResolvedValue(mockApiCommits),
+            getCommitsForPullRequestForCodeReview: jest
+                .fn()
+                .mockResolvedValue(mockApiCommits),
         };
 
         const module: TestingModule = await Test.createTestingModule({
@@ -127,9 +155,15 @@ describe('SavePullRequestUseCase', () => {
 
                 await useCase.execute(params);
 
-                expect(mockCodeManagementService.getFilesByPullRequestId).toHaveBeenCalled();
-                expect(mockCodeManagementService.getCommitsForPullRequestForCodeReview).toHaveBeenCalled();
-                expect(mockPullRequestsRepository.findByNumberAndRepositoryId).not.toHaveBeenCalled();
+                expect(
+                    mockCodeManagementService.getFilesByPullRequestId,
+                ).toHaveBeenCalled();
+                expect(
+                    mockCodeManagementService.getCommitsForPullRequestForCodeReview,
+                ).toHaveBeenCalled();
+                expect(
+                    mockPullRequestsRepository.findByNumberAndRepositoryId,
+                ).not.toHaveBeenCalled();
             });
 
             it('should fetch from API when action is "synchronize"', async () => {
@@ -146,9 +180,15 @@ describe('SavePullRequestUseCase', () => {
 
                 await useCase.execute(params);
 
-                expect(mockCodeManagementService.getFilesByPullRequestId).toHaveBeenCalled();
-                expect(mockCodeManagementService.getCommitsForPullRequestForCodeReview).toHaveBeenCalled();
-                expect(mockPullRequestsRepository.findByNumberAndRepositoryId).not.toHaveBeenCalled();
+                expect(
+                    mockCodeManagementService.getFilesByPullRequestId,
+                ).toHaveBeenCalled();
+                expect(
+                    mockCodeManagementService.getCommitsForPullRequestForCodeReview,
+                ).toHaveBeenCalled();
+                expect(
+                    mockPullRequestsRepository.findByNumberAndRepositoryId,
+                ).not.toHaveBeenCalled();
             });
 
             it('should fetch from API when action is "ready_for_review"', async () => {
@@ -165,12 +205,18 @@ describe('SavePullRequestUseCase', () => {
 
                 await useCase.execute(params);
 
-                expect(mockCodeManagementService.getFilesByPullRequestId).toHaveBeenCalled();
-                expect(mockCodeManagementService.getCommitsForPullRequestForCodeReview).toHaveBeenCalled();
+                expect(
+                    mockCodeManagementService.getFilesByPullRequestId,
+                ).toHaveBeenCalled();
+                expect(
+                    mockCodeManagementService.getCommitsForPullRequestForCodeReview,
+                ).toHaveBeenCalled();
             });
 
             it('should use cached data from DB when action is "closed" and PR exists', async () => {
-                mockPullRequestsRepository.findByNumberAndRepositoryId.mockResolvedValue(mockExistingPR);
+                mockPullRequestsRepository.findByNumberAndRepositoryId.mockResolvedValue(
+                    mockExistingPR,
+                );
 
                 const params = {
                     payload: {
@@ -185,15 +231,23 @@ describe('SavePullRequestUseCase', () => {
 
                 await useCase.execute(params);
 
-                expect(mockCodeManagementService.getFilesByPullRequestId).not.toHaveBeenCalled();
-                expect(mockCodeManagementService.getCommitsForPullRequestForCodeReview).not.toHaveBeenCalled();
-                expect(mockPullRequestsRepository.findByNumberAndRepositoryId).toHaveBeenCalledWith(
+                expect(
+                    mockCodeManagementService.getFilesByPullRequestId,
+                ).not.toHaveBeenCalled();
+                expect(
+                    mockCodeManagementService.getCommitsForPullRequestForCodeReview,
+                ).not.toHaveBeenCalled();
+                expect(
+                    mockPullRequestsRepository.findByNumberAndRepositoryId,
+                ).toHaveBeenCalledWith(
                     mockPullRequest.number,
                     mockRepository.id.toString(),
                     mockOrganizationAndTeamData,
                 );
                 // Verify files are mapped from DB format to API format
-                const callArgs = mockPullRequestsService.aggregateAndSaveDataStructure.mock.calls[0];
+                const callArgs =
+                    mockPullRequestsService.aggregateAndSaveDataStructure.mock
+                        .calls[0];
                 const filesArg = callArgs[2];
                 const commitsArg = callArgs[7];
 
@@ -209,7 +263,9 @@ describe('SavePullRequestUseCase', () => {
             });
 
             it('should use empty arrays when action is "closed" and PR does not exist in DB', async () => {
-                mockPullRequestsRepository.findByNumberAndRepositoryId.mockResolvedValue(null);
+                mockPullRequestsRepository.findByNumberAndRepositoryId.mockResolvedValue(
+                    null,
+                );
 
                 const params = {
                     payload: {
@@ -224,9 +280,15 @@ describe('SavePullRequestUseCase', () => {
 
                 await useCase.execute(params);
 
-                expect(mockCodeManagementService.getFilesByPullRequestId).not.toHaveBeenCalled();
-                expect(mockCodeManagementService.getCommitsForPullRequestForCodeReview).not.toHaveBeenCalled();
-                expect(mockPullRequestsService.aggregateAndSaveDataStructure).toHaveBeenCalledWith(
+                expect(
+                    mockCodeManagementService.getFilesByPullRequestId,
+                ).not.toHaveBeenCalled();
+                expect(
+                    mockCodeManagementService.getCommitsForPullRequestForCodeReview,
+                ).not.toHaveBeenCalled();
+                expect(
+                    mockPullRequestsService.aggregateAndSaveDataStructure,
+                ).toHaveBeenCalledWith(
                     expect.anything(),
                     expect.anything(),
                     [],
@@ -239,7 +301,9 @@ describe('SavePullRequestUseCase', () => {
             });
 
             it('should use cached data from DB when action is "assigned"', async () => {
-                mockPullRequestsRepository.findByNumberAndRepositoryId.mockResolvedValue(mockExistingPR);
+                mockPullRequestsRepository.findByNumberAndRepositoryId.mockResolvedValue(
+                    mockExistingPR,
+                );
 
                 const params = {
                     payload: {
@@ -254,9 +318,15 @@ describe('SavePullRequestUseCase', () => {
 
                 await useCase.execute(params);
 
-                expect(mockCodeManagementService.getFilesByPullRequestId).not.toHaveBeenCalled();
-                expect(mockCodeManagementService.getCommitsForPullRequestForCodeReview).not.toHaveBeenCalled();
-                expect(mockPullRequestsRepository.findByNumberAndRepositoryId).toHaveBeenCalled();
+                expect(
+                    mockCodeManagementService.getFilesByPullRequestId,
+                ).not.toHaveBeenCalled();
+                expect(
+                    mockCodeManagementService.getCommitsForPullRequestForCodeReview,
+                ).not.toHaveBeenCalled();
+                expect(
+                    mockPullRequestsRepository.findByNumberAndRepositoryId,
+                ).toHaveBeenCalled();
             });
         });
 
@@ -283,7 +353,10 @@ describe('SavePullRequestUseCase', () => {
                 target_branch: 'main',
                 last_commit: { id: 'abc123' },
                 source: { path_with_namespace: 'org/test-repo' },
-                target: { path_with_namespace: 'org/test-repo', default_branch: 'main' },
+                target: {
+                    path_with_namespace: 'org/test-repo',
+                    default_branch: 'main',
+                },
                 labels: [],
             };
 
@@ -304,8 +377,12 @@ describe('SavePullRequestUseCase', () => {
 
                 await useCase.execute(params);
 
-                expect(mockCodeManagementService.getFilesByPullRequestId).toHaveBeenCalled();
-                expect(mockCodeManagementService.getCommitsForPullRequestForCodeReview).toHaveBeenCalled();
+                expect(
+                    mockCodeManagementService.getFilesByPullRequestId,
+                ).toHaveBeenCalled();
+                expect(
+                    mockCodeManagementService.getCommitsForPullRequestForCodeReview,
+                ).toHaveBeenCalled();
             });
 
             it('should fetch from API when GitLab action is "update" with new commit', async () => {
@@ -327,12 +404,18 @@ describe('SavePullRequestUseCase', () => {
 
                 await useCase.execute(params);
 
-                expect(mockCodeManagementService.getFilesByPullRequestId).toHaveBeenCalled();
-                expect(mockCodeManagementService.getCommitsForPullRequestForCodeReview).toHaveBeenCalled();
+                expect(
+                    mockCodeManagementService.getFilesByPullRequestId,
+                ).toHaveBeenCalled();
+                expect(
+                    mockCodeManagementService.getCommitsForPullRequestForCodeReview,
+                ).toHaveBeenCalled();
             });
 
             it('should use cached data when GitLab action is "close"', async () => {
-                mockPullRequestsRepository.findByNumberAndRepositoryId.mockResolvedValue(mockExistingPR);
+                mockPullRequestsRepository.findByNumberAndRepositoryId.mockResolvedValue(
+                    mockExistingPR,
+                );
 
                 const params = {
                     payload: {
@@ -350,13 +433,21 @@ describe('SavePullRequestUseCase', () => {
 
                 await useCase.execute(params);
 
-                expect(mockCodeManagementService.getFilesByPullRequestId).not.toHaveBeenCalled();
-                expect(mockCodeManagementService.getCommitsForPullRequestForCodeReview).not.toHaveBeenCalled();
-                expect(mockPullRequestsRepository.findByNumberAndRepositoryId).toHaveBeenCalled();
+                expect(
+                    mockCodeManagementService.getFilesByPullRequestId,
+                ).not.toHaveBeenCalled();
+                expect(
+                    mockCodeManagementService.getCommitsForPullRequestForCodeReview,
+                ).not.toHaveBeenCalled();
+                expect(
+                    mockPullRequestsRepository.findByNumberAndRepositoryId,
+                ).toHaveBeenCalled();
             });
 
             it('should use cached data when GitLab action is "merge"', async () => {
-                mockPullRequestsRepository.findByNumberAndRepositoryId.mockResolvedValue(mockExistingPR);
+                mockPullRequestsRepository.findByNumberAndRepositoryId.mockResolvedValue(
+                    mockExistingPR,
+                );
 
                 const params = {
                     payload: {
@@ -374,12 +465,18 @@ describe('SavePullRequestUseCase', () => {
 
                 await useCase.execute(params);
 
-                expect(mockCodeManagementService.getFilesByPullRequestId).not.toHaveBeenCalled();
-                expect(mockCodeManagementService.getCommitsForPullRequestForCodeReview).not.toHaveBeenCalled();
+                expect(
+                    mockCodeManagementService.getFilesByPullRequestId,
+                ).not.toHaveBeenCalled();
+                expect(
+                    mockCodeManagementService.getCommitsForPullRequestForCodeReview,
+                ).not.toHaveBeenCalled();
             });
 
             it('should use cached data when GitLab action is "update" without new commit (description change)', async () => {
-                mockPullRequestsRepository.findByNumberAndRepositoryId.mockResolvedValue(mockExistingPR);
+                mockPullRequestsRepository.findByNumberAndRepositoryId.mockResolvedValue(
+                    mockExistingPR,
+                );
 
                 const params = {
                     payload: {
@@ -401,8 +498,12 @@ describe('SavePullRequestUseCase', () => {
 
                 await useCase.execute(params);
 
-                expect(mockCodeManagementService.getFilesByPullRequestId).not.toHaveBeenCalled();
-                expect(mockCodeManagementService.getCommitsForPullRequestForCodeReview).not.toHaveBeenCalled();
+                expect(
+                    mockCodeManagementService.getFilesByPullRequestId,
+                ).not.toHaveBeenCalled();
+                expect(
+                    mockCodeManagementService.getCommitsForPullRequestForCodeReview,
+                ).not.toHaveBeenCalled();
             });
         });
 
@@ -429,12 +530,18 @@ describe('SavePullRequestUseCase', () => {
 
                 await useCase.execute(params);
 
-                expect(mockCodeManagementService.getFilesByPullRequestId).toHaveBeenCalled();
-                expect(mockCodeManagementService.getCommitsForPullRequestForCodeReview).toHaveBeenCalled();
+                expect(
+                    mockCodeManagementService.getFilesByPullRequestId,
+                ).toHaveBeenCalled();
+                expect(
+                    mockCodeManagementService.getCommitsForPullRequestForCodeReview,
+                ).toHaveBeenCalled();
             });
 
             it('should use cached data when Azure status is "completed"', async () => {
-                mockPullRequestsRepository.findByNumberAndRepositoryId.mockResolvedValue(mockExistingPR);
+                mockPullRequestsRepository.findByNumberAndRepositoryId.mockResolvedValue(
+                    mockExistingPR,
+                );
 
                 const params = {
                     payload: {
@@ -457,8 +564,12 @@ describe('SavePullRequestUseCase', () => {
 
                 await useCase.execute(params);
 
-                expect(mockCodeManagementService.getFilesByPullRequestId).not.toHaveBeenCalled();
-                expect(mockCodeManagementService.getCommitsForPullRequestForCodeReview).not.toHaveBeenCalled();
+                expect(
+                    mockCodeManagementService.getFilesByPullRequestId,
+                ).not.toHaveBeenCalled();
+                expect(
+                    mockCodeManagementService.getCommitsForPullRequestForCodeReview,
+                ).not.toHaveBeenCalled();
             });
         });
     });
@@ -480,10 +591,16 @@ describe('SavePullRequestUseCase', () => {
 
             // Make the API calls take some time
             mockCodeManagementService.getFilesByPullRequestId.mockImplementation(
-                () => new Promise(resolve => setTimeout(() => resolve(mockApiFiles), 50))
+                () =>
+                    new Promise((resolve) =>
+                        setTimeout(() => resolve(mockApiFiles), 50),
+                    ),
             );
             mockCodeManagementService.getCommitsForPullRequestForCodeReview.mockImplementation(
-                () => new Promise(resolve => setTimeout(() => resolve(mockApiCommits), 50))
+                () =>
+                    new Promise((resolve) =>
+                        setTimeout(() => resolve(mockApiCommits), 50),
+                    ),
             );
 
             await useCase.execute(params);

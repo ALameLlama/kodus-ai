@@ -52,9 +52,9 @@ export class FinalizeGithubCheckStage extends BasePipelineStage<CodeReviewPipeli
             const sentLineComments = (context.lineComments || []).filter(
                 (c) => c.deliveryStatus === DeliveryStatus.SENT,
             );
-            const sentPrComments = (
-                context.prLevelCommentResults || []
-            ).filter((c) => c.deliveryStatus === DeliveryStatus.SENT);
+            const sentPrComments = (context.prLevelCommentResults || []).filter(
+                (c) => c.deliveryStatus === DeliveryStatus.SENT,
+            );
             const totalSuggestions =
                 sentLineComments.length + sentPrComments.length;
 

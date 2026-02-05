@@ -121,7 +121,10 @@ const shouldSkip = !MONGODB_URI;
                 base: {
                     ref: 'main',
                     sha: 'base-sha-456',
-                    repo: { full_name: 'org/test-repo', default_branch: 'main' },
+                    repo: {
+                        full_name: 'org/test-repo',
+                        default_branch: 'main',
+                    },
                 },
                 merged: action === 'closed', // simulate merged on close
                 draft: false,
@@ -143,13 +146,17 @@ const shouldSkip = !MONGODB_URI;
 
             mockCodeManagementService = {
                 getFilesByPullRequestId: jest.fn().mockResolvedValue(API_FILES),
-                getCommitsForPullRequestForCodeReview: jest.fn().mockResolvedValue(API_COMMITS),
+                getCommitsForPullRequestForCodeReview: jest
+                    .fn()
+                    .mockResolvedValue(API_COMMITS),
                 getDefaultBranch: jest.fn().mockResolvedValue('main'),
                 getPullRequest: jest.fn().mockResolvedValue(null),
             };
 
             mockPullRequestsService = {
-                aggregateAndSaveDataStructure: jest.fn().mockResolvedValue(null),
+                aggregateAndSaveDataStructure: jest
+                    .fn()
+                    .mockResolvedValue(null),
             };
 
             mockRunCodeReviewAutomation = {
@@ -166,7 +173,10 @@ const shouldSkip = !MONGODB_URI;
                     ConfigModule.forRoot(),
                     MongooseModule.forRoot(mongoUri),
                     MongooseModule.forFeature([
-                        { name: PullRequestsModel.name, schema: PullRequestsSchema },
+                        {
+                            name: PullRequestsModel.name,
+                            schema: PullRequestsSchema,
+                        },
                     ]),
                 ],
                 providers: [
@@ -181,14 +191,16 @@ const shouldSkip = !MONGODB_URI;
                     {
                         provide: INTEGRATION_CONFIG_SERVICE_TOKEN,
                         useValue: {
-                            findIntegrationConfigWithTeams: jest.fn().mockResolvedValue([
-                                {
-                                    team: {
-                                        uuid: TEST_TEAM_ID,
-                                        organization: { uuid: TEST_ORG_ID },
+                            findIntegrationConfigWithTeams: jest
+                                .fn()
+                                .mockResolvedValue([
+                                    {
+                                        team: {
+                                            uuid: TEST_TEAM_ID,
+                                            organization: { uuid: TEST_ORG_ID },
+                                        },
                                     },
-                                },
-                            ]),
+                                ]),
                         },
                     },
                     {
@@ -217,16 +229,22 @@ const shouldSkip = !MONGODB_URI;
                     },
                     {
                         provide: EnqueueCodeReviewJobUseCase,
-                        useValue: { execute: jest.fn().mockResolvedValue('job-123') },
+                        useValue: {
+                            execute: jest.fn().mockResolvedValue('job-123'),
+                        },
                     },
                     {
                         provide: EnqueueImplementationCheckUseCase,
-                        useValue: { execute: jest.fn().mockResolvedValue(null) },
+                        useValue: {
+                            execute: jest.fn().mockResolvedValue(null),
+                        },
                     },
                 ],
             }).compile();
 
-            handler = module.get<GitHubPullRequestHandler>(GitHubPullRequestHandler);
+            handler = module.get<GitHubPullRequestHandler>(
+                GitHubPullRequestHandler,
+            );
             model = module.get<Model<PullRequestsModel>>(
                 getModelToken(PullRequestsModel.name),
             );
@@ -288,12 +306,20 @@ const shouldSkip = !MONGODB_URI;
                 await handler.execute(webhookParams);
 
                 // Git API MUST be called
-                expect(mockCodeManagementService.getFilesByPullRequestId).toHaveBeenCalledTimes(1);
-                expect(mockCodeManagementService.getCommitsForPullRequestForCodeReview).toHaveBeenCalledTimes(1);
+                expect(
+                    mockCodeManagementService.getFilesByPullRequestId,
+                ).toHaveBeenCalledTimes(1);
+                expect(
+                    mockCodeManagementService.getCommitsForPullRequestForCodeReview,
+                ).toHaveBeenCalledTimes(1);
 
                 // aggregateAndSaveDataStructure receives data FROM THE API
-                expect(mockPullRequestsService.aggregateAndSaveDataStructure).toHaveBeenCalledTimes(1);
-                const callArgs = mockPullRequestsService.aggregateAndSaveDataStructure.mock.calls[0];
+                expect(
+                    mockPullRequestsService.aggregateAndSaveDataStructure,
+                ).toHaveBeenCalledTimes(1);
+                const callArgs =
+                    mockPullRequestsService.aggregateAndSaveDataStructure.mock
+                        .calls[0];
                 const filesArg = callArgs[2];
                 const commitsArg = callArgs[7];
 
@@ -319,9 +345,13 @@ const shouldSkip = !MONGODB_URI;
                 // Git API must NOT be called by SavePullRequestUseCase
                 // Note: the handler itself may call getFilesByPullRequestId for Kody Rules sync on merge,
                 // but SavePullRequestUseCase should not call it for the "closed" action
-                expect(mockPullRequestsService.aggregateAndSaveDataStructure).toHaveBeenCalledTimes(1);
+                expect(
+                    mockPullRequestsService.aggregateAndSaveDataStructure,
+                ).toHaveBeenCalledTimes(1);
 
-                const callArgs = mockPullRequestsService.aggregateAndSaveDataStructure.mock.calls[0];
+                const callArgs =
+                    mockPullRequestsService.aggregateAndSaveDataStructure.mock
+                        .calls[0];
                 const filesArg = callArgs[2];
                 const commitsArg = callArgs[7];
 
@@ -361,8 +391,12 @@ const shouldSkip = !MONGODB_URI;
 
                 await handler.execute(webhookParams);
 
-                expect(mockPullRequestsService.aggregateAndSaveDataStructure).toHaveBeenCalledTimes(1);
-                const callArgs = mockPullRequestsService.aggregateAndSaveDataStructure.mock.calls[0];
+                expect(
+                    mockPullRequestsService.aggregateAndSaveDataStructure,
+                ).toHaveBeenCalledTimes(1);
+                const callArgs =
+                    mockPullRequestsService.aggregateAndSaveDataStructure.mock
+                        .calls[0];
                 const filesArg = callArgs[2];
                 const commitsArg = callArgs[7];
 
@@ -385,10 +419,16 @@ const shouldSkip = !MONGODB_URI;
                 await handler.execute(webhookParams);
 
                 // Git API MUST be called
-                expect(mockCodeManagementService.getFilesByPullRequestId).toHaveBeenCalled();
-                expect(mockCodeManagementService.getCommitsForPullRequestForCodeReview).toHaveBeenCalled();
+                expect(
+                    mockCodeManagementService.getFilesByPullRequestId,
+                ).toHaveBeenCalled();
+                expect(
+                    mockCodeManagementService.getCommitsForPullRequestForCodeReview,
+                ).toHaveBeenCalled();
 
-                const callArgs = mockPullRequestsService.aggregateAndSaveDataStructure.mock.calls[0];
+                const callArgs =
+                    mockPullRequestsService.aggregateAndSaveDataStructure.mock
+                        .calls[0];
                 const filesArg = callArgs[2];
                 const commitsArg = callArgs[7];
 
@@ -410,10 +450,16 @@ const shouldSkip = !MONGODB_URI;
 
                 await handler.execute(webhookParams);
 
-                expect(mockCodeManagementService.getFilesByPullRequestId).toHaveBeenCalled();
-                expect(mockCodeManagementService.getCommitsForPullRequestForCodeReview).toHaveBeenCalled();
+                expect(
+                    mockCodeManagementService.getFilesByPullRequestId,
+                ).toHaveBeenCalled();
+                expect(
+                    mockCodeManagementService.getCommitsForPullRequestForCodeReview,
+                ).toHaveBeenCalled();
 
-                const callArgs = mockPullRequestsService.aggregateAndSaveDataStructure.mock.calls[0];
+                const callArgs =
+                    mockPullRequestsService.aggregateAndSaveDataStructure.mock
+                        .calls[0];
                 expect(callArgs[2]).toEqual(API_FILES);
                 expect(callArgs[7]).toEqual(API_COMMITS);
             });
