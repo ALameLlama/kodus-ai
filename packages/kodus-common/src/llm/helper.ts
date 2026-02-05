@@ -119,7 +119,7 @@ const getChatGemini = (options?: Partial<FactoryArgs>) => {
     });
 };
 
-const getChatVertexAI = (options?: Partial<FactoryArgs>) => {
+export const getChatVertexAI = (options?: Partial<FactoryArgs>) => {
     const defaultOptions = {
         model: MODEL_STRATEGIES[LLMModelProvider.VERTEX_GEMINI_2_5_PRO]
             .modelName,
@@ -144,6 +144,9 @@ const getChatVertexAI = (options?: Partial<FactoryArgs>) => {
         'base64',
     ).toString('utf-8');
 
+    // Support configurable location via environment variable (default: us-central1)
+    const location = process.env.API_VERTEX_AI_LOCATION || 'us-central1';
+
     return new ChatVertexAI({
         model: finalOptions.model,
         authOptions: {
@@ -152,7 +155,7 @@ const getChatVertexAI = (options?: Partial<FactoryArgs>) => {
             // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
             projectId: JSON.parse(credentials).project_id,
         },
-        location: 'us-east5',
+        location,
         temperature: finalOptions.temperature,
         maxOutputTokens: finalOptions.maxTokens,
         verbose: finalOptions.verbose,
