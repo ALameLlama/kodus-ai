@@ -125,7 +125,7 @@ export class KodusApiClient {
      * Create integration with platform (GitHub, GitLab, etc.)
      */
     async createIntegration(
-        platform: 'github' | 'gitlab' | 'bitbucket' | 'azureRepos',
+        platform: 'github' | 'gitlab' | 'bitbucket' | 'azureRepos' | 'forgejo',
         token: string,
     ): Promise<any> {
         const response = await this.client.post(

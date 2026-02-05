@@ -28,6 +28,8 @@ export enum ForgejoReaction {
     EYES = 'eyes',
 }
 
+export type Reaction = GitHubReaction | GitlabReaction | ForgejoReaction;
+
 export enum CountingType {
     CREATE = 'create',
     REVOKE = 'revoke',

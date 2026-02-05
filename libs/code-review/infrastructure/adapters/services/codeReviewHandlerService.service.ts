@@ -12,6 +12,7 @@ import {
     GitlabReaction,
     ForgejoReaction,
     ReviewStatusReaction,
+    Reaction,
 } from '@libs/code-review/domain/codeReviewFeedback/enums/codeReviewCommentReaction.enum';
 import { CodeReviewPipelineContext } from '@libs/code-review/pipeline/context/code-review-pipeline.context';
 import { PlatformType } from '@libs/core/domain/enums/platform-type.enum';
@@ -368,10 +369,7 @@ export class CodeReviewHandlerService {
                 return;
             }
 
-            const reactionsToRemove = Object.values(platformReactions) as (
-                | GitHubReaction
-                | GitlabReaction
-            )[];
+            const reactionsToRemove = Object.values(platformReactions) as Reaction[];
 
             if (triggerCommentId) {
                 await this.codeManagement.removeReactionsFromComment({
