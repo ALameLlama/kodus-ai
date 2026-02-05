@@ -82,7 +82,9 @@ const getChatAnthropic = (options?: Partial<FactoryArgs>) => {
         model: finalOptions.model,
         apiKey: process.env.API_ANTHROPIC_API_KEY,
         temperature: finalOptions.temperature,
-        maxTokens: finalOptions.maxTokens,
+        ...(finalOptions.maxTokens && finalOptions.maxTokens > 0
+            ? { maxTokens: finalOptions.maxTokens }
+            : {}),
         callbacks: finalOptions.callbacks,
     });
 };
@@ -281,8 +283,10 @@ export enum LLMModelProvider {
     OPENAI_GPT_4O = 'openai:gpt-4o',
     OPENAI_GPT_4O_MINI = 'openai:gpt-4o-mini',
     OPENAI_GPT_4_1 = 'openai:gpt-4.1',
+    OPENAI_GPT_5_1 = 'openai:gpt-5.1',
     OPENAI_GPT_O4_MINI = 'openai:o4-mini',
     CLAUDE_3_5_SONNET = 'anthropic:claude-3-5-sonnet-20241022',
+    CLAUDE_SONNET_4_5 = 'anthropic:claude-sonnet-4-5-20250929',
     GEMINI_2_0_FLASH = 'google:gemini-2.0-flash',
     GEMINI_2_5_PRO = 'google:gemini-2.5-pro',
     GEMINI_2_5_FLASH = 'google:gemini-2.5-flash',
@@ -332,6 +336,12 @@ export const MODEL_STRATEGIES: Record<LLMModelProvider, ModelStrategy> = {
         modelName: 'gpt-4.1',
         defaultMaxTokens: -1,
     },
+    [LLMModelProvider.OPENAI_GPT_5_1]: {
+        provider: 'openai',
+        factory: getChatGPT,
+        modelName: 'gpt-5.1',
+        defaultMaxTokens: -1,
+    },
     [LLMModelProvider.OPENAI_GPT_O4_MINI]: {
         provider: 'openai',
         factory: getChatGPT,
@@ -345,6 +355,12 @@ export const MODEL_STRATEGIES: Record<LLMModelProvider, ModelStrategy> = {
         factory: getChatAnthropic,
         modelName: 'claude-3-5-sonnet-20241022',
         defaultMaxTokens: -1,
+    },
+    [LLMModelProvider.CLAUDE_SONNET_4_5]: {
+        provider: 'anthropic',
+        factory: getChatAnthropic,
+        modelName: 'claude-sonnet-4-5-20250929',
+        defaultMaxTokens: 16384,
     },
 
     // Google Gemini

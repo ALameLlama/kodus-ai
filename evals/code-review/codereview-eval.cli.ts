@@ -3,12 +3,16 @@
 /**
  * LangSmith eval runner for the file-level code review prompt.
  *
- * Usage:
+ * Quick modes:
+ *   yarn eval:codereview --test                    # Quick validation (default model, 10 examples)
+ *   yarn eval:codereview --compare                 # Compare all main models (shows table)
+ *
+ * Custom runs:
  *   yarn eval:codereview --language=typescript
- *   yarn eval:codereview --language=typescript --model=gemini-2.5-pro
- *   yarn eval:codereview --language=typescript --model=claude-sonnet
- *   yarn eval:codereview --language=typescript --models=gemini-2.5-pro,claude-sonnet
- *   yarn eval:codereview --inspect --language=typescript
+ *   yarn eval:codereview --model=gemini-2.5-pro
+ *   yarn eval:codereview --models=gemini-2.5-pro,claude-sonnet-4.5
+ *   yarn eval:codereview --limit=5                 # Run only 5 examples
+ *   yarn eval:codereview --all                     # Run full dataset
  *
  * Available models:
  *   - gemini-2.5-pro (default)
@@ -16,14 +20,18 @@
  *   - gemini-3-pro
  *   - gemini-3-flash
  *   - claude-sonnet
+ *   - claude-sonnet-4.5
  *   - gpt-4o
  *   - gpt-4o-mini
  *   - gpt-4.1
+ *   - gpt-5.1
  *   - deepseek-v3
+ *   - glm-4.7
+ *   - kimi-k2.5
  */
 
 import * as dotenv from 'dotenv';
-import { Client } from 'langsmith';
+import { Client, type Example } from 'langsmith';
 import { evaluate, type EvaluatorT, type EvaluationResult } from 'langsmith/evaluation';
 import { Logger } from '@nestjs/common';
 import {
@@ -102,11 +110,17 @@ const DEFAULT_LANGUAGE = 'en-US';
 const RUN_NAME = 'codeReviewAnalyzeWithAI';
 const MAX_REASONING_TOKENS = 5000;
 
-// Model configuration - maps friendly names to LLMModelProvider
+// Model configuration - maps friendly names to LLMModelProvider or BYOK
 type ModelConfig = {
-    provider: LLMModelProvider;
+    provider?: LLMModelProvider;
     fallback?: LLMModelProvider;
     label: string;
+    // For OpenRouter/BYOK models
+    byok?: {
+        provider: BYOKProvider;
+        model: string;
+        disableReasoning?: boolean;
+    };
 };
 
 const MODEL_CONFIGS: Record<string, ModelConfig> = {
@@ -135,6 +149,11 @@ const MODEL_CONFIGS: Record<string, ModelConfig> = {
         fallback: undefined,
         label: 'claude-sonnet',
     },
+    'claude-sonnet-4.5': {
+        provider: LLMModelProvider.CLAUDE_SONNET_4_5,
+        fallback: LLMModelProvider.CLAUDE_3_5_SONNET,
+        label: 'claude-sonnet-4.5',
+    },
     'gpt-4o': {
         provider: LLMModelProvider.OPENAI_GPT_4O,
         fallback: LLMModelProvider.OPENAI_GPT_4O_MINI,
@@ -150,12 +169,70 @@ const MODEL_CONFIGS: Record<string, ModelConfig> = {
         fallback: LLMModelProvider.OPENAI_GPT_4O,
         label: 'gpt-4.1',
     },
+    'gpt-5.1': {
+        provider: LLMModelProvider.OPENAI_GPT_5_1,
+        fallback: LLMModelProvider.OPENAI_GPT_4_1,
+        label: 'gpt-5.1',
+    },
     'deepseek-v3': {
         provider: LLMModelProvider.NOVITA_DEEPSEEK_V3,
         fallback: LLMModelProvider.NOVITA_DEEPSEEK_V3_0324,
         label: 'deepseek-v3',
     },
+    'glm-4.7': {
+        provider: LLMModelProvider.CEREBRAS_GLM_47,
+        fallback: undefined,
+        label: 'glm-4.7',
+    },
+    // OpenRouter models
+    'openrouter:glm-4.7': {
+        label: 'openrouter-glm-4.7',
+        byok: {
+            provider: BYOKProvider.OPEN_ROUTER,
+            model: 'z-ai/glm-4.7',
+        },
+    },
+    'openrouter:glm-4.7-no-reasoning': {
+        label: 'openrouter-glm-4.7-no-reasoning',
+        byok: {
+            provider: BYOKProvider.OPEN_ROUTER,
+            model: 'z-ai/glm-4.7',
+            disableReasoning: true,
+        },
+    },
+    'openrouter:claude-sonnet-4': {
+        label: 'openrouter-claude-sonnet-4',
+        byok: {
+            provider: BYOKProvider.OPEN_ROUTER,
+            model: 'anthropic/claude-sonnet-4',
+        },
+    },
+    'openrouter:gpt-4o': {
+        label: 'openrouter-gpt-4o',
+        byok: {
+            provider: BYOKProvider.OPEN_ROUTER,
+            model: 'openai/gpt-4o',
+        },
+    },
+    'kimi-k2.5': {
+        label: 'kimi-k2.5',
+        byok: {
+            provider: BYOKProvider.OPEN_ROUTER,
+            model: 'moonshotai/kimi-k2.5',
+        },
+    },
 };
+
+// Models to use for --compare mode
+const COMPARE_MODELS = [
+    'gemini-2.5-pro',
+    'claude-sonnet-4.5',
+    'gpt-5.1',
+    'glm-4.7',
+    'kimi-k2.5',
+    'gemini-3-flash',
+    'gemini-3-pro',
+];
 
 const DEFAULT_MODEL = 'gemini-2.5-pro';
 
@@ -177,6 +254,18 @@ const judgeProviderArg = args.find((a) => a.startsWith('--judge-provider='));
 const judgeModelArg = args.find((a) => a.startsWith('--judge-model='));
 const judgeBaseUrlArg = args.find((a) => a.startsWith('--judge-base-url='));
 const thresholdArg = args.find((a) => a.startsWith('--threshold='));
+const limitArg = args.find((a) => a.startsWith('--limit='));
+const runAll = args.includes('--all');
+const compareMode = args.includes('--compare');
+const testMode = args.includes('--test');
+
+// Default to 10 examples for quick iteration, use --all for full dataset
+const DEFAULT_EXAMPLE_LIMIT = 10;
+const exampleLimit = runAll
+    ? undefined
+    : limitArg
+      ? parseInt(limitArg.split('=')[1], 10)
+      : DEFAULT_EXAMPLE_LIMIT;
 
 const envPath = envArg ? envArg.split('=')[1] : process.env.DOTENV_CONFIG_PATH;
 
@@ -312,6 +401,14 @@ if (invalidLanguages.length > 0) {
 
 // Parse model selection
 function parseModels(): string[] {
+    // --compare mode: run all comparison models
+    if (compareMode) {
+        return COMPARE_MODELS;
+    }
+    // --test mode: run default model only (quick validation)
+    if (testMode) {
+        return [DEFAULT_MODEL];
+    }
     // --models takes precedence (comma-separated list)
     if (modelsArg) {
         return modelsArg.split('=')[1].split(',').map(m => m.trim());
@@ -425,12 +522,31 @@ function buildRunner(
     metadata: Record<string, unknown>,
     modelConfig: ModelConfig,
 ) {
-    return promptRunnerService
-        .builder()
-        .setProviders({
-            main: modelConfig.provider,
-            fallback: modelConfig.fallback,
-        })
+    // Get base builder
+    const baseBuilder = promptRunnerService.builder();
+
+    // If using BYOK, set the config first (before setProviders)
+    if (modelConfig.byok) {
+        const apiKey = process.env.API_OPENROUTER_KEY;
+        if (!apiKey) {
+            throw new Error('API_OPENROUTER_KEY not set in environment');
+        }
+        baseBuilder.setBYOKConfig({
+            provider: modelConfig.byok.provider,
+            model: modelConfig.byok.model,
+            apiKey,
+            disableReasoning: modelConfig.byok.disableReasoning,
+        });
+    }
+
+    // setProviders must be called to transition to PromptBuilderWithProviders
+    // which has setParser method
+    const builderWithProviders = baseBuilder.setProviders({
+        main: modelConfig.provider ?? LLMModelProvider.OPENAI_GPT_4O,
+        fallback: modelConfig.fallback ?? LLMModelProvider.OPENAI_GPT_4O_MINI,
+    });
+
+    return builderWithProviders
         .setParser(ParserType.ZOD, CodeReviewSuggestionSchema, {
             provider: LLMModelProvider.OPENAI_GPT_4O_MINI,
             fallbackProvider: LLMModelProvider.OPENAI_GPT_4O,
@@ -920,22 +1036,58 @@ type DatasetRunSummary = {
 async function runLanguageEval(
     config: LanguageConfig,
     modelConfig: ModelConfig,
+    limit?: number,
 ): Promise<DatasetRunSummary> {
     const experimentName = `${experimentPrefix}-${config.label}-${modelConfig.label}`;
     const evaluator = config.evaluatorPrompt
         ? await getEvaluator(config.evaluatorPrompt)
         : undefined;
 
-    logger.log(
-        `Starting eval for language: ${config.label} | model: ${modelConfig.label}` +
-            (useJudgeByok
-                ? ` | judge=${judgeProvider ?? 'openai'}:${judgeModel ?? 'gpt-5.1-chat-2025-11-13'}`
-                : ''),
-    );
+    // Fetch examples with limit if specified
+    let examples: Example[] | undefined;
+    let totalExamples: number;
+
+    if (limit) {
+        examples = [];
+        for await (const example of client.listExamples({
+            datasetId: config.id,
+            limit,
+        })) {
+            examples.push(example);
+        }
+        totalExamples = examples.length;
+        logger.log(
+            `Starting eval for language: ${config.label} | model: ${modelConfig.label} | examples: ${totalExamples}` +
+                (useJudgeByok
+                    ? ` | judge=${judgeProvider ?? 'openai'}:${judgeModel ?? 'gpt-5.1-chat-2025-11-13'}`
+                    : ''),
+        );
+    } else {
+        // Count total examples for progress
+        let count = 0;
+        for await (const _ of client.listExamples({ datasetId: config.id })) {
+            count++;
+        }
+        totalExamples = count;
+        logger.log(
+            `Starting eval for language: ${config.label} | model: ${modelConfig.label} | examples: ${totalExamples} (all)` +
+                (useJudgeByok
+                    ? ` | judge=${judgeProvider ?? 'openai'}:${judgeModel ?? 'gpt-5.1-chat-2025-11-13'}`
+                    : ''),
+        );
+    }
+
+    // Progress tracking
+    let completedCount = 0;
+    const startTimes = new Map<string, number>();
 
     const target = async (
         inputs: Record<string, unknown>,
     ): Promise<CodeReviewSuggestionSchemaType> => {
+        const exampleId = (inputs.id as string) || `example-${completedCount + 1}`;
+        const startTime = Date.now();
+        startTimes.set(exampleId, startTime);
+
         const payload = buildPayload(inputs);
         const runner = buildRunner(
             payload,
@@ -949,6 +1101,11 @@ async function runLanguageEval(
 
         const result = await runner.execute();
 
+        // Log progress
+        completedCount++;
+        const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+        logger.log(`[${completedCount}/${totalExamples}] Completed ${exampleId} (${elapsed}s)`);
+
         if (!result) {
             throw new Error('LLM returned empty response for eval run.');
         }
@@ -957,7 +1114,7 @@ async function runLanguageEval(
     };
 
     const results = await evaluate(target, {
-        data: config.id,
+        data: examples ?? config.id,
         experimentPrefix: experimentName,
         maxConcurrency,
         description: `Code review eval (${config.label}) using ${modelConfig.label}`,
@@ -991,9 +1148,64 @@ async function runLanguageEval(
     };
 }
 
+function printComparisonTable(summaries: DatasetRunSummary[]) {
+    const metrics = ['f1', 'precision', 'recall'];
+
+    // Build table data
+    const rows = summaries.map((s) => {
+        const row: Record<string, string> = { model: s.model };
+        for (const metric of metrics) {
+            const found = s.summaries.find((x) => x.key === metric);
+            if (found?.scoreAvg !== undefined) {
+                row[metric] = found.scoreAvg.toFixed(3);
+            } else {
+                row[metric] = '-';
+            }
+        }
+        // Add status
+        row.status = s.failures.length > 0 ? 'FAIL' : 'PASS';
+        return row;
+    });
+
+    // Sort by F1 score descending
+    rows.sort((a, b) => {
+        const aF1 = parseFloat(a.f1) || 0;
+        const bF1 = parseFloat(b.f1) || 0;
+        return bF1 - aF1;
+    });
+
+    // Calculate column widths
+    const cols = ['model', ...metrics, 'status'];
+    const widths: Record<string, number> = {};
+    for (const col of cols) {
+        widths[col] = Math.max(col.length, ...rows.map((r) => (r[col] || '').length));
+    }
+
+    // Print table
+    const hr = '─';
+    const sep = '│';
+
+    logger.log('');
+    logger.log('┌' + cols.map((c) => hr.repeat(widths[c] + 2)).join('┬') + '┐');
+    logger.log(sep + cols.map((c) => ` ${c.toUpperCase().padEnd(widths[c])} `).join(sep) + sep);
+    logger.log('├' + cols.map((c) => hr.repeat(widths[c] + 2)).join('┼') + '┤');
+
+    for (const row of rows) {
+        const cells = cols.map((c) => {
+            const val = row[c] || '';
+            return ` ${val.padEnd(widths[c])} `;
+        });
+        logger.log(sep + cells.join(sep) + sep);
+    }
+
+    logger.log('└' + cols.map((c) => hr.repeat(widths[c] + 2)).join('┴') + '┘');
+    logger.log('');
+}
+
 async function main() {
-    // Log selected models
+    // Log selected models and limit
     logger.log(`Selected models: ${selectedModels.join(', ')}`);
+    logger.log(`Example limit: ${exampleLimit ?? 'all (no limit)'}`);
 
     if (inspectOnly) {
         if (inspectEvaluatorArg) {
@@ -1020,7 +1232,7 @@ async function main() {
         const langConfig = LANGUAGE_DATASETS[lang];
         for (const modelName of selectedModels) {
             const modelConfig = MODEL_CONFIGS[modelName];
-            const summary = await runLanguageEval(langConfig, modelConfig);
+            const summary = await runLanguageEval(langConfig, modelConfig, exampleLimit);
             if (summary?.failures?.length) {
                 failures.push(...summary.failures);
             }
@@ -1069,6 +1281,11 @@ async function main() {
         }
         const overallStatus = failures.length > 0 ? 'FAIL' : 'PASS';
         logger.log(`Final status: ${overallStatus}`);
+
+        // Print comparison table in compare mode
+        if (compareMode && summaries.length > 1) {
+            printComparisonTable(summaries);
+        }
     }
 
     if (failures.length > 0) {

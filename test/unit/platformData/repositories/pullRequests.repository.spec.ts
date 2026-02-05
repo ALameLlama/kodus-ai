@@ -13,7 +13,6 @@ import { DeliveryStatus } from '@libs/platformData/domain/pullRequests/enums/del
 import {
     IPullRequests,
     IFile,
-    ISuggestion,
 } from '@libs/platformData/domain/pullRequests/interfaces/pullRequests.interface';
 
 // ============================================================================

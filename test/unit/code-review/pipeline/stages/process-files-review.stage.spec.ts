@@ -13,7 +13,6 @@ import {
     AIAnalysisResult,
     CodeSuggestion,
 } from '@/core/infrastructure/config/types/general/codeReview.type';
-import { SeverityLevel } from '@/common/utils/enums/severityLevel.enum';
 
 jest.mock('@kodus/flow', () => ({
     createLogger: () => ({

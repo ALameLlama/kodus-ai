@@ -18,6 +18,7 @@ export type LLMProviderOptions = FactoryArgs & {
     maxTokens?: number;
     jsonMode?: boolean;
     maxReasoningTokens?: number;
+    disableReasoning?: boolean;
     byokConfig?: BYOKConfig;
 };
 
