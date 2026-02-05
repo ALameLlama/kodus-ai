@@ -45,7 +45,9 @@ const scriptLines = [
   "      pm.environment.set('bearerToken', accessToken);",
   "    }",
   "    if (refreshToken) { pm.environment.set('refreshToken', refreshToken); }",
+  "    postman.setNextRequest(pm.info.requestName);",
   '  });',
+  "  if (pm.execution && pm.execution.skipRequest) { pm.execution.skipRequest(); }",
   '}',
 ];
 

@@ -135,8 +135,9 @@ async function bootstrap() {
 
         const docsConfig = buildDocsConfig(process.env);
         if (docsConfig.enabled) {
+            const docsJsonPath = `${docsConfig.docsPath}-json`;
             app.use(
-                [docsConfig.docsPath, docsConfig.specPath],
+                [docsConfig.docsPath, docsConfig.specPath, docsJsonPath],
                 createDocsIpAllowlistMiddleware(docsConfig.ipAllowlist),
                 createDocsBasicAuthMiddleware(
                     docsConfig.basicUser,

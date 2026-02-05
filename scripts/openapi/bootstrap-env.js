@@ -171,8 +171,14 @@ const run = async () => {
     const pr = prsList[0];
     if (pr?.pull_number) setVal('prNumber', String(pr.pull_number));
     if (pr?.url) setVal('prUrl', pr.url);
-    if (!repositoryId && pr?.repository?.id) setVal('repositoryId', pr.repository.id);
-    if (!repositoryName && pr?.repository?.name) setVal('repositoryName', pr.repository.name);
+    if (!repositoryId && pr?.repository?.id) {
+      repositoryId = pr.repository.id;
+      setVal('repositoryId', repositoryId);
+    }
+    if (!repositoryName && pr?.repository?.name) {
+      repositoryName = pr.repository.name;
+      setVal('repositoryName', repositoryName);
+    }
   }
 
   if (!getVal('ruleId')) {
