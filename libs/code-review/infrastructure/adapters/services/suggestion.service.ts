@@ -188,29 +188,32 @@ export class SuggestionService implements ISuggestionService {
     }
 
     /**
-     * Filters suggestions to only include those that are relevant to changed lines in the diff
+     * Filters suggestions to only include those that are relevant to changed lines in the diff.
+     * A suggestion is kept if there's ANY overlap between its line range and the diff's visible lines.
+     *
+     * Uses the standard interval overlap formula:
+     * Two ranges [A.start, A.end] and [B.start, B.end] overlap if:
+     * A.start <= B.end AND B.start <= A.end
      */
     public filterSuggestionsCodeDiff(
         patchWithLinesStr: string,
         codeSuggestions: Partial<CodeSuggestion>[],
     ) {
-        const modifiedRanges = extractLinesFromDiffHunk(patchWithLinesStr);
+        const visibleRanges = extractLinesFromDiffHunk(patchWithLinesStr);
 
         return codeSuggestions?.filter((suggestion) => {
-            return modifiedRanges.some(
+            const suggestionStart = suggestion?.relevantLinesStart;
+            const suggestionEnd = suggestion?.relevantLinesEnd;
+
+            // Skip suggestions with invalid line ranges
+            if (suggestionStart == null || suggestionEnd == null) {
+                return false;
+            }
+
+            // Check if suggestion overlaps with any visible range in the diff
+            return visibleRanges.some(
                 (range) =>
-                    // The suggestion is completely within the range
-                    (suggestion?.relevantLinesStart >= range.start &&
-                        suggestion?.relevantLinesStart <= range.end) ||
-                    // The start of the suggestion is within the range
-                    (suggestion?.relevantLinesStart >= range.start &&
-                        suggestion?.relevantLinesStart <= range.end) ||
-                    // The end of the suggestion is within the range
-                    (suggestion?.relevantLinesEnd >= range.start &&
-                        suggestion?.relevantLinesEnd <= range.end) ||
-                    // The range is completely within the suggestion
-                    (suggestion?.relevantLinesStart <= range.start &&
-                        suggestion?.relevantLinesEnd >= range.end),
+                    suggestionStart <= range.end && suggestionEnd >= range.start,
             );
         });
     }
