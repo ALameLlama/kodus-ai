@@ -12,6 +12,8 @@ import {
     WebhookForgejoHookIssueAction,
 } from '@libs/platform/domain/platformIntegrations/types/webhooks/webhooks-forgejo.type';
 
+import { extractRepoFullName } from './webhooks.utils';
+
 export class ForgejoMappedPlatform implements IMappedPlatform {
     mapUsers(params: {
         payload: IWebhookForgejoPullRequestEvent;
@@ -24,8 +26,8 @@ export class ForgejoMappedPlatform implements IMappedPlatform {
 
         return {
             user: payload?.pull_request.user,
-            assignees: payload?.pull_request?.assignees || [],
-            reviewers: payload?.pull_request?.requested_reviewers || [],
+            assignees: payload?.pull_request?.assignees,
+            reviewers: payload?.pull_request?.requested_reviewers,
         };
     }
 
@@ -92,15 +94,22 @@ export class ForgejoMappedPlatform implements IMappedPlatform {
             return null;
         }
 
-        const { payload } = params;
-        const repository = payload?.repository;
+        const repository = params.payload?.repository;
+        const rawRepository = repository as any;
+
+        const fullName =
+            repository?.full_name ||
+            rawRepository?.fullName ||
+            extractRepoFullName(params?.payload?.pull_request as any) ||
+            repository?.name ||
+            '';
 
         return {
             ...repository,
             id: repository?.id.toString(),
             name: repository?.full_name,
             language: repository?.language,
-            fullName: repository?.full_name,
+            fullName,
             url: repository?.html_url || repository?.url,
         };
     }
@@ -112,11 +121,9 @@ export class ForgejoMappedPlatform implements IMappedPlatform {
             return null;
         }
 
-        const { payload } = params;
-
         return {
-            id: payload?.comment?.id.toString(),
-            body: payload?.comment?.body,
+            id: params.payload?.comment?.id.toString(),
+            body: params.payload?.comment?.body,
         };
     }
 

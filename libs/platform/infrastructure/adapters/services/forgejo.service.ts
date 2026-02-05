@@ -1,10 +1,8 @@
 import { BadRequestException, Inject, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import axios from 'axios';
 import { v4 as uuidv4 } from 'uuid';
 
 import { createLogger } from '@kodus/flow';
-import { CacheService } from '@libs/core/cache/cache.service';
 import {
     CreateAuthIntegrationStatus,
     IntegrationCategory,
@@ -16,6 +14,7 @@ import {
 import {
     Repository,
     ReviewComment,
+    CommentResult,
 } from '@libs/core/infrastructure/config/types/general/codeReview.type';
 import { Commit } from '@libs/core/infrastructure/config/types/general/commit.type';
 import { OrganizationAndTeamData } from '@libs/core/infrastructure/config/types/general/organizationAndTeamData';
@@ -64,37 +63,65 @@ import {
     PullRequestReviewComment,
     PullRequestReviewState,
     PullRequestWithFiles,
+    PullRequestsWithChangesRequested,
 } from '@libs/platform/domain/platformIntegrations/types/codeManagement/pullRequests.type';
 import { Repositories } from '@libs/platform/domain/platformIntegrations/types/codeManagement/repositories.type';
 import { RepositoryFile } from '@libs/platform/domain/platformIntegrations/types/codeManagement/repositoryFile.type';
+import { Organization } from '@libs/platform/domain/platformIntegrations/types/codeManagement/organization.type';
 
-import { MCPManagerService } from '@libs/mcp-server/services/mcp-manager.service';
-
+import { createClient, Client } from '@llamaduck/forgejo-ts/client';
 import {
-    ForgejoClient,
-    createForgejoClient,
-    ForgejoApiError,
-    ForgejoPullRequest,
-    ForgejoRepository,
-    ForgejoCommit,
-} from './forgejo.sdk';
-
-// ============================================================================
-// Service Implementation
-// ============================================================================
+    type PullRequest as ForgejoPullRequest,
+    type Repository as ForgejoRepository,
+    type Commit as ForgejoCommit,
+    type PullReview as ForgejoPullReview,
+    type Organization as ForgejoOrganization,
+    type ChangedFile as ForgejoChangedFile,
+    type User as ForgejoUser,
+    userGetCurrent,
+    userCurrentListRepos,
+    userSearch,
+    userGet,
+    orgListCurrentUserOrgs,
+    orgListRepos,
+    orgListMembers,
+    repoGet,
+    repoGetLanguages,
+    repoListHooks,
+    repoCreateHook,
+    repoDeleteHook,
+    repoGetContents,
+    repoGetAllCommits,
+    getTree,
+    repoGetPullRequest,
+    repoListPullRequests,
+    repoGetPullRequestFiles,
+    repoGetPullRequestCommits,
+    repoDownloadPullDiffOrPatch,
+    repoCreatePullReview,
+    repoListPullReviews,
+    repoGetPullReviewComments,
+    repoEditPullRequest,
+    repoMergePullRequest,
+    issueCreateComment,
+    issueEditComment,
+    issueGetComments,
+    issuePostIssueReaction,
+    issuePostCommentReaction,
+    issueDeleteIssueReaction,
+    issueDeleteCommentReaction,
+    issueGetIssueReactions,
+} from '@llamaduck/forgejo-ts';
+import { Reaction } from '@libs/code-review/domain/codeReviewFeedback/enums/codeReviewCommentReaction.enum';
 
 @Injectable()
 @IntegrationServiceDecorator(PlatformType.FORGEJO, 'codeManagement')
 export class ForgejoService implements Omit<
     ICodeManagementService,
-    | 'getOrganizations'
-    | 'getPullRequestsWithChangesRequested'
-    | 'getListOfValidReviews'
-    | 'getPullRequestReviewThreads'
     | 'getAuthenticationOAuthToken'
-    | 'getCommitsByReleaseMode'
-    | 'getDataForCalculateDeployFrequency'
-    | 'requestChangesPullRequest'
+    | 'getUserById'
+    | 'minimizeComment'
+    | 'markReviewCommentAsResolved' // Currently forgejo doesn't support marking comments as resolved gitea added this on 01/02/2026 but forgejo hasn't yet'
 > {
     private readonly logger = createLogger(ForgejoService.name);
 
@@ -109,20 +136,42 @@ export class ForgejoService implements Omit<
         private readonly authIntegrationService: IAuthIntegrationService,
 
         private readonly configService: ConfigService,
-        private readonly cacheService: CacheService,
-        private readonly mcpManagerService?: MCPManagerService,
     ) { }
 
-    // ========================================================================
-    // Private Helpers - SDK Client Creation
-    // ========================================================================
-
-    private createClient(authDetail: ForgejoAuthDetail): ForgejoClient {
+    private createForgejoClient(authDetail: ForgejoAuthDetail): Client {
         const token = decrypt(authDetail.accessToken);
-        return createForgejoClient({
-            host: authDetail.host,
-            token,
+        return createClient({
+            baseURL: `${authDetail.host}/api/v1`,
+            headers: {
+                Authorization: `token ${token}`,
+            },
         });
+    }
+
+    /**
+     * Helper to paginate through all results of an API endpoint.
+     * Forgejo uses page-based pagination with a default limit of 50.
+     */
+    private async paginate<T>(
+        fetchPage: (page: number, limit: number) => Promise<T[]>,
+        options: { limit?: number; maxPages?: number } = {},
+    ): Promise<T[]> {
+        const limit = options.limit ?? 50;
+        const maxPages = options.maxPages ?? 100;
+        const allItems: T[] = [];
+        let page = 1;
+
+        while (page <= maxPages) {
+            const items = await fetchPage(page, limit);
+            allItems.push(...items);
+
+            if (items.length < limit) {
+                break;
+            }
+            page++;
+        }
+
+        return allItems;
     }
 
     private async getAuthDetails(
@@ -165,10 +214,6 @@ export class ForgejoService implements Omit<
         }
         return repoData;
     }
-
-    // ========================================================================
-    // Private Helpers - Data Transformation
-    // ========================================================================
 
     private mapPullRequestState(pr: ForgejoPullRequest): PullRequestState {
         if (pr.merged) return PullRequestState.MERGED;
@@ -252,6 +297,50 @@ export class ForgejoService implements Omit<
         };
     }
 
+    /**
+     * Parses a unified diff string and extracts per-file patches.
+     * Returns a map of filename -> patch content.
+     */
+    private parseUnifiedDiff(diffContent: string): Map<string, string> {
+        const patchMap = new Map<string, string>();
+
+        if (!diffContent) {
+            return patchMap;
+        }
+
+        // Split by file diff headers (diff --git a/... b/...)
+        const fileDiffs = diffContent.split(/(?=^diff --git )/m);
+
+        for (const fileDiff of fileDiffs) {
+            if (!fileDiff.trim()) continue;
+
+            // Extract filename from the diff header
+            // Format: diff --git a/path/to/file b/path/to/file
+            const headerMatch = fileDiff.match(
+                /^diff --git a\/(.+?) b\/(.+?)$/m,
+            );
+            if (!headerMatch) continue;
+
+            // Use the 'b' path (new filename, handles renames)
+            const filename = headerMatch[2];
+
+            // Find where the actual patch starts (after the header lines)
+            // The patch starts at the first @@ line
+            const patchStartIndex = fileDiff.indexOf('@@');
+            if (patchStartIndex === -1) {
+                // No hunks - might be a binary file or mode change only
+                patchMap.set(filename, '');
+                continue;
+            }
+
+            // Extract just the patch part (from @@ onwards)
+            const patch = fileDiff.substring(patchStartIndex);
+            patchMap.set(filename, patch.trim());
+        }
+
+        return patchMap;
+    }
+
     private transformCommit(commit: ForgejoCommit): Commit {
         return {
             sha: commit.sha,
@@ -267,10 +356,6 @@ export class ForgejoService implements Omit<
         };
     }
 
-    // ========================================================================
-    // Authentication & Integration Methods
-    // ========================================================================
-
     async createAuthIntegration(params: any): Promise<any> {
         return this.authenticateWithToken(params);
     }
@@ -283,28 +368,10 @@ export class ForgejoService implements Omit<
         try {
             const { token, host, organizationAndTeamData } = params;
 
-            this.logger.log({
-                message: 'Starting Forgejo token authentication',
-                context: ForgejoService.name,
-                metadata: { host, hasToken: !!token },
-            });
-
             if (!host) throw new Error('Forgejo host URL is required');
             if (!token) throw new Error('Forgejo access token is required');
 
             const normalizedHost = host.replace(/\/+$/, '');
-
-            const testResponse = await axios.get(
-                `${normalizedHost}/api/v1/user`,
-                {
-                    headers: { Authorization: `token ${token}` },
-                    timeout: 30000,
-                },
-            );
-
-            if (!testResponse?.data) {
-                throw new Error('Forgejo failed to validate the token.');
-            }
 
             const authDetails: ForgejoAuthDetail = {
                 accessToken: encrypt(token),
@@ -357,9 +424,14 @@ export class ForgejoService implements Omit<
         authDetails: ForgejoAuthDetail;
     }): Promise<{ success: boolean; status: CreateAuthIntegrationStatus }> {
         try {
-            const client = this.createClient(params.authDetails);
+            const client = this.createForgejoClient(params.authDetails);
 
-            const userRepos = await client.getUserRepositories({ limit: 50 });
+            const userReposResult = await userCurrentListRepos({
+                client,
+                query: { limit: 50 },
+            });
+
+            const userRepos = userReposResult.data ?? [];
             if (userRepos.length > 0) {
                 return {
                     success: true,
@@ -367,12 +439,19 @@ export class ForgejoService implements Omit<
                 };
             }
 
-            const orgs = await client.getUserOrganizations({ limit: 50 });
+            const orgsResult = await orgListCurrentUserOrgs({
+                client,
+                query: { limit: 50 },
+            });
+
+            const orgs = orgsResult.data ?? [];
             for (const org of orgs) {
-                const orgRepos = await client.getOrganizationRepositories(
-                    org.name,
-                    { limit: 10 },
-                );
+                const orgReposResult = await orgListRepos({
+                    client,
+                    path: { org: org.name! },
+                    query: { limit: 10 },
+                });
+                const orgRepos = orgReposResult.data ?? [];
                 if (orgRepos.length > 0) {
                     return {
                         success: true,
@@ -548,8 +627,8 @@ export class ForgejoService implements Omit<
                 };
             }
 
-            const client = this.createClient(authDetail);
-            await client.getCurrentUser();
+            const client = this.createForgejoClient(authDetail);
+            await userGetCurrent({ client });
 
             const repositories =
                 await this.findOneByOrganizationAndTeamDataAndConfigKey(
@@ -580,10 +659,6 @@ export class ForgejoService implements Omit<
         }
     }
 
-    // ========================================================================
-    // Repository Methods
-    // ========================================================================
-
     async getRepositories(params: {
         organizationAndTeamData: OrganizationAndTeamData;
         filters?: {
@@ -602,7 +677,7 @@ export class ForgejoService implements Omit<
             );
             if (!authDetail) return [];
 
-            const client = this.createClient(authDetail);
+            const client = this.createForgejoClient(authDetail);
 
             const integration = await this.integrationService.findOne({
                 organization: {
@@ -622,9 +697,17 @@ export class ForgejoService implements Omit<
             const repositories: Repositories[] = [];
             const seenRepoIds = new Set<string>();
 
-            const userRepos = await client.getAllUserRepositories();
+            const userRepos = await this.paginate<ForgejoRepository>(
+                async (page, limit) => {
+                    const result = await userCurrentListRepos({
+                        client,
+                        query: { page, limit },
+                    });
+                    return result.data ?? [];
+                },
+            );
             for (const repo of userRepos) {
-                const repoId = repo.id.toString();
+                const repoId = repo.id!.toString();
                 if (!seenRepoIds.has(repoId)) {
                     seenRepoIds.add(repoId);
                     repositories.push(
@@ -634,13 +717,29 @@ export class ForgejoService implements Omit<
             }
 
             try {
-                const orgs = await client.getAllUserOrganizations();
+                const orgs = await this.paginate<ForgejoOrganization>(
+                    async (page, limit) => {
+                        const result = await orgListCurrentUserOrgs({
+                            client,
+                            query: { page, limit },
+                        });
+                        return result.data ?? [];
+                    },
+                );
                 for (const org of orgs) {
-                    const orgRepos = await client.getAllOrganizationRepositories(
-                        org.name,
-                    );
-                    for (const repo of orgRepos) {
-                        const repoId = repo.id.toString();
+                    const orgReposResult =
+                        await this.paginate<ForgejoRepository>(
+                            async (page, limit) => {
+                                const result = await orgListRepos({
+                                    client,
+                                    path: { org: org.name! },
+                                    query: { page, limit },
+                                });
+                                return result.data ?? [];
+                            },
+                        );
+                    for (const repo of orgReposResult) {
+                        const repoId = repo.id!.toString();
                         if (!seenRepoIds.has(repoId)) {
                             seenRepoIds.add(repoId);
                             repositories.push(
@@ -676,8 +775,8 @@ export class ForgejoService implements Omit<
         integrationConfig?: IntegrationConfigEntity | null,
     ): Repositories {
         return {
-            id: repo.id.toString(),
-            name: repo.full_name,
+            id: repo.id!.toString(),
+            name: repo.full_name!,
             http_url: repo.clone_url,
             avatar_url: repo.avatar_url || repo.owner?.avatar_url,
             organizationName: repo.owner?.login,
@@ -706,12 +805,12 @@ export class ForgejoService implements Omit<
             );
             if (!repoInfo) return 'main';
 
-            const client = this.createClient(authDetail);
-            const repo = await client.getRepository(
-                repoInfo.owner,
-                repoInfo.repo,
-            );
-            return repo.default_branch || 'main';
+            const client = this.createForgejoClient(authDetail);
+            const result = await repoGet({
+                client,
+                path: { owner: repoInfo.owner, repo: repoInfo.repo },
+            });
+            return result.data?.default_branch || 'main';
         } catch (error) {
             this.logger.error({
                 message: 'Error getting default branch',
@@ -738,13 +837,14 @@ export class ForgejoService implements Omit<
             );
             if (!repoInfo) return null;
 
-            const client = this.createClient(authDetail);
-            const languages = await client.getRepositoryLanguages(
-                repoInfo.owner,
-                repoInfo.repo,
-            );
+            const client = this.createForgejoClient(authDetail);
+            const result = await repoGetLanguages({
+                client,
+                path: { owner: repoInfo.owner, repo: repoInfo.repo },
+            });
+            const languages = result.data as Record<string, number> | undefined;
 
-            const sorted = Object.entries(languages).sort(
+            const sorted = Object.entries(languages ?? {}).sort(
                 ([, a], [, b]) => b - a,
             );
             return sorted[0]?.[0] || null;
@@ -760,10 +860,76 @@ export class ForgejoService implements Omit<
 
     async getListMembers(params: {
         organizationAndTeamData: OrganizationAndTeamData;
-    }): Promise<{ name: string; id: string | number }[]> {
-        // Forgejo doesn't have a direct team members API like GitHub
-        // Return empty array for now
-        return [];
+    }): Promise<{ name: string; id: string | number; type?: string }[]> {
+        try {
+            const authDetail = await this.getAuthDetails(
+                params.organizationAndTeamData,
+            );
+            if (!authDetail) return [];
+
+            const client = this.createForgejoClient(authDetail);
+
+            const orgs = await this.paginate<ForgejoOrganization>(
+                async (page, limit) => {
+                    const result = await orgListCurrentUserOrgs({
+                        client,
+                        query: { page, limit },
+                    });
+                    return result.data ?? [];
+                },
+            );
+
+            const allMembers: {
+                name: string;
+                id: string | number;
+                type?: string;
+            }[] = [];
+            const seenIds = new Set<string>();
+
+            for (const org of orgs) {
+                if (!org.name) continue;
+
+                try {
+                    const members = await this.paginate<ForgejoUser>(
+                        async (page, limit) => {
+                            const result = await orgListMembers({
+                                client,
+                                path: { org: org.name! },
+                                query: { page, limit },
+                            });
+                            return result.data ?? [];
+                        },
+                    );
+
+                    for (const member of members) {
+                        const memberId = member.id?.toString() ?? '';
+                        if (!seenIds.has(memberId)) {
+                            seenIds.add(memberId);
+                            allMembers.push({
+                                name: member.login ?? member.full_name ?? '',
+                                id: member.id ?? '',
+                                type: member.is_admin ? 'admin' : 'user',
+                            });
+                        }
+                    }
+                } catch (error) {
+                    this.logger.warn({
+                        message: `Error fetching members for org ${org.name}`,
+                        context: ForgejoService.name,
+                        error,
+                    });
+                }
+            }
+
+            return allMembers;
+        } catch (error) {
+            this.logger.error({
+                message: 'Error getting list members',
+                context: ForgejoService.name,
+                error,
+            });
+            return [];
+        }
     }
 
     async getCloneParams(params: {
@@ -803,10 +969,6 @@ export class ForgejoService implements Omit<
         };
     }
 
-    // ========================================================================
-    // Pull Request Methods
-    // ========================================================================
-
     async getPullRequests(params: {
         organizationAndTeamData: OrganizationAndTeamData;
         repository?: { id: string; name: string };
@@ -824,7 +986,7 @@ export class ForgejoService implements Omit<
             );
             if (!authDetail) return [];
 
-            const client = this.createClient(authDetail);
+            const client = this.createForgejoClient(authDetail);
             const pullRequests: PullRequest[] = [];
 
             let repositories = params.repository
@@ -849,10 +1011,18 @@ export class ForgejoService implements Omit<
                     const state = this.mapStateToForgejoState(
                         params.filters?.state,
                     );
-                    const prs = await client.listAllPullRequests(
-                        repoInfo.owner,
-                        repoInfo.repo,
-                        { state },
+                    const prs = await this.paginate<ForgejoPullRequest>(
+                        async (page, limit) => {
+                            const result = await repoListPullRequests({
+                                client,
+                                path: {
+                                    owner: repoInfo.owner,
+                                    repo: repoInfo.repo,
+                                },
+                                query: { state, page, limit },
+                            });
+                            return result.data ?? [];
+                        },
                     );
 
                     for (const pr of prs) {
@@ -860,12 +1030,12 @@ export class ForgejoService implements Omit<
 
                         if (
                             params.filters?.startDate &&
-                            new Date(pr.created_at) < params.filters.startDate
+                            new Date(pr.created_at!) < params.filters.startDate
                         )
                             continue;
                         if (
                             params.filters?.endDate &&
-                            new Date(pr.created_at) > params.filters.endDate
+                            new Date(pr.created_at!) > params.filters.endDate
                         )
                             continue;
                         if (
@@ -918,27 +1088,65 @@ export class ForgejoService implements Omit<
             const authDetail = await this.getAuthDetails(
                 params.organizationAndTeamData,
             );
-            if (!authDetail) return null;
+            if (!authDetail) {
+                this.logger.warn({
+                    message: 'No auth details found for getPullRequest',
+                    context: ForgejoService.name,
+                    metadata: {
+                        prNumber: params.prNumber,
+                        repository: params.repository.name,
+                    },
+                });
+                return null;
+            }
 
             const repoInfo = this.extractRepoInfo(
                 params.repository.name!,
                 'getPullRequest',
             );
-            if (!repoInfo) return null;
+            if (!repoInfo) {
+                this.logger.warn({
+                    message: 'Could not extract repo info for getPullRequest',
+                    context: ForgejoService.name,
+                    metadata: {
+                        prNumber: params.prNumber,
+                        repository: params.repository.name,
+                    },
+                });
+                return null;
+            }
 
-            const client = this.createClient(authDetail);
-            const pr = await client.getPullRequest(
-                repoInfo.owner,
-                repoInfo.repo,
-                params.prNumber,
-            );
+            const client = this.createForgejoClient(authDetail);
+            const result = await repoGetPullRequest({
+                client,
+                path: {
+                    owner: repoInfo.owner,
+                    repo: repoInfo.repo,
+                    index: params.prNumber,
+                },
+            });
 
-            return this.transformPullRequest(pr, {
+            if (result.error) {
+                this.logger.warn({
+                    message: 'Forgejo API error getting pull request',
+                    context: ForgejoService.name,
+                    metadata: {
+                        prNumber: params.prNumber,
+                        repository: params.repository.name,
+                        error: result.error,
+                    },
+                });
+                return null;
+            }
+
+            if (!result.data) return null;
+
+            return this.transformPullRequest(result.data, {
                 id: params.repository.id || '',
                 name: params.repository.name!,
             });
         } catch (error) {
-            if (error instanceof ForgejoApiError && error.status === 404) {
+            if ((error as any)?.status === 404) {
                 return null;
             }
             this.logger.error({
@@ -980,7 +1188,7 @@ export class ForgejoService implements Omit<
             );
             if (!authDetail) return null;
 
-            const client = this.createClient(authDetail);
+            const client = this.createForgejoClient(authDetail);
             const result: PullRequestWithFiles[] = [];
 
             const repositories = params.repository
@@ -1000,21 +1208,37 @@ export class ForgejoService implements Omit<
                 if (!repoInfo) continue;
 
                 try {
-                    const prs = await client.listAllPullRequests(
-                        repoInfo.owner,
-                        repoInfo.repo,
-                        {
-                            state: this.mapStateToForgejoState(
-                                params.filters?.state,
-                            ),
+                    const state = this.mapStateToForgejoState(
+                        params.filters?.state,
+                    );
+                    const prs = await this.paginate<ForgejoPullRequest>(
+                        async (page, limit) => {
+                            const res = await repoListPullRequests({
+                                client,
+                                path: {
+                                    owner: repoInfo.owner,
+                                    repo: repoInfo.repo,
+                                },
+                                query: { state, page, limit },
+                            });
+                            return res.data ?? [];
                         },
                     );
 
                     for (const pr of prs) {
-                        const files = await client.getAllPullRequestFiles(
-                            repoInfo.owner,
-                            repoInfo.repo,
-                            pr.number,
+                        const files = await this.paginate<ForgejoChangedFile>(
+                            async (page, limit) => {
+                                const res = await repoGetPullRequestFiles({
+                                    client,
+                                    path: {
+                                        owner: repoInfo.owner,
+                                        repo: repoInfo.repo,
+                                        index: pr.number!,
+                                    },
+                                    query: { page, limit },
+                                });
+                                return res.data ?? [];
+                            },
                         );
                         result.push({
                             id: pr.id,
@@ -1060,9 +1284,89 @@ export class ForgejoService implements Omit<
 
     async getPullRequestsForRTTM(params: {
         organizationAndTeamData: OrganizationAndTeamData;
+        filters?: {
+            period?: {
+                startDate?: Date;
+                endDate?: Date;
+            };
+        };
     }): Promise<PullRequestCodeReviewTime[] | null> {
-        // Not implemented for Forgejo - return null
-        return null;
+        try {
+            if (!params?.organizationAndTeamData.organizationId) {
+                return null;
+            }
+
+            const authDetail = await this.getAuthDetails(
+                params.organizationAndTeamData,
+            );
+            if (!authDetail) return null;
+
+            const repositories =
+                await this.findOneByOrganizationAndTeamDataAndConfigKey(
+                    params.organizationAndTeamData,
+                    IntegrationConfigKey.REPOSITORIES,
+                );
+            if (!repositories) return null;
+
+            const client = this.createForgejoClient(authDetail);
+
+            const { startDate, endDate } = params?.filters?.period || {};
+            const pullRequestCodeReviewTime: PullRequestCodeReviewTime[] = [];
+
+            for (const repo of repositories) {
+                const repoInfo = this.extractRepoInfo(
+                    repo.name,
+                    'getPullRequestsForRTTM',
+                );
+                if (!repoInfo) continue;
+
+                try {
+                    const prs = await this.paginate<ForgejoPullRequest>(
+                        async (page, limit) => {
+                            const result = await repoListPullRequests({
+                                client,
+                                path: {
+                                    owner: repoInfo.owner,
+                                    repo: repoInfo.repo,
+                                },
+                                query: { state: 'closed', page, limit },
+                            });
+                            return result.data ?? [];
+                        },
+                    );
+
+                    for (const pr of prs) {
+                        if (startDate && pr.created_at) {
+                            if (new Date(pr.created_at) < startDate) continue;
+                        }
+                        if (endDate && pr.created_at) {
+                            if (new Date(pr.created_at) > endDate) continue;
+                        }
+
+                        pullRequestCodeReviewTime.push({
+                            id: pr.id ?? 0,
+                            created_at: pr.created_at ?? '',
+                            closed_at: pr.closed_at ?? '',
+                        });
+                    }
+                } catch (error) {
+                    this.logger.warn({
+                        message: `Error fetching PRs for RTTM from ${repo.name}`,
+                        context: ForgejoService.name,
+                        error,
+                    });
+                }
+            }
+
+            return pullRequestCodeReviewTime;
+        } catch (error) {
+            this.logger.error({
+                message: 'Error getting PRs for RTTM',
+                context: ForgejoService.name,
+                error,
+            });
+            return null;
+        }
     }
 
     async getFilesByPullRequestId(params: {
@@ -1082,12 +1386,54 @@ export class ForgejoService implements Omit<
             );
             if (!repoInfo) return null;
 
-            const client = this.createClient(authDetail);
-            const files = await client.getPullRequestFiles(
-                repoInfo.owner,
-                repoInfo.repo,
-                params.prNumber,
-            );
+            const client = this.createForgejoClient(authDetail);
+
+            // Fetch file metadata and diff in parallel
+            const [files, diffResult] = await Promise.all([
+                this.paginate<ForgejoChangedFile>(async (page, limit) => {
+                    const result = await repoGetPullRequestFiles({
+                        client,
+                        path: {
+                            owner: repoInfo.owner,
+                            repo: repoInfo.repo,
+                            index: params.prNumber,
+                        },
+                        query: { page, limit },
+                    });
+                    return result.data ?? [];
+                }),
+                repoDownloadPullDiffOrPatch({
+                    client,
+                    path: {
+                        owner: repoInfo.owner,
+                        repo: repoInfo.repo,
+                        index: params.prNumber,
+                        diffType: 'diff',
+                    },
+                }).catch((error) => {
+                    this.logger.warn({
+                        message: `Failed to fetch diff for PR#${params.prNumber}, continuing without patch data`,
+                        context: ForgejoService.name,
+                        error,
+                    });
+                    return { data: '' };
+                }),
+            ]);
+
+            const diffContent = (diffResult.data as string) ?? '';
+
+            // Parse the unified diff to extract per-file patches
+            const patchMap = this.parseUnifiedDiff(diffContent);
+
+            this.logger.log({
+                message: `Fetched ${files.length} files with ${patchMap.size} patches for PR#${params.prNumber}`,
+                context: ForgejoService.name,
+                metadata: {
+                    filesCount: files.length,
+                    patchesCount: patchMap.size,
+                    prNumber: params.prNumber,
+                },
+            });
 
             return files.map((f) => ({
                 sha: '',
@@ -1096,7 +1442,7 @@ export class ForgejoService implements Omit<
                 additions: f.additions,
                 deletions: f.deletions,
                 changes: f.changes,
-                patch: '',
+                patch: patchMap.get(f.filename ?? '') ?? '',
                 previous_filename: f.previous_filename,
             }));
         } catch (error) {
@@ -1142,7 +1488,7 @@ export class ForgejoService implements Omit<
             );
             if (!authDetail) return [];
 
-            const client = this.createClient(authDetail);
+            const client = this.createForgejoClient(authDetail);
             const repositories =
                 await this.findOneByOrganizationAndTeamDataAndConfigKey(
                     params.organizationAndTeamData,
@@ -1161,10 +1507,18 @@ export class ForgejoService implements Omit<
                 if (!repoInfo) continue;
 
                 try {
-                    const prs = await client.listAllPullRequests(
-                        repoInfo.owner,
-                        repoInfo.repo,
-                        { state: 'all' },
+                    const prs = await this.paginate<ForgejoPullRequest>(
+                        async (page, limit) => {
+                            const result = await repoListPullRequests({
+                                client,
+                                path: {
+                                    owner: repoInfo.owner,
+                                    repo: repoInfo.repo,
+                                },
+                                query: { state: 'all', page, limit },
+                            });
+                            return result.data ?? [];
+                        },
                     );
 
                     for (const pr of prs) {
@@ -1198,10 +1552,6 @@ export class ForgejoService implements Omit<
         }
     }
 
-    // ========================================================================
-    // Commit Methods
-    // ========================================================================
-
     async getCommits(params: {
         organizationAndTeamData: OrganizationAndTeamData;
         repository?: Partial<Repository>;
@@ -1218,7 +1568,7 @@ export class ForgejoService implements Omit<
             );
             if (!authDetail) return [];
 
-            const client = this.createClient(authDetail);
+            const client = this.createForgejoClient(authDetail);
             const commits: Commit[] = [];
 
             const repositories = params.repository
@@ -1236,10 +1586,22 @@ export class ForgejoService implements Omit<
                 if (!repoInfo) continue;
 
                 try {
-                    const repoCommits = await client.listAllCommits(
-                        repoInfo.owner,
-                        repoInfo.repo,
-                        { sha: params.filters?.branch },
+                    const repoCommits = await this.paginate<ForgejoCommit>(
+                        async (page, limit) => {
+                            const result = await repoGetAllCommits({
+                                client,
+                                path: {
+                                    owner: repoInfo.owner,
+                                    repo: repoInfo.repo,
+                                },
+                                query: {
+                                    sha: params.filters?.branch,
+                                    page,
+                                    limit,
+                                },
+                            });
+                            return result.data ?? [];
+                        },
                     );
 
                     for (const commit of repoCommits) {
@@ -1304,11 +1666,20 @@ export class ForgejoService implements Omit<
             );
             if (!repoInfo) return null;
 
-            const client = this.createClient(authDetail);
-            const commits = await client.getAllPullRequestCommits(
-                repoInfo.owner,
-                repoInfo.repo,
-                params.prNumber,
+            const client = this.createForgejoClient(authDetail);
+            const commits = await this.paginate<ForgejoCommit>(
+                async (page, limit) => {
+                    const result = await repoGetPullRequestCommits({
+                        client,
+                        path: {
+                            owner: repoInfo.owner,
+                            repo: repoInfo.repo,
+                            index: params.prNumber,
+                        },
+                        query: { page, limit },
+                    });
+                    return result.data ?? [];
+                },
             );
 
             return commits.map((c) => this.transformCommit(c));
@@ -1321,10 +1692,6 @@ export class ForgejoService implements Omit<
             return null;
         }
     }
-
-    // ========================================================================
-    // PR Actions (Merge, Approve, etc.)
-    // ========================================================================
 
     async mergePullRequest(params: {
         organizationAndTeamData: OrganizationAndTeamData;
@@ -1344,7 +1711,7 @@ export class ForgejoService implements Omit<
             );
             if (!repoInfo) throw new Error('Invalid repository name');
 
-            const client = this.createClient(authDetail);
+            const client = this.createForgejoClient(authDetail);
 
             const mergeMethodMap: Record<
                 string,
@@ -1355,16 +1722,19 @@ export class ForgejoService implements Omit<
                 rebase: 'rebase',
             };
 
-            await client.mergePullRequest(
-                repoInfo.owner,
-                repoInfo.repo,
-                params.prNumber,
-                {
+            await repoMergePullRequest({
+                client,
+                path: {
+                    owner: repoInfo.owner,
+                    repo: repoInfo.repo,
+                    index: params.prNumber,
+                },
+                body: {
                     Do:
                         mergeMethodMap[params.mergeMethod || 'merge'] ||
                         'merge',
                 },
-            );
+            });
 
             return { success: true };
         } catch (error) {
@@ -1395,19 +1765,22 @@ export class ForgejoService implements Omit<
             );
             if (!repoInfo) throw new Error('Invalid repository name');
 
-            const client = this.createClient(authDetail);
+            const client = this.createForgejoClient(authDetail);
 
-            const review = await client.createPullRequestReview(
-                repoInfo.owner,
-                repoInfo.repo,
-                params.prNumber,
-                {
+            const result = await repoCreatePullReview({
+                client,
+                path: {
+                    owner: repoInfo.owner,
+                    repo: repoInfo.repo,
+                    index: params.prNumber,
+                },
+                body: {
                     event: 'APPROVED',
                     body: params.body || '',
                 },
-            );
+            });
 
-            return review;
+            return result.data;
         } catch (error) {
             this.logger.error({
                 message: 'Error approving pull request',
@@ -1415,6 +1788,364 @@ export class ForgejoService implements Omit<
                 error,
             });
             throw error;
+        }
+    }
+
+    async requestChangesPullRequest(params: {
+        organizationAndTeamData: OrganizationAndTeamData;
+        prNumber: number;
+        repository: { id: string; name: string };
+        criticalComments: CommentResult[];
+    }): Promise<any> {
+        try {
+            const authDetail = await this.getAuthDetails(
+                params.organizationAndTeamData,
+            );
+            if (!authDetail) throw new Error('No auth details');
+
+            const repoInfo = this.extractRepoInfo(
+                params.repository.name,
+                'requestChangesPullRequest',
+            );
+            if (!repoInfo) throw new Error('Invalid repository name');
+
+            const client = this.createForgejoClient(authDetail);
+
+            const listOfCriticalIssues = this.getListOfCriticalIssues({
+                criticalComments: params.criticalComments,
+                owner: repoInfo.owner,
+                repository: params.repository,
+                prNumber: params.prNumber,
+            });
+
+            const requestChangeBodyTitle =
+                '# Found critical issues please review the requested changes';
+
+            const formattedBody =
+                `${requestChangeBodyTitle}\n\n${listOfCriticalIssues}`.trim();
+
+            const result = await repoCreatePullReview({
+                client,
+                path: {
+                    owner: repoInfo.owner,
+                    repo: repoInfo.repo,
+                    index: params.prNumber,
+                },
+                body: {
+                    event: 'REQUEST_CHANGES',
+                    body: formattedBody,
+                },
+            });
+
+            this.logger.log({
+                message: `Changed status to requested changes on pull request #${params.prNumber}`,
+                context: ForgejoService.name,
+                metadata: params,
+            });
+
+            return result.data;
+        } catch (error) {
+            this.logger.error({
+                message: `Error to change status to request changes on pull request #${params.prNumber}`,
+                context: ForgejoService.name,
+                error,
+                metadata: params,
+            });
+            throw error;
+        }
+    }
+
+    private getListOfCriticalIssues(params: {
+        criticalComments: CommentResult[];
+        owner: string;
+        repository: Partial<Repository>;
+        prNumber: number;
+    }): string {
+        const { criticalComments, owner, prNumber, repository } = params;
+
+        const criticalIssuesSummaryArray = criticalComments.map(
+            (comment) => comment.comment?.suggestion?.oneSentenceSummary,
+        );
+
+        const criticalIssuesSummary = criticalIssuesSummaryArray
+            .map((issue, index) => `${index + 1}. ${issue}`)
+            .join('\n');
+
+        return criticalIssuesSummary;
+    }
+
+    async getOrganizations(params: {
+        organizationAndTeamData: OrganizationAndTeamData;
+    }): Promise<Organization[]> {
+        try {
+            const authDetail = await this.getAuthDetails(
+                params.organizationAndTeamData,
+            );
+            if (!authDetail) return [];
+
+            const client = this.createForgejoClient(authDetail);
+
+            const orgs = await this.paginate<ForgejoOrganization>(
+                async (page, limit) => {
+                    const result = await orgListCurrentUserOrgs({
+                        client,
+                        query: { page, limit },
+                    });
+                    return result.data ?? [];
+                },
+            );
+
+            return orgs.map((org) => ({
+                id: org.id?.toString() ?? '',
+                name: org.name ?? org.username ?? '',
+                url: org.avatar_url ?? '',
+                selected: false,
+            }));
+        } catch (error) {
+            this.logger.error({
+                message: 'Error getting organizations',
+                context: ForgejoService.name,
+                error,
+            });
+            return [];
+        }
+    }
+
+    async getListOfValidReviews(params: {
+        organizationAndTeamData: OrganizationAndTeamData;
+        repository: Partial<Repository>;
+        prNumber: number;
+    }): Promise<any[] | null> {
+        try {
+            const authDetail = await this.getAuthDetails(
+                params.organizationAndTeamData,
+            );
+            if (!authDetail) return null;
+
+            const repoInfo = this.extractRepoInfo(
+                params.repository.name!,
+                'getListOfValidReviews',
+            );
+            if (!repoInfo) return null;
+
+            const client = this.createForgejoClient(authDetail);
+
+            const reviews = await this.paginate<ForgejoPullReview>(
+                async (page, limit) => {
+                    const result = await repoListPullReviews({
+                        client,
+                        path: {
+                            owner: repoInfo.owner,
+                            repo: repoInfo.repo,
+                            index: params.prNumber,
+                        },
+                        query: { page, limit },
+                    });
+                    return result.data ?? [];
+                },
+            );
+
+            const reviewsWithComments = await Promise.all(
+                reviews.map(async (review) => {
+                    if (!review.id) return { ...review, comments: [] };
+
+                    try {
+                        const commentsResult = await repoGetPullReviewComments({
+                            client,
+                            path: {
+                                owner: repoInfo.owner,
+                                repo: repoInfo.repo,
+                                index: params.prNumber,
+                                id: review.id,
+                            },
+                        });
+                        const comments = commentsResult.data ?? [];
+
+                        return {
+                            state: review.state,
+                            id: review.id?.toString(),
+                            comments: comments.map((c) => ({
+                                id: c.id?.toString(),
+                                body: c.body,
+                                outdated: false, // Forgejo doesn't have outdated concept
+                                isMinimized: false, // Forgejo doesn't have minimize concept
+                            })),
+                        };
+                    } catch {
+                        return {
+                            state: review.state,
+                            id: review.id?.toString(),
+                            comments: [],
+                        };
+                    }
+                }),
+            );
+
+            return reviewsWithComments;
+        } catch (error) {
+            this.logger.error({
+                message: 'Error getting list of valid reviews',
+                context: ForgejoService.name,
+                error,
+            });
+            return null;
+        }
+    }
+
+    async getPullRequestsWithChangesRequested(params: {
+        organizationAndTeamData: OrganizationAndTeamData;
+        repository: Partial<Repository>;
+    }): Promise<PullRequestsWithChangesRequested[] | null> {
+        try {
+            const authDetail = await this.getAuthDetails(
+                params.organizationAndTeamData,
+            );
+            if (!authDetail) return null;
+
+            const repoInfo = this.extractRepoInfo(
+                params.repository.name!,
+                'getPullRequestsWithChangesRequested',
+            );
+            if (!repoInfo) return null;
+
+            const client = this.createForgejoClient(authDetail);
+
+            const prs = await this.paginate<ForgejoPullRequest>(
+                async (page, limit) => {
+                    const result = await repoListPullRequests({
+                        client,
+                        path: { owner: repoInfo.owner, repo: repoInfo.repo },
+                        query: { state: 'open', page, limit },
+                    });
+                    return result.data ?? [];
+                },
+            );
+
+            const result: PullRequestsWithChangesRequested[] = [];
+
+            for (const pr of prs) {
+                if (!pr.number) continue;
+
+                try {
+                    const reviews = await this.paginate<ForgejoPullReview>(
+                        async (page, limit) => {
+                            const res = await repoListPullReviews({
+                                client,
+                                path: {
+                                    owner: repoInfo.owner,
+                                    repo: repoInfo.repo,
+                                    index: pr.number!,
+                                },
+                                query: { page, limit },
+                            });
+                            return res.data ?? [];
+                        },
+                    );
+
+                    const latestReview = reviews[reviews.length - 1];
+                    if (latestReview?.state === 'REQUEST_CHANGES') {
+                        result.push({
+                            title: pr.title || '',
+                            number: pr.number,
+                            reviewDecision:
+                                PullRequestReviewState.CHANGES_REQUESTED,
+                        });
+                    }
+                } catch {
+                    // Skip PRs we can't get reviews for
+                }
+            }
+
+            return result;
+        } catch (error) {
+            this.logger.error({
+                message: 'Error getting PRs with changes requested',
+                context: ForgejoService.name,
+                error,
+            });
+            return null;
+        }
+    }
+
+    async getPullRequestReviewThreads(params: {
+        organizationAndTeamData: OrganizationAndTeamData;
+        repository: Partial<Repository>;
+        prNumber: number;
+    }): Promise<PullRequestReviewComment[] | null> {
+        // Forgejo doesn't have true review threads like GitHub
+        // Return review comments grouped by their review instead
+        try {
+            const authDetail = await this.getAuthDetails(
+                params.organizationAndTeamData,
+            );
+            if (!authDetail) return null;
+
+            const repoInfo = this.extractRepoInfo(
+                params.repository.name!,
+                'getPullRequestReviewThreads',
+            );
+            if (!repoInfo) return null;
+
+            const client = this.createForgejoClient(authDetail);
+
+            const reviews = await this.paginate<ForgejoPullReview>(
+                async (page, limit) => {
+                    const result = await repoListPullReviews({
+                        client,
+                        path: {
+                            owner: repoInfo.owner,
+                            repo: repoInfo.repo,
+                            index: params.prNumber,
+                        },
+                        query: { page, limit },
+                    });
+                    return result.data ?? [];
+                },
+            );
+
+            const allComments: PullRequestReviewComment[] = [];
+
+            for (const review of reviews) {
+                if (!review.id) continue;
+
+                try {
+                    const commentsResult = await repoGetPullReviewComments({
+                        client,
+                        path: {
+                            owner: repoInfo.owner,
+                            repo: repoInfo.repo,
+                            index: params.prNumber,
+                            id: review.id,
+                        },
+                    });
+                    const comments = commentsResult.data ?? [];
+
+                    for (const c of comments) {
+                        allComments.push({
+                            id: c.id,
+                            body: c.body ?? '',
+                            createdAt: c.created_at,
+                            updatedAt: c.updated_at,
+                            author: {
+                                id: c.user?.id?.toString() ?? '',
+                                username: c.user?.login ?? '',
+                                name: c.user?.full_name ?? c.user?.login ?? '',
+                            },
+                        });
+                    }
+                } catch {
+                    // Skip reviews we can't get comments for
+                }
+            }
+
+            return allComments;
+        } catch (error) {
+            this.logger.error({
+                message: 'Error getting PR review threads',
+                context: ForgejoService.name,
+                error,
+            });
+            return null;
         }
     }
 
@@ -1437,20 +2168,23 @@ export class ForgejoService implements Omit<
             );
             if (!repoInfo) return null;
 
-            const client = this.createClient(authDetail);
+            const client = this.createForgejoClient(authDetail);
 
             const description = params.summary ?? params.body;
 
-            const pr = await client.updatePullRequest(
-                repoInfo.owner,
-                repoInfo.repo,
-                params.prNumber,
-                {
+            const result = await repoEditPullRequest({
+                client,
+                path: {
+                    owner: repoInfo.owner,
+                    repo: repoInfo.repo,
+                    index: params.prNumber,
+                },
+                body: {
                     body: description,
                 },
-            );
+            });
 
-            return pr;
+            return result.data;
         } catch (error) {
             this.logger.error({
                 message: 'Error updating PR description',
@@ -1466,7 +2200,6 @@ export class ForgejoService implements Omit<
         prNumber: number;
         repository: { id: string; name: string };
     }): Promise<{ shouldApprove: boolean; reason?: string } | null> {
-        // Simple implementation - check if PR is open and not draft
         try {
             const pr = await this.getPullRequest({
                 organizationAndTeamData: params.organizationAndTeamData,
@@ -1503,14 +2236,22 @@ export class ForgejoService implements Omit<
             );
             if (!repoInfo) return null;
 
-            const client = this.createClient(authDetail);
-            const reviews = await client.listPullRequestReviews(
-                repoInfo.owner,
-                repoInfo.repo,
-                params.prNumber,
+            const client = this.createForgejoClient(authDetail);
+            const reviews = await this.paginate<ForgejoPullReview>(
+                async (page, limit) => {
+                    const result = await repoListPullReviews({
+                        client,
+                        path: {
+                            owner: repoInfo.owner,
+                            repo: repoInfo.repo,
+                            index: params.prNumber,
+                        },
+                        query: { page, limit },
+                    });
+                    return result.data ?? [];
+                },
             );
 
-            // Get the latest review status
             if (reviews.length === 0) return null;
 
             const latestReview = reviews[reviews.length - 1];
@@ -1535,15 +2276,11 @@ export class ForgejoService implements Omit<
         }
     }
 
-    // ========================================================================
-    // Comment Methods
-    // ========================================================================
-
     async createReviewComment(params: {
         organizationAndTeamData: OrganizationAndTeamData;
         repository: { name: string; language?: string };
         prNumber: number;
-        lineComment: any; // Contains path, line, body, start_line, suggestion etc.
+        lineComment: any;
         commit?: { sha: string };
         language?: LanguageValue;
         suggestionCopyPrompt?: boolean;
@@ -1590,12 +2327,15 @@ export class ForgejoService implements Omit<
                 },
             });
 
-            const client = this.createClient(authDetail);
-            const review = await client.createPullRequestReview(
-                repoInfo.owner,
-                repoInfo.repo,
-                params.prNumber,
-                {
+            const client = this.createForgejoClient(authDetail);
+            const result = await repoCreatePullReview({
+                client,
+                path: {
+                    owner: repoInfo.owner,
+                    repo: repoInfo.repo,
+                    index: params.prNumber,
+                },
+                body: {
                     body: '',
                     commit_id: commit?.sha,
                     event: 'COMMENT',
@@ -1607,7 +2347,8 @@ export class ForgejoService implements Omit<
                         },
                     ],
                 },
-            );
+            });
+            const review = result.data;
 
             this.logger.log({
                 message: `Created review comment for PR#${params.prNumber}`,
@@ -1763,15 +2504,18 @@ export class ForgejoService implements Omit<
             );
             if (!repoInfo) return null;
 
-            const client = this.createClient(authDetail);
-            const comment = await client.createIssueComment(
-                repoInfo.owner,
-                repoInfo.repo,
-                params.prNumber,
-                params.body,
-            );
+            const client = this.createForgejoClient(authDetail);
+            const result = await issueCreateComment({
+                client,
+                path: {
+                    owner: repoInfo.owner,
+                    repo: repoInfo.repo,
+                    index: params.prNumber,
+                },
+                body: { body: params.body },
+            });
 
-            return comment;
+            return result.data;
         } catch (error) {
             this.logger.error({
                 message: 'Error creating issue comment',
@@ -1809,15 +2553,18 @@ export class ForgejoService implements Omit<
             );
             if (!repoInfo) return null;
 
-            const client = this.createClient(authDetail);
-            const comment = await client.updateIssueComment(
-                repoInfo.owner,
-                repoInfo.repo,
-                params.commentId,
-                params.body,
-            );
+            const client = this.createForgejoClient(authDetail);
+            const result = await issueEditComment({
+                client,
+                path: {
+                    owner: repoInfo.owner,
+                    repo: repoInfo.repo,
+                    id: params.commentId,
+                },
+                body: { body: params.body },
+            });
 
-            return comment;
+            return result.data;
         } catch (error) {
             this.logger.error({
                 message: 'Error updating issue comment',
@@ -1845,14 +2592,17 @@ export class ForgejoService implements Omit<
             );
             if (!repoInfo) return [];
 
-            const client = this.createClient(authDetail);
-            const comments = await client.listIssueComments(
-                repoInfo.owner,
-                repoInfo.repo,
-                params.prNumber,
-            );
+            const client = this.createForgejoClient(authDetail);
+            const result = await issueGetComments({
+                client,
+                path: {
+                    owner: repoInfo.owner,
+                    repo: repoInfo.repo,
+                    index: params.prNumber,
+                },
+            });
 
-            return comments;
+            return result.data ?? [];
         } catch (error) {
             this.logger.error({
                 message: 'Error getting all comments in PR',
@@ -1899,28 +2649,62 @@ export class ForgejoService implements Omit<
             );
             if (!repoInfo) return null;
 
-            const client = this.createClient(authDetail);
-            const comments = await client.getPullRequestReviewComments(
-                repoInfo.owner,
-                repoInfo.repo,
-                params.prNumber,
+            const client = this.createForgejoClient(authDetail);
+
+            const reviews = await this.paginate<ForgejoPullReview>(
+                async (page, limit) => {
+                    const result = await repoListPullReviews({
+                        client,
+                        path: {
+                            owner: repoInfo.owner,
+                            repo: repoInfo.repo,
+                            index: params.prNumber,
+                        },
+                        query: { page, limit },
+                    });
+                    return result.data ?? [];
+                },
             );
 
-            return comments.map((c) => ({
-                id: c.id,
-                body: c.body,
-                path: c.path,
-                line: c.line,
-                commit_id: c.commit_id,
-                user: {
-                    id: c.user?.id?.toString() || '',
-                    login: c.user?.login || '',
-                },
-                created_at: c.created_at,
-                updated_at: c.updated_at,
-                html_url: c.html_url,
-                isFromKody: hasKodyMarker(c.body),
-            }));
+            const allComments: PullRequestReviewComment[] = [];
+            for (const review of reviews) {
+                if (!review.id) continue;
+                try {
+                    const commentsResult = await repoGetPullReviewComments({
+                        client,
+                        path: {
+                            owner: repoInfo.owner,
+                            repo: repoInfo.repo,
+                            index: params.prNumber,
+                            id: review.id,
+                        },
+                    });
+                    const comments = commentsResult.data ?? [];
+                    for (const c of comments) {
+                        if (hasKodyMarker(c.body)) continue;
+
+                        allComments.push({
+                            id: c.id,
+                            body: c.body ?? '',
+                            createdAt: c.created_at,
+                            updatedAt: c.updated_at,
+                            author: {
+                                id: c.user?.id?.toString() ?? '',
+                                username: c.user?.login ?? '',
+                                name: c.user?.full_name ?? c.user?.login ?? '',
+                            },
+                        });
+                    }
+                } catch (reviewError) {
+                    this.logger.warn({
+                        message: `Error fetching comments for review ${review.id}`,
+                        context: ForgejoService.name,
+                        error: reviewError,
+                    });
+                }
+            }
+
+            return allComments;
         } catch (error) {
             this.logger.error({
                 message: 'Error getting PR review comments',
@@ -1965,37 +2749,6 @@ export class ForgejoService implements Omit<
         });
     }
 
-    async markReviewCommentAsResolved(params: {
-        organizationAndTeamData: OrganizationAndTeamData;
-        repository: { name: string };
-        prNumber: number;
-        commentId: string;
-    }): Promise<any | null> {
-        // Currently forgejo doesn't support marking comments as resolved
-        // gitea added this on 01/02/2026 but forgejo hasn't yet
-        // Return null to indicate not supported
-        return null;
-    }
-
-    async minimizeComment(params: {
-        organizationAndTeamData: OrganizationAndTeamData;
-        commentId: string;
-        reason?:
-        | 'ABUSE'
-        | 'OFF_TOPIC'
-        | 'OUTDATED'
-        | 'RESOLVED'
-        | 'DUPLICATE'
-        | 'SPAM';
-    }): Promise<any | null> {
-        // Forgejo doesn't support minimizing comments
-        return null;
-    }
-
-    // ========================================================================
-    // File Content & Tree Methods
-    // ========================================================================
-
     async getRepositoryContentFile(params: {
         organizationAndTeamData: OrganizationAndTeamData;
         repository: { name: string };
@@ -2014,34 +2767,40 @@ export class ForgejoService implements Omit<
             );
             if (!repoInfo) return null;
 
-            const client = this.createClient(authDetail);
-            const content = await client.getContents(
-                repoInfo.owner,
-                repoInfo.repo,
-                params.path,
-                params.ref,
-            );
+            const client = this.createForgejoClient(authDetail);
+            const result = await repoGetContents({
+                client,
+                path: {
+                    owner: repoInfo.owner,
+                    repo: repoInfo.repo,
+                    filepath: params.path,
+                },
+                query: { ref: params.ref },
+            });
+            const content = result.data;
 
             if (Array.isArray(content)) return null;
 
             const decodedContent =
-                content.encoding === 'base64'
-                    ? Buffer.from(content.content, 'base64').toString('utf-8')
-                    : content.content;
+                content?.encoding === 'base64'
+                    ? Buffer.from(content.content || '', 'base64').toString(
+                        'utf-8',
+                    )
+                    : content?.content;
 
             return {
-                name: content.name,
-                path: content.path,
-                sha: content.sha,
-                size: content.size,
-                type: content.type,
+                name: content?.name,
+                path: content?.path,
+                sha: content?.sha,
+                size: content?.size,
+                type: content?.type,
                 content: decodedContent,
                 encoding: 'utf-8',
-                html_url: content.html_url,
-                download_url: content.download_url,
+                html_url: content?.html_url,
+                download_url: content?.download_url,
             };
         } catch (error) {
-            if (error instanceof ForgejoApiError && error.status === 404) {
+            if ((error as any)?.status === 404) {
                 return null;
             }
             this.logger.error({
@@ -2080,24 +2839,26 @@ export class ForgejoService implements Omit<
             );
             if (!repoInfo) return [];
 
-            const client = this.createClient(authDetail);
+            const client = this.createForgejoClient(authDetail);
 
-            const repoData = await client.getRepository(
-                repoInfo.owner,
-                repoInfo.repo,
-            );
-            const defaultBranch = repoData.default_branch || 'main';
+            const repoResult = await repoGet({
+                client,
+                path: { owner: repoInfo.owner, repo: repoInfo.repo },
+            });
+            const defaultBranch = repoResult.data?.default_branch || 'main';
 
-            const tree = await client.getTree(
-                repoInfo.owner,
-                repoInfo.repo,
-                defaultBranch,
-                {
-                    recursive: true,
+            const treeResult = await getTree({
+                client,
+                path: {
+                    owner: repoInfo.owner,
+                    repo: repoInfo.repo,
+                    sha: defaultBranch,
                 },
-            );
+                query: { recursive: true },
+            });
+            const tree = treeResult.data;
 
-            return tree.tree.map((item) => ({
+            return (tree?.tree || []).map((item) => ({
                 path: item.path,
                 type:
                     item.type === 'blob'
@@ -2146,15 +2907,19 @@ export class ForgejoService implements Omit<
             );
             if (!repoInfo) return [];
 
-            const client = this.createClient(authDetail);
+            const client = this.createForgejoClient(authDetail);
 
             const path = params.directoryPath || '';
-            const contents = await client.getContents(
-                repoInfo.owner,
-                repoInfo.repo,
-                path,
-            );
+            const result = await repoGetContents({
+                client,
+                path: {
+                    owner: repoInfo.owner,
+                    repo: repoInfo.repo,
+                    filepath: path,
+                },
+            });
 
+            const contents = result.data;
             if (!Array.isArray(contents)) {
                 return [];
             }
@@ -2202,24 +2967,26 @@ export class ForgejoService implements Omit<
             );
             if (!repoInfo) return [];
 
-            const client = this.createClient(authDetail);
+            const client = this.createForgejoClient(authDetail);
 
             const branch = params.filters?.branch || 'main';
-            const tree = await client.getTree(
-                repoInfo.owner,
-                repoInfo.repo,
-                branch,
-                {
-                    recursive: true,
+            const result = await getTree({
+                client,
+                path: {
+                    owner: repoInfo.owner,
+                    repo: repoInfo.repo,
+                    sha: branch,
                 },
-            );
+                query: { recursive: true },
+            });
 
-            let files = tree.tree
+            const tree = result.data;
+            let files = (tree?.tree || [])
                 .filter((item) => item.type === 'blob')
                 .map((item) => ({
                     path: item.path,
                     type: 'file',
-                    filename: item.path.split('/').pop() || item.path,
+                    filename: item.path?.split('/').pop() || item.path || '',
                     sha: item.sha,
                     size: item.size || 0,
                 }));
@@ -2258,10 +3025,6 @@ export class ForgejoService implements Omit<
         }
     }
 
-    // ========================================================================
-    // User Methods
-    // ========================================================================
-
     async getUserByUsername(params: {
         organizationAndTeamData: OrganizationAndTeamData;
         username: string;
@@ -2272,18 +3035,27 @@ export class ForgejoService implements Omit<
             );
             if (!authDetail) return null;
 
-            const client = this.createClient(authDetail);
-            const user = await client.getUser(params.username);
+            const client = this.createForgejoClient(authDetail);
+            const result = await userGet({
+                client,
+                path: { username: params.username },
+            });
 
+            const user = result.data;
             return {
-                id: user.id.toString(),
-                login: user.login,
-                name: user.full_name || user.login,
-                email: user.email,
-                avatar_url: user.avatar_url,
+                id: user!.id!.toString(),
+                login: user!.login,
+                name: user!.full_name || user!.login,
+                email: user!.email,
+                avatar_url: user!.avatar_url,
             };
         } catch (error) {
-            if (error instanceof ForgejoApiError && error.status === 404) {
+            if (
+                error &&
+                typeof error === 'object' &&
+                'status' in error &&
+                error.status === 404
+            ) {
                 return null;
             }
             this.logger.error({
@@ -2306,29 +3078,33 @@ export class ForgejoService implements Omit<
             );
             if (!authDetail) return null;
 
-            const client = this.createClient(authDetail);
+            const client = this.createForgejoClient(authDetail);
 
             try {
-                const user = await client.getUser(params.userName);
+                const result = await userGet({
+                    client,
+                    path: { username: params.userName },
+                });
+                const user = result.data;
                 return {
-                    id: user.id.toString(),
-                    login: user.login,
-                    name: user.full_name || user.login,
-                    email: user.email,
-                    avatar_url: user.avatar_url,
+                    id: user!.id!.toString(),
+                    login: user!.login,
+                    name: user!.full_name || user!.login,
+                    email: user!.email,
+                    avatar_url: user!.avatar_url,
                 };
             } catch {
                 // Not found by username, try search
             }
 
-            const searchResult = await client.searchUsers({
-                q: params.userName,
-                limit: 10,
+            const searchResult = await userSearch({
+                client,
+                query: { q: params.userName, limit: 10 },
             });
-            if (searchResult.data?.length > 0) {
-                const user = searchResult.data[0];
+            if (searchResult.data?.data && searchResult.data.data.length > 0) {
+                const user = searchResult.data.data[0];
                 return {
-                    id: user.id.toString(),
+                    id: user.id!.toString(),
                     login: user.login,
                     name: user.full_name || user.login,
                     email: user.email,
@@ -2347,15 +3123,6 @@ export class ForgejoService implements Omit<
         }
     }
 
-    async getUserById(params: {
-        organizationAndTeamData: OrganizationAndTeamData;
-        userId: string;
-    }): Promise<any | null> {
-        // Forgejo doesn't have a direct get-user-by-ID endpoint
-        // Would need to search or use a cached mapping
-        return null;
-    }
-
     async getCurrentUser(params: {
         organizationAndTeamData: OrganizationAndTeamData;
     }): Promise<any | null> {
@@ -2365,15 +3132,16 @@ export class ForgejoService implements Omit<
             );
             if (!authDetail) return null;
 
-            const client = this.createClient(authDetail);
-            const user = await client.getCurrentUser();
+            const client = this.createForgejoClient(authDetail);
+            const result = await userGetCurrent({ client });
 
+            const user = result.data;
             return {
-                id: user.id.toString(),
-                login: user.login,
-                name: user.full_name || user.login,
-                email: user.email,
-                avatar_url: user.avatar_url,
+                id: user!.id!.toString(),
+                login: user!.login,
+                name: user!.full_name || user!.login,
+                email: user!.email,
+                avatar_url: user!.avatar_url,
             };
         } catch (error) {
             this.logger.error({
@@ -2384,10 +3152,6 @@ export class ForgejoService implements Omit<
             return null;
         }
     }
-
-    // ========================================================================
-    // Webhook Methods
-    // ========================================================================
 
     async deleteWebhook(params: {
         organizationAndTeamData: OrganizationAndTeamData;
@@ -2406,7 +3170,7 @@ export class ForgejoService implements Omit<
 
             if (!repositories) return;
 
-            const client = this.createClient(authDetail);
+            const client = this.createForgejoClient(authDetail);
             const webhookUrl = this.configService.get<string>(
                 'FORGEJO_WEBHOOK_URL',
             );
@@ -2419,17 +3183,21 @@ export class ForgejoService implements Omit<
                 if (!repoInfo) continue;
 
                 try {
-                    const hooks = await client.listWebhooks(
-                        repoInfo.owner,
-                        repoInfo.repo,
-                    );
+                    const result = await repoListHooks({
+                        client,
+                        path: { owner: repoInfo.owner, repo: repoInfo.repo },
+                    });
+                    const hooks = result.data ?? [];
                     for (const hook of hooks) {
-                        if (hook.config?.url === webhookUrl) {
-                            await client.deleteWebhook(
-                                repoInfo.owner,
-                                repoInfo.repo,
-                                hook.id,
-                            );
+                        if (hook.config?.url === webhookUrl && hook.id) {
+                            await repoDeleteHook({
+                                client,
+                                path: {
+                                    owner: repoInfo.owner,
+                                    repo: repoInfo.repo,
+                                    id: hook.id,
+                                },
+                            });
                             this.logger.log({
                                 message: `Deleted webhook for ${repo.name}`,
                                 context: ForgejoService.name,
@@ -2470,7 +3238,7 @@ export class ForgejoService implements Omit<
 
             if (!repositories || repositories.length === 0) return;
 
-            const client = this.createClient(authDetail);
+            const client = this.createForgejoClient(authDetail);
             const webhookUrl = this.configService.get<string>(
                 'API_FORGEJO_CODE_MANAGEMENT_WEBHOOK',
             );
@@ -2491,19 +3259,23 @@ export class ForgejoService implements Omit<
                 if (!repoInfo) continue;
 
                 try {
-                    const existingHooks = await client.listWebhooks(
-                        repoInfo.owner,
-                        repoInfo.repo,
-                    );
+                    const existingResult = await repoListHooks({
+                        client,
+                        path: { owner: repoInfo.owner, repo: repoInfo.repo },
+                    });
+                    const existingHooks = existingResult.data ?? [];
                     const hookExists = existingHooks.some(
                         (hook) => hook.config?.url === webhookUrl,
                     );
 
                     if (!hookExists) {
-                        await client.createWebhook(
-                            repoInfo.owner,
-                            repoInfo.repo,
-                            {
+                        await repoCreateHook({
+                            client,
+                            path: {
+                                owner: repoInfo.owner,
+                                repo: repoInfo.repo,
+                            },
+                            body: {
                                 type: 'forgejo',
                                 config: {
                                     url: webhookUrl,
@@ -2517,7 +3289,7 @@ export class ForgejoService implements Omit<
                                 ],
                                 active: true,
                             },
-                        );
+                        });
 
                         this.logger.log({
                             message: `Webhook created for repository ${repo.name}`,
@@ -2565,15 +3337,16 @@ export class ForgejoService implements Omit<
             const repoInfo = this.extractRepoInfo(repo.name, 'isWebhookActive');
             if (!repoInfo) return false;
 
-            const client = this.createClient(authDetail);
+            const client = this.createForgejoClient(authDetail);
             const webhookUrl = this.configService.get<string>(
                 'FORGEJO_WEBHOOK_URL',
             );
 
-            const hooks = await client.listWebhooks(
-                repoInfo.owner,
-                repoInfo.repo,
-            );
+            const result = await repoListHooks({
+                client,
+                path: { owner: repoInfo.owner, repo: repoInfo.repo },
+            });
+            const hooks = result.data ?? [];
             return hooks.some(
                 (hook) => hook.config?.url === webhookUrl && hook.active,
             );
@@ -2587,15 +3360,11 @@ export class ForgejoService implements Omit<
         }
     }
 
-    // ========================================================================
-    // Reaction Methods
-    // ========================================================================
-
     async addReactionToPR(params: {
         organizationAndTeamData: OrganizationAndTeamData;
         repository: { id?: string; name?: string };
         prNumber: number;
-        reaction: string;
+        reaction: Reaction;
     }): Promise<void> {
         try {
             const authDetail = await this.getAuthDetails(
@@ -2609,13 +3378,16 @@ export class ForgejoService implements Omit<
             );
             if (!repoInfo) return;
 
-            const client = this.createClient(authDetail);
-            await client.addIssueReaction(
-                repoInfo.owner,
-                repoInfo.repo,
-                params.prNumber,
-                params.reaction,
-            );
+            const client = this.createForgejoClient(authDetail);
+            await issuePostIssueReaction({
+                client,
+                path: {
+                    owner: repoInfo.owner,
+                    repo: repoInfo.repo,
+                    index: params.prNumber,
+                },
+                body: { content: params.reaction },
+            });
         } catch (error) {
             this.logger.error({
                 message: 'Error adding reaction to PR',
@@ -2630,7 +3402,7 @@ export class ForgejoService implements Omit<
         repository: { id?: string; name?: string };
         prNumber: number;
         commentId: number;
-        reaction: string;
+        reaction: Reaction;
     }): Promise<void> {
         try {
             const authDetail = await this.getAuthDetails(
@@ -2644,13 +3416,16 @@ export class ForgejoService implements Omit<
             );
             if (!repoInfo) return;
 
-            const client = this.createClient(authDetail);
-            await client.addCommentReaction(
-                repoInfo.owner,
-                repoInfo.repo,
-                params.commentId,
-                params.reaction,
-            );
+            const client = this.createForgejoClient(authDetail);
+            await issuePostCommentReaction({
+                client,
+                path: {
+                    owner: repoInfo.owner,
+                    repo: repoInfo.repo,
+                    id: params.commentId,
+                },
+                body: { content: params.reaction },
+            });
         } catch (error) {
             this.logger.error({
                 message: 'Error adding reaction to comment',
@@ -2664,7 +3439,7 @@ export class ForgejoService implements Omit<
         organizationAndTeamData: OrganizationAndTeamData;
         repository: { id?: string; name?: string };
         prNumber: number;
-        reactions: string[];
+        reactions: Reaction[];
     }): Promise<void> {
         try {
             const authDetail = await this.getAuthDetails(
@@ -2678,14 +3453,17 @@ export class ForgejoService implements Omit<
             );
             if (!repoInfo) return;
 
-            const client = this.createClient(authDetail);
+            const client = this.createForgejoClient(authDetail);
             for (const reaction of params.reactions) {
-                await client.removeIssueReaction(
-                    repoInfo.owner,
-                    repoInfo.repo,
-                    params.prNumber,
-                    reaction,
-                );
+                await issueDeleteIssueReaction({
+                    client,
+                    path: {
+                        owner: repoInfo.owner,
+                        repo: repoInfo.repo,
+                        index: params.prNumber,
+                    },
+                    body: { content: reaction },
+                });
             }
         } catch (error) {
             this.logger.error({
@@ -2701,7 +3479,7 @@ export class ForgejoService implements Omit<
         repository: { id?: string; name?: string };
         prNumber: number;
         commentId: number;
-        reactions: string[];
+        reactions: Reaction[];
     }): Promise<void> {
         try {
             const authDetail = await this.getAuthDetails(
@@ -2715,14 +3493,17 @@ export class ForgejoService implements Omit<
             );
             if (!repoInfo) return;
 
-            const client = this.createClient(authDetail);
+            const client = this.createForgejoClient(authDetail);
             for (const reaction of params.reactions) {
-                await client.removeCommentReaction(
-                    repoInfo.owner,
-                    repoInfo.repo,
-                    params.commentId,
-                    reaction,
-                );
+                await issueDeleteCommentReaction({
+                    client,
+                    path: {
+                        owner: repoInfo.owner,
+                        repo: repoInfo.repo,
+                        id: params.commentId,
+                    },
+                    body: { content: reaction },
+                });
             }
         } catch (error) {
             this.logger.error({
@@ -2750,16 +3531,22 @@ export class ForgejoService implements Omit<
             );
             if (!repoInfo) return [];
 
-            const client = this.createClient(authDetail);
-            const reactions = await client.getIssueReactions(
-                repoInfo.owner,
-                repoInfo.repo,
-                params.prNumber,
-            );
+            const client = this.createForgejoClient(authDetail);
+            const result = await issueGetIssueReactions({
+                client,
+                path: {
+                    owner: repoInfo.owner,
+                    repo: repoInfo.repo,
+                    index: params.prNumber,
+                },
+            });
 
+            const reactions = result.data ?? [];
             const counts: Record<string, number> = {};
             for (const r of reactions) {
-                counts[r.content] = (counts[r.content] || 0) + 1;
+                if (r.content) {
+                    counts[r.content] = (counts[r.content] || 0) + 1;
+                }
             }
 
             return Object.entries(counts).map(([reaction, count]) => ({

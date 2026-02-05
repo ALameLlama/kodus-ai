@@ -4,9 +4,9 @@ import {
     AutomationStatus,
 } from '@libs/automation/domain/automation/enum/automation-status';
 import {
+    ForgejoReaction,
     GitHubReaction,
     GitlabReaction,
-    ForgejoReaction,
 } from '@libs/code-review/domain/codeReviewFeedback/enums/codeReviewCommentReaction.enum';
 import {
     OrganizationParametersKey,

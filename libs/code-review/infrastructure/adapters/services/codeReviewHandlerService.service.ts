@@ -8,9 +8,10 @@ import { Inject, Injectable } from '@nestjs/common';
 
 import { AutomationStatus } from '@libs/automation/domain/automation/enum/automation-status';
 import {
+    ForgejoReaction,
     GitHubReaction,
     GitlabReaction,
-    ForgejoReaction,
+    Reaction,
     ReviewStatusReaction,
 } from '@libs/code-review/domain/codeReviewFeedback/enums/codeReviewCommentReaction.enum';
 import { CodeReviewPipelineContext } from '@libs/code-review/pipeline/context/code-review-pipeline.context';
