@@ -18,20 +18,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 RUN npm i -g yalc chokidar-cli nodemon
 
-# Copy dependency manifests first (better cache layer)
 COPY package.json yarn.lock ./
-
-# Install dependencies at build time (cached layer)
-RUN yarn install --frozen-lockfile
-
-# Copy config files (needed for nest CLI)
 COPY nest-cli.json tsconfig*.json ./
-
-# Create compressed backup of node_modules for fast volume sync
-RUN tar -cf /usr/src/node_modules.tar node_modules
 
 COPY --chmod=0755 docker/dev-entrypoint.sh /usr/local/bin/dev-entrypoint
 
 ENTRYPOINT ["/usr/local/bin/dev-entrypoint"]
 CMD ["yarn", "start:dev"]
-
