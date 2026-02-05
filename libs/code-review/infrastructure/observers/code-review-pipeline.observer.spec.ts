@@ -2,8 +2,13 @@ import { AutomationStatus } from '@libs/automation/domain/automation/enum/automa
 import { IAutomationExecutionService } from '@libs/automation/domain/automationExecution/contracts/automation-execution.service';
 import { CodeReviewPipelineContext } from '@libs/code-review/pipeline/context/code-review-pipeline.context';
 import { StageVisibility } from '@libs/core/infrastructure/pipeline/enums/stage-visibility.enum';
+import {
+    CheckConclusion,
+    CheckStatus,
+} from '@libs/core/infrastructure/pipeline/interfaces/checks-adapter.interface';
 import { IPipelineChecksService } from '@libs/core/infrastructure/pipeline/interfaces/pipeline-checks-service.interface';
 import { PipelineObserverContext } from '@libs/core/infrastructure/pipeline/interfaces/pipeline-observer.interface';
+import { CheckStageNames } from '@libs/core/infrastructure/pipeline/services/pipeline-checks.service';
 import { CodeReviewPipelineObserver } from './code-review-pipeline.observer';
 
 describe('CodeReviewPipelineObserver', () => {
@@ -62,11 +67,84 @@ describe('CodeReviewPipelineObserver', () => {
         observersContext = {};
     });
 
+    it('should start pipeline check on pipeline start', async () => {
+        await observer.onPipelineStart(
+            context as CodeReviewPipelineContext,
+            observersContext,
+        );
+
+        expect(mockPipelineCheckService.startCheck).toHaveBeenCalledWith(
+            observersContext,
+            context,
+            '_pipelineStart',
+        );
+    });
+
+    it('should finalize pipeline check on pipeline finish (success)', async () => {
+        context.statusInfo = { status: AutomationStatus.SUCCESS } as any;
+        context.errors = [];
+
+        await observer.onPipelineFinish(
+            context as CodeReviewPipelineContext,
+            observersContext,
+        );
+
+        expect(mockPipelineCheckService.finalizeCheck).toHaveBeenCalledWith(
+            observersContext,
+            context,
+            CheckConclusion.SUCCESS,
+            CheckStageNames._pipelineEndSuccess,
+        );
+    });
+
+    it('should finalize pipeline check on pipeline finish (failure)', async () => {
+        context.statusInfo = { status: AutomationStatus.ERROR } as any;
+
+        await observer.onPipelineFinish(
+            context as CodeReviewPipelineContext,
+            observersContext,
+        );
+
+        expect(mockPipelineCheckService.finalizeCheck).toHaveBeenCalledWith(
+            observersContext,
+            context,
+            CheckConclusion.FAILURE,
+            CheckStageNames._pipelineEndFailure,
+        );
+    });
+
+    it('should finalize pipeline check on pipeline finish (skipped)', async () => {
+        context.statusInfo = {
+            status: AutomationStatus.SKIPPED,
+            message: 'Skipped reason',
+        } as any;
+
+        await observer.onPipelineFinish(
+            context as CodeReviewPipelineContext,
+            observersContext,
+        );
+
+        expect(mockPipelineCheckService.finalizeCheck).toHaveBeenCalledWith(
+            observersContext,
+            context,
+            CheckConclusion.SKIPPED,
+            CheckStageNames._pipelineEndSkipped,
+            'Skipped reason',
+        );
+    });
+
     it('should log stage start and store log ID in map', async () => {
         await observer.onStageStart(
             'TestStage',
             context as CodeReviewPipelineContext,
             observersContext,
+        );
+
+        expect(mockPipelineCheckService.updateCheck).toHaveBeenCalledWith(
+            observersContext,
+            context,
+            'TestStage',
+            CheckStatus.IN_PROGRESS,
         );
 
         expect(
@@ -95,6 +173,13 @@ describe('CodeReviewPipelineObserver', () => {
             'TestStage',
             context as CodeReviewPipelineContext,
             observersContext,
+        );
+
+        expect(mockPipelineCheckService.updateCheck).toHaveBeenCalledWith(
+            observersContext,
+            context,
+            'TestStage',
+            expect.anything(),
         );
 
         expect(
