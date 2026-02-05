@@ -1,0 +1,302 @@
+import { createLogger } from '@kodus/flow';
+import { CodeReviewPipelineContext } from '@libs/code-review/pipeline/context/code-review-pipeline.context';
+import { IPipelineChecksService } from '@libs/core/infrastructure/pipeline/interfaces/pipeline-checks-service.interface';
+import { Injectable } from '@nestjs/common';
+import {
+    CheckConclusion,
+    CheckStatus,
+} from '../interfaces/checks-adapter.interface';
+import { PipelineObserverContext } from '../interfaces/pipeline-observer.interface';
+import { ChecksAdapterFactory } from './checks-adapter.factory';
+
+export const checkStageMap = {
+    _pipelineStart: {
+        name: 'Code Review Started',
+        title: 'Code Review Starting',
+        summary: 'Kody is analyzing your code changes...',
+    },
+
+    PRLevelReviewStage: {
+        name: 'PR-Level Analysis',
+        title: 'Code Review In Progress',
+        summary:
+            'Reviewing PR-level changes: analyzing overall intent, descriptions, and cross-file impacts.',
+    },
+    FileAnalysisStage: {
+        name: 'File-Level Analysis',
+        title: 'Code Review In Progress',
+        summary:
+            'Reviewing file-level changes: analyzing each modified file for issues and improvement suggestions.',
+    },
+
+    _pipelineEndSuccess: {
+        name: 'Code Review Completed',
+        title: 'Code Review Complete',
+        summary:
+            'Review finished successfully. Suggestions (if any) were posted as PR/file comments.',
+    },
+    _pipelineEndFailure: {
+        name: 'Code Review Failed',
+        title: 'Code Review Failed',
+        summary:
+            'An error occurred during the review. Please check the logs for details.',
+    },
+    _pipelineEndSkipped: {
+        name: 'Code Review Skipped',
+        title: 'Code Review Skipped',
+        summary: 'Review skipped.',
+    },
+} as const;
+
+export type CheckStageName = keyof typeof checkStageMap;
+
+export const CheckStageNames = Object.keys(checkStageMap).reduce(
+    (acc, key) => {
+        (acc as any)[key] = key;
+        return acc;
+    },
+    {} as { [K in CheckStageName]: K },
+);
+
+@Injectable()
+export class PipelineChecksService implements IPipelineChecksService {
+    private readonly logger = createLogger(PipelineChecksService.name);
+
+    constructor(private readonly checksAdapterFactory: ChecksAdapterFactory) {}
+
+    private getContextData(
+        observerContext: PipelineObserverContext,
+        context: CodeReviewPipelineContext,
+    ) {
+        const {
+            organizationAndTeamData,
+            repository,
+            pullRequest,
+            platformType,
+        } = context;
+
+        const headSha = pullRequest?.head?.sha;
+        if (!headSha) {
+            this.logger.warn({
+                message: 'No head SHA found in pull request context',
+                context: PipelineChecksService.name,
+            });
+            return null;
+        }
+
+        const [owner, repo] = repository.fullName?.split('/') || [];
+        if (!owner || !repo) {
+            this.logger.warn({
+                message: 'Invalid repository full name format',
+                context: PipelineChecksService.name,
+            });
+            return null;
+        }
+
+        const { checkRunId } = observerContext;
+
+        return {
+            organizationAndTeamData,
+            repository: {
+                owner,
+                name: repo,
+            },
+            headSha,
+            platformType,
+            checkRunId,
+        };
+    }
+
+    async startCheck(
+        observerContext: PipelineObserverContext,
+        context: CodeReviewPipelineContext,
+        stageName: string,
+        status: CheckStatus = CheckStatus.IN_PROGRESS,
+    ): Promise<void> {
+        const data = this.getContextData(observerContext, context);
+        if (!data) return;
+
+        const {
+            organizationAndTeamData,
+            repository,
+            headSha,
+            platformType,
+            checkRunId,
+        } = data;
+
+        const adapter = this.checksAdapterFactory.getAdapter(platformType);
+        if (!adapter) {
+            this.logger.warn({
+                message: `No checks adapter found for platform type: ${platformType}`,
+                context: PipelineChecksService.name,
+            });
+            return;
+        }
+
+        const stageData = checkStageMap[stageName];
+        if (!stageData) return;
+
+        const { name, title, summary } = stageData;
+
+        if (checkRunId) {
+            this.logger.warn({
+                message:
+                    'Check run already started in context, finalizing it first',
+                context: PipelineChecksService.name,
+            });
+            await this.finalizeCheck(
+                observerContext,
+                context,
+                CheckConclusion.SUCCESS,
+            );
+        }
+
+        try {
+            const checkId = await adapter.createCheckRun({
+                organizationAndTeamData,
+                repository,
+                headSha,
+                status,
+                name,
+                output: {
+                    title,
+                    summary,
+                },
+            });
+
+            if (checkId) {
+                observerContext.checkRunId = checkId;
+            }
+        } catch (e) {
+            this.logger.error({
+                message: 'Failed to start check',
+                error: e as Error,
+                context: PipelineChecksService.name,
+            });
+        }
+    }
+
+    async updateCheck(
+        observerContext: PipelineObserverContext,
+        context: CodeReviewPipelineContext,
+        stageName: string,
+        status: CheckStatus,
+        conclusion?: CheckConclusion,
+    ): Promise<void> {
+        const data = this.getContextData(observerContext, context);
+        if (!data) return;
+
+        const {
+            checkRunId,
+            organizationAndTeamData,
+            repository,
+            platformType,
+        } = data;
+        if (!checkRunId) {
+            this.logger.warn({
+                message: 'No checkRunId found in context for updateCheck',
+                context: PipelineChecksService.name,
+            });
+            return;
+        }
+
+        const adapter = this.checksAdapterFactory.getAdapter(platformType);
+        if (!adapter) {
+            this.logger.warn({
+                message: `No checks adapter found for platform type: ${platformType}`,
+                context: PipelineChecksService.name,
+            });
+            return;
+        }
+
+        const stageCheckInfo = checkStageMap[stageName];
+        if (!stageCheckInfo) return;
+
+        const { title, summary } = stageCheckInfo;
+
+        try {
+            await adapter.updateCheckRun({
+                checkRunId,
+                organizationAndTeamData,
+                repository,
+                status,
+                output: { title, summary },
+                conclusion,
+            });
+        } catch (e) {
+            this.logger.error({
+                message: 'Failed to update check',
+                error: e as Error,
+                context: PipelineChecksService.name,
+            });
+        }
+    }
+
+    async finalizeCheck(
+        observerContext: PipelineObserverContext,
+        context: CodeReviewPipelineContext,
+        conclusion: CheckConclusion,
+        stageName?: string,
+        reason?: string,
+    ): Promise<void> {
+        const data = this.getContextData(observerContext, context);
+        if (!data) return;
+
+        const {
+            checkRunId,
+            organizationAndTeamData,
+            repository,
+            platformType,
+        } = data;
+        if (!checkRunId) {
+            this.logger.warn({
+                message: 'No checkRunId found in context for finalizeCheck',
+                context: PipelineChecksService.name,
+            });
+            return;
+        }
+
+        const adapter = this.checksAdapterFactory.getAdapter(platformType);
+        if (!adapter) {
+            this.logger.warn({
+                message: `No checks adapter found for platform type: ${platformType}`,
+                context: PipelineChecksService.name,
+            });
+            return;
+        }
+
+        let name: string | undefined;
+        let title: string | undefined;
+        let summary: string | undefined = reason || undefined;
+        if (stageName) {
+            const stageCheckInfo = checkStageMap[stageName];
+            if (stageCheckInfo) {
+                name = stageCheckInfo.name;
+                title = stageCheckInfo.title;
+                summary = summary || stageCheckInfo.summary;
+            }
+        }
+
+        try {
+            await adapter.updateCheckRun({
+                checkRunId,
+                organizationAndTeamData,
+                repository,
+                status: CheckStatus.COMPLETED,
+                conclusion,
+                name,
+                output: summary
+                    ? { title: title ?? 'Code Review', summary }
+                    : undefined,
+            });
+
+            observerContext.checkRunId = undefined;
+        } catch (e) {
+            this.logger.error({
+                message: 'Failed to finalize check',
+                error: e as Error,
+                context: PipelineChecksService.name,
+            });
+        }
+    }
+}
