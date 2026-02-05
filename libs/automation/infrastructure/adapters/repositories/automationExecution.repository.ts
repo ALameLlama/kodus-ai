@@ -292,15 +292,21 @@ export class AutomationExecutionRepository implements IAutomationExecutionReposi
 
             if (prFilters?.length) {
                 // Filter by specific PR numbers and repository IDs
-                const prConditions = prFilters.map((pr, index) =>
-                    `(automation_execution.pullRequestNumber = :prNumber${index} AND automation_execution.repositoryId = :repoId${index})`
-                ).join(' OR ');
+                const prConditions = prFilters
+                    .map(
+                        (pr, index) =>
+                            `(automation_execution.pullRequestNumber = :prNumber${index} AND automation_execution.repositoryId = :repoId${index})`,
+                    )
+                    .join(' OR ');
 
-                const prParams = prFilters.reduce((acc, pr, index) => {
-                    acc[`prNumber${index}`] = pr.number;
-                    acc[`repoId${index}`] = pr.repositoryId;
-                    return acc;
-                }, {} as Record<string, any>);
+                const prParams = prFilters.reduce(
+                    (acc, pr, index) => {
+                        acc[`prNumber${index}`] = pr.number;
+                        acc[`repoId${index}`] = pr.repositoryId;
+                        return acc;
+                    },
+                    {} as Record<string, any>,
+                );
 
                 queryBuilder.andWhere(`(${prConditions})`, prParams);
             }

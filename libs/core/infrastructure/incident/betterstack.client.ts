@@ -30,7 +30,9 @@ export class BetterStackClient {
     private static readonly CIRCUIT_OPEN_DURATION_MS = 60_000;
 
     constructor(private readonly configService: ConfigService) {
-        const token = this.configService.get<string>('API_BETTERSTACK_API_TOKEN');
+        const token = this.configService.get<string>(
+            'API_BETTERSTACK_API_TOKEN',
+        );
 
         if (!token) {
             this.logger.warn({
@@ -45,7 +47,7 @@ export class BetterStackClient {
         this.client = axios.create({
             baseURL: 'https://uptime.betterstack.com/api/v2',
             headers: {
-                Authorization: `Bearer ${token}`,
+                'Authorization': `Bearer ${token}`,
                 'Content-Type': 'application/json',
             },
             timeout: 10_000,
@@ -81,7 +83,9 @@ export class BetterStackClient {
                 // BetterStack API does not have a severity field on create,
                 // but we include call and sms flags based on severity
                 call: params.severity === 'critical',
-                sms: params.severity === 'critical' || params.severity === 'major',
+                sms:
+                    params.severity === 'critical' ||
+                    params.severity === 'major',
             });
 
             this.consecutiveFailures = 0;
@@ -100,9 +104,7 @@ export class BetterStackClient {
         } catch (error) {
             this.consecutiveFailures++;
 
-            if (
-                this.consecutiveFailures >= BetterStackClient.MAX_FAILURES
-            ) {
+            if (this.consecutiveFailures >= BetterStackClient.MAX_FAILURES) {
                 this.circuitOpenUntil =
                     Date.now() + BetterStackClient.CIRCUIT_OPEN_DURATION_MS;
                 this.logger.error({
@@ -149,9 +151,7 @@ export class BetterStackClient {
         } catch (error) {
             this.consecutiveFailures++;
 
-            if (
-                this.consecutiveFailures >= BetterStackClient.MAX_FAILURES
-            ) {
+            if (this.consecutiveFailures >= BetterStackClient.MAX_FAILURES) {
                 this.circuitOpenUntil =
                     Date.now() + BetterStackClient.CIRCUIT_OPEN_DURATION_MS;
             }

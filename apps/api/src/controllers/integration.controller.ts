@@ -14,7 +14,26 @@ import { CloneIntegrationUseCase } from '@libs/integrations/application/use-case
 import { GetConnectionsUseCase } from '@libs/platform/application/use-cases/integrations/get-connections.use-case';
 import { GetOrganizationIdUseCase } from '@libs/integrations/application/use-cases/get-organization-id.use-case';
 import { TeamQueryDto } from '@libs/organization/dtos/teamId-query.dto';
+import {
+    ApiBearerAuth,
+    ApiBody,
+    ApiCreatedResponse,
+    ApiOkResponse,
+    ApiOperation,
+    ApiQuery,
+    ApiTags,
+} from '@nestjs/swagger';
+import { ApiStandardResponses } from '../docs/api-standard-responses.decorator';
+import {
+    ApiArrayResponseDto,
+    ApiBooleanResponseDto,
+    ApiStringResponseDto,
+} from '../dtos/api-response.dto';
+import { IntegrationCloneResponseDto } from '../dtos/integration-response.dto';
 
+@ApiTags('Integration')
+@ApiBearerAuth('jwt')
+@ApiStandardResponses()
 @Controller('integration')
 export class IntegrationController {
     constructor(
@@ -32,6 +51,37 @@ export class IntegrationController {
             resource: ResourceType.GitSettings,
         }),
     )
+    @ApiOperation({
+        summary: 'Clone integration',
+        description: 'Clone integration settings from another team.',
+    })
+    @ApiCreatedResponse({ type: IntegrationCloneResponseDto })
+    @ApiBody({
+        schema: {
+            type: 'object',
+            properties: {
+                teamId: { type: 'string' },
+                teamIdClone: { type: 'string' },
+                integrationData: {
+                    type: 'object',
+                    properties: {
+                        platform: { type: 'string' },
+                        category: { type: 'string' },
+                    },
+                    required: ['platform', 'category'],
+                },
+            },
+            required: ['teamId', 'teamIdClone', 'integrationData'],
+            example: {
+                teamId: 'c33ef663-70e7-4f43-9605-0bbef979b8e0',
+                teamIdClone: '0b0a8c2a-9c03-4b13-8ee0-2e6c4c04f1d1',
+                integrationData: {
+                    platform: 'github',
+                    category: 'code',
+                },
+            },
+        },
+    })
     public async cloneIntegration(
         @Body()
         body: {
@@ -51,6 +101,11 @@ export class IntegrationController {
             resource: ResourceType.GitSettings,
         }),
     )
+    @ApiOperation({
+        summary: 'Check connection by platform',
+        description: 'Return whether the integration is connected.',
+    })
+    @ApiOkResponse({ type: ApiBooleanResponseDto })
     public async checkHasConnectionByPlatform(@Query() query: any) {
         return this.checkHasIntegrationByPlatformUseCase.execute(query);
     }
@@ -63,6 +118,12 @@ export class IntegrationController {
             resource: ResourceType.GitSettings,
         }),
     )
+    @ApiOperation({
+        summary: 'Get organization id',
+        description:
+            'Return the organization id for the current integration context.',
+    })
+    @ApiOkResponse({ type: ApiStringResponseDto })
     public async getOrganizationId() {
         return this.getOrganizationIdUseCase.execute();
     }
@@ -75,6 +136,12 @@ export class IntegrationController {
             resource: ResourceType.CodeReviewSettings,
         }),
     )
+    @ApiOperation({
+        summary: 'List connections',
+        description: 'Return connections for a team.',
+    })
+    @ApiQuery({ name: 'teamId', type: String, required: true })
+    @ApiOkResponse({ type: ApiArrayResponseDto })
     public async getConnections(@Query() query: TeamQueryDto) {
         return this.getConnectionsUseCase.execute(query.teamId);
     }

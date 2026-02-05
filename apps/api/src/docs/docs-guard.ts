@@ -8,18 +8,42 @@ export type DocsConfig = {
     ipAllowlist: string;
     basicUser: string;
     basicPass: string;
+    servers: DocsServer[];
+};
+
+export type DocsServer = {
+    url: string;
+    description?: string;
 };
 
 export const normalizePath = (path: string) =>
     path.startsWith('/') ? path : `/${path}`;
 
+const parseServers = (raw: string): DocsServer[] =>
+    raw
+        .split(',')
+        .map((entry) => entry.trim())
+        .filter(Boolean)
+        .map((entry): DocsServer | null => {
+            const [url, description] = entry
+                .split('|')
+                .map((part) => part.trim())
+                .filter(Boolean);
+            if (!url) {
+                return null;
+            }
+            return description ? { url, description } : { url };
+        })
+        .filter((entry): entry is DocsServer => entry !== null);
+
 export const buildDocsConfig = (env: NodeJS.ProcessEnv): DocsConfig => ({
     enabled: env.API_DOCS_ENABLED === 'true',
-    docsPath: normalizePath(env.DOCS_PATH || '/docs'),
-    specPath: normalizePath(env.DOCS_SPEC_PATH || '/openapi.json'),
-    ipAllowlist: env.DOCS_IP_ALLOWLIST || '',
-    basicUser: env.DOCS_BASIC_USER || '',
-    basicPass: env.DOCS_BASIC_PASS || '',
+    docsPath: normalizePath(env.API_DOCS_PATH || '/docs'),
+    specPath: normalizePath(env.API_DOCS_SPEC_PATH || '/openapi.json'),
+    ipAllowlist: env.API_DOCS_IP_ALLOWLIST || '',
+    basicUser: env.API_DOCS_BASIC_USER || '',
+    basicPass: env.API_DOCS_BASIC_PASS || '',
+    servers: parseServers(env.API_DOCS_SERVER_URLS || ''),
 });
 
 const parseAllowlist = (raw: string) =>
@@ -57,7 +81,8 @@ export const createDocsIpAllowlistMiddleware = (allowlistRaw: string) => {
     };
 };
 
-export const createDocsBasicAuthMiddleware = (user: string, pass: string) =>
+export const createDocsBasicAuthMiddleware =
+    (user: string, pass: string) =>
     (req: Request, res: Response, next: NextFunction) => {
         if (!user || !pass) {
             res.setHeader('WWW-Authenticate', 'Basic');

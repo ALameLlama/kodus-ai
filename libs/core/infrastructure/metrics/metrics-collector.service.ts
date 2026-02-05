@@ -80,7 +80,8 @@ export class MetricsCollectorService implements OnModuleDestroy {
         if (this.buffer.length >= MetricsCollectorService.BATCH_SIZE) {
             this.flush().catch((err) => {
                 this.logger.error({
-                    message: 'Failed to flush metrics buffer on batch size trigger',
+                    message:
+                        'Failed to flush metrics buffer on batch size trigger',
                     context: MetricsCollectorService.name,
                     error: err instanceof Error ? err : undefined,
                 });

@@ -21,6 +21,7 @@ import {
     ReviewCadenceType,
 } from '@libs/core/infrastructure/config/types/general/codeReview.type';
 import { PullRequestMessageStatus } from '@libs/core/infrastructure/config/types/general/pullRequestMessages.type';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 class ReviewOptionsDto {
     @IsBoolean()
@@ -87,10 +88,18 @@ class SummaryConfigDto {
 
     @IsOptional()
     @IsEnum(BehaviourForExistingDescription)
+    @ApiPropertyOptional({
+        enum: BehaviourForExistingDescription,
+        enumName: 'BehaviourForExistingDescription',
+    })
     behaviourForExistingDescription?: BehaviourForExistingDescription;
 
     @IsOptional()
     @IsEnum(BehaviourForNewCommits)
+    @ApiPropertyOptional({
+        enum: BehaviourForNewCommits,
+        enumName: 'BehaviourForNewCommits',
+    })
     behaviourForNewCommits?: BehaviourForNewCommits;
 }
 
@@ -115,10 +124,15 @@ class SeverityLimitsDto {
 class SuggestionControlConfigDto {
     @IsOptional()
     @IsEnum(GroupingModeSuggestions)
+    @ApiPropertyOptional({
+        enum: GroupingModeSuggestions,
+        enumName: 'GroupingModeSuggestions',
+    })
     groupingMode?: GroupingModeSuggestions;
 
     @IsOptional()
     @IsEnum(LimitationType)
+    @ApiPropertyOptional({ enum: LimitationType, enumName: 'LimitationType' })
     limitationType?: LimitationType;
 
     @IsOptional()
@@ -127,6 +141,7 @@ class SuggestionControlConfigDto {
 
     @IsOptional()
     @IsEnum(SeverityLevel)
+    @ApiPropertyOptional({ enum: SeverityLevel, enumName: 'SeverityLevel' })
     severityLevelFilter?: SeverityLevel;
 
     @IsOptional()
@@ -142,6 +157,10 @@ class SuggestionControlConfigDto {
 class ReviewCadenceDto {
     @IsEnum(ReviewCadenceType)
     @IsOptional()
+    @ApiPropertyOptional({
+        enum: ReviewCadenceType,
+        enumName: 'ReviewCadenceType',
+    })
     type?: ReviewCadenceType;
 
     @IsOptional()
@@ -232,6 +251,10 @@ class CustomMessagesGlobalSettingsDto {
 class CustomMessagesStartReviewMessageDto {
     @IsOptional()
     @IsEnum(PullRequestMessageStatus)
+    @ApiPropertyOptional({
+        enum: PullRequestMessageStatus,
+        enumName: 'PullRequestMessageStatus',
+    })
     status?: PullRequestMessageStatus;
 
     @IsOptional()
@@ -242,6 +265,10 @@ class CustomMessagesStartReviewMessageDto {
 class CustomMessagesEndReviewMessageDto {
     @IsOptional()
     @IsEnum(PullRequestMessageStatus)
+    @ApiPropertyOptional({
+        enum: PullRequestMessageStatus,
+        enumName: 'PullRequestMessageStatus',
+    })
     status?: PullRequestMessageStatus;
 
     @IsOptional()
@@ -345,6 +372,10 @@ class CodeReviewConfigWithoutLLMProviderDto {
 
     @IsOptional()
     @IsEnum(CodeReviewVersion)
+    @ApiPropertyOptional({
+        enum: CodeReviewVersion,
+        enumName: 'CodeReviewVersion',
+    })
     codeReviewVersion?: CodeReviewVersion;
 
     @IsOptional()
@@ -372,21 +403,37 @@ class CodeReviewConfigWithoutLLMProviderDto {
 
 export class CreateOrUpdateCodeReviewParameterDto {
     @IsObject()
+    @ApiProperty({
+        type: OrganizationAndTeamDataDto,
+        example: {
+            teamId: 'c33ef663-70e7-4f43-9605-0bbef979b8e0',
+        },
+    })
     organizationAndTeamData: OrganizationAndTeamDataDto;
 
     @ValidateNested()
     @Type(() => CodeReviewConfigWithoutLLMProviderDto)
+    @ApiProperty({
+        type: CodeReviewConfigWithoutLLMProviderDto,
+        example: {
+            reviewCadence: { type: 'every_pr' },
+            reviewOptions: { security: true, error_handling: true },
+        },
+    })
     configValue: CodeReviewConfigWithoutLLMProviderDto;
 
     @IsString()
     @IsOptional()
+    @ApiPropertyOptional({ example: '1135722979' })
     repositoryId: string;
 
     @IsString()
     @IsOptional()
+    @ApiPropertyOptional({ example: 'src/services' })
     directoryId?: string;
 
     @IsString()
     @IsOptional()
+    @ApiPropertyOptional({ example: 'src/services' })
     directoryPath?: string;
 }

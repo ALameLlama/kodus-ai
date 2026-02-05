@@ -4,7 +4,9 @@ import { Request, Response } from 'express';
 
 import { PlatformType } from '@libs/core/domain/enums/platform-type.enum';
 import { EnqueueWebhookUseCase } from '@libs/platform/application/use-cases/webhook/enqueue-webhook.use-case';
+import { Public } from '@libs/identity/infrastructure/adapters/services/auth/public.decorator';
 
+@Public()
 @Controller('gitlab')
 export class GitlabController {
     private readonly logger = createLogger(GitlabController.name);

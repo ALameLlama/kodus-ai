@@ -6,10 +6,22 @@ export const configSchema = Joi.object({
     API_RATE_MAX_REQUEST: Joi.number().default(100),
     API_RATE_INTERVAL: Joi.number().default(60),
     API_BETTERSTACK_API_TOKEN: Joi.string().optional().allow('').default(''),
-    API_BETTERSTACK_HEARTBEAT_ERROR_RATE_URL: Joi.string().optional().allow('').default(''),
-    API_BETTERSTACK_HEARTBEAT_REVIEW_MONITOR_URL: Joi.string().optional().allow('').default(''),
-    API_BETTERSTACK_HEARTBEAT_OUTBOX_URL: Joi.string().optional().allow('').default(''),
-    API_BETTERSTACK_HEARTBEAT_WEBHOOK_URL: Joi.string().optional().allow('').default(''),
+    API_BETTERSTACK_HEARTBEAT_ERROR_RATE_URL: Joi.string()
+        .optional()
+        .allow('')
+        .default(''),
+    API_BETTERSTACK_HEARTBEAT_REVIEW_MONITOR_URL: Joi.string()
+        .optional()
+        .allow('')
+        .default(''),
+    API_BETTERSTACK_HEARTBEAT_OUTBOX_URL: Joi.string()
+        .optional()
+        .allow('')
+        .default(''),
+    API_BETTERSTACK_HEARTBEAT_WEBHOOK_URL: Joi.string()
+        .optional()
+        .allow('')
+        .default(''),
     METRICS_ERROR_RATE_THRESHOLD_PERCENT: Joi.number().optional().default(10),
     METRICS_ERROR_RATE_CRITICAL_PERCENT: Joi.number().optional().default(25),
     METRICS_ERROR_RATE_WINDOW_MINUTES: Joi.number().optional().default(5),

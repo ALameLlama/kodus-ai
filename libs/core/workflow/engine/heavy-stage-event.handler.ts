@@ -213,7 +213,7 @@ export class HeavyStageEventHandler {
                     );
                 } catch (error) {
                     span.setAttributes({
-                        error: true,
+                        'error': true,
                         'exception.type': error.name,
                         'exception.message': error.message,
                     });

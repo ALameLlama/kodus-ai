@@ -14,7 +14,9 @@ import {
 } from '@libs/core/infrastructure/config/types/general/codeReview.type';
 import { OrganizationAndTeamData } from '@libs/core/infrastructure/config/types/general/organizationAndTeamData';
 
-export const COMMENT_MANAGER_SERVICE_TOKEN = Symbol.for('CommentManagerService');
+export const COMMENT_MANAGER_SERVICE_TOKEN = Symbol.for(
+    'CommentManagerService',
+);
 
 export interface ICommentManagerService {
     createInitialComment(

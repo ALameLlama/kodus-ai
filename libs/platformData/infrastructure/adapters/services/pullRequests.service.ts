@@ -494,12 +494,23 @@ export class PullRequestsService implements IPullRequestsService {
                 commits: enrichedPullRequest.commits,
                 isDraft: enrichedPullRequest.isDraft ?? false,
                 repository: {
-                    id: repository.id?.toString() || existingPR.repository?.id || '',
+                    id:
+                        repository.id?.toString() ||
+                        existingPR.repository?.id ||
+                        '',
                     name: repository.name || existingPR.repository?.name || '',
-                    fullName: this.extractRepoFullName(pullRequest) || existingPR.repository?.fullName || '',
-                    language: repository.language || existingPR.repository?.language || '',
+                    fullName:
+                        this.extractRepoFullName(pullRequest) ||
+                        existingPR.repository?.fullName ||
+                        '',
+                    language:
+                        repository.language ||
+                        existingPR.repository?.language ||
+                        '',
                     url: repository.url || existingPR.repository?.url || '',
-                    createdAt: existingPR.repository?.createdAt || new Date().toISOString(),
+                    createdAt:
+                        existingPR.repository?.createdAt ||
+                        new Date().toISOString(),
                     updatedAt: new Date().toISOString(),
                 },
             });

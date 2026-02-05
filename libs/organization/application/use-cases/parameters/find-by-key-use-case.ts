@@ -46,7 +46,10 @@ export class FindByKeyParametersUseCase {
         private readonly parametersService: IParametersService,
         private readonly configService: ConfigService,
     ) {
-        this.cacheTTL = this.configService.get<number>('PARAMETERS_CACHE_TTL_MS', DEFAULT_CACHE_TTL_MS);
+        this.cacheTTL = this.configService.get<number>(
+            'PARAMETERS_CACHE_TTL_MS',
+            DEFAULT_CACHE_TTL_MS,
+        );
     }
 
     /**
@@ -97,7 +100,10 @@ export class FindByKeyParametersUseCase {
         parametersKey: K,
         organizationAndTeamData: OrganizationAndTeamData,
     ): Promise<IParameters<K> | null> {
-        const cacheKey = this.getCacheKey(parametersKey, organizationAndTeamData);
+        const cacheKey = this.getCacheKey(
+            parametersKey,
+            organizationAndTeamData,
+        );
 
         // PERF: Check cache first
         const cached = this.getFromCache<K>(cacheKey);
@@ -149,7 +155,10 @@ export class FindByKeyParametersUseCase {
 
         if (parametersKey && organizationAndTeamData) {
             // Clear specific key
-            const cacheKey = this.getCacheKey(parametersKey, organizationAndTeamData);
+            const cacheKey = this.getCacheKey(
+                parametersKey,
+                organizationAndTeamData,
+            );
             this.cache.delete(cacheKey);
             return;
         }

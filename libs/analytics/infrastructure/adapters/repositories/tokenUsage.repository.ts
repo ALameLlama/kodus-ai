@@ -268,7 +268,13 @@ export class TokenUsageRepository implements ITokenUsageRepository {
             .exec();
 
         if (results.length === 0) {
-            return { input: 0, output: 0, total: 0, outputReasoning: 0, model: '' };
+            return {
+                input: 0,
+                output: 0,
+                total: 0,
+                outputReasoning: 0,
+                model: '',
+            };
         }
 
         return results[0];

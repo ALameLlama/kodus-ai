@@ -35,9 +35,8 @@ describe('GitLab getChangedFilesSinceLastCommit - integration tests for merge co
 
     beforeAll(async () => {
         // Import GitlabService dinamicamente
-        const module = await import(
-            '@libs/platform/infrastructure/adapters/services/gitlab.service'
-        );
+        const module =
+            await import('@libs/platform/infrastructure/adapters/services/gitlab.service');
         GitlabService = (module as any).default || module.GitlabService;
     });
 
@@ -105,7 +104,9 @@ describe('GitLab getChangedFilesSinceLastCommit - integration tests for merge co
             host: 'gitlab.com',
         });
 
-        jest.spyOn(gitlabService, 'instanceGitlabApi').mockReturnValue(mockGitlabAPI);
+        jest.spyOn(gitlabService, 'instanceGitlabApi').mockReturnValue(
+            mockGitlabAPI,
+        );
     });
 
     afterEach(() => {
@@ -127,9 +128,21 @@ describe('GitLab getChangedFilesSinceLastCommit - integration tests for merge co
                     new_path: 'src/app.ts',
                     diff: '@@ -10,2 +10,5 @@\n-    old code\n-    old code 2\n+    new code\n+    new code 2\n+    new code 3\n+    new code 4\n+    new code 5',
                 },
-                { new_path: 'src/feature-b/component1.ts', diff: '+// Component 1 from branch B', new_file: true },
-                { new_path: 'src/feature-b/component2.ts', diff: '+// Component 2 from branch B', new_file: true },
-                { new_path: 'src/feature-b/component3.ts', diff: '+// Component 3 from branch B', new_file: true },
+                {
+                    new_path: 'src/feature-b/component1.ts',
+                    diff: '+// Component 1 from branch B',
+                    new_file: true,
+                },
+                {
+                    new_path: 'src/feature-b/component2.ts',
+                    diff: '+// Component 2 from branch B',
+                    new_file: true,
+                },
+                {
+                    new_path: 'src/feature-b/component3.ts',
+                    diff: '+// Component 3 from branch B',
+                    new_file: true,
+                },
             ];
 
             // MR diffs only includes the real change
@@ -137,7 +150,9 @@ describe('GitLab getChangedFilesSinceLastCommit - integration tests for merge co
 
             // Mock API calls
             mockGitlabAPI.MergeRequests.allCommits.mockResolvedValue(commits);
-            mockGitlabAPI.Repositories.compare.mockResolvedValue({ diffs: compareDiffs });
+            mockGitlabAPI.Repositories.compare.mockResolvedValue({
+                diffs: compareDiffs,
+            });
             mockGitlabAPI.MergeRequests.allDiffs.mockResolvedValue(mrDiffs);
 
             // Execute
@@ -164,15 +179,29 @@ describe('GitLab getChangedFilesSinceLastCommit - integration tests for merge co
 
             const compareDiffs = [
                 { new_path: 'src/app.ts', diff: '@@ -1,1 +1,2 @@\n-old\n+new' },
-                { new_path: 'src/feature-b/component1.ts', diff: '+// Component 1', new_file: true },
-                { new_path: 'src/feature-b/component2.ts', diff: '+// Component 2', new_file: true },
-                { new_path: 'src/feature-b/component3.ts', diff: '+// Component 3', new_file: true },
+                {
+                    new_path: 'src/feature-b/component1.ts',
+                    diff: '+// Component 1',
+                    new_file: true,
+                },
+                {
+                    new_path: 'src/feature-b/component2.ts',
+                    diff: '+// Component 2',
+                    new_file: true,
+                },
+                {
+                    new_path: 'src/feature-b/component3.ts',
+                    diff: '+// Component 3',
+                    new_file: true,
+                },
             ];
 
             const mrDiffs = [{ new_path: 'src/app.ts' }];
 
             mockGitlabAPI.MergeRequests.allCommits.mockResolvedValue(commits);
-            mockGitlabAPI.Repositories.compare.mockResolvedValue({ diffs: compareDiffs });
+            mockGitlabAPI.Repositories.compare.mockResolvedValue({
+                diffs: compareDiffs,
+            });
             mockGitlabAPI.MergeRequests.allDiffs.mockResolvedValue(mrDiffs);
 
             const result = await gitlabService.getChangedFilesSinceLastCommit({
@@ -211,7 +240,9 @@ describe('GitLab getChangedFilesSinceLastCommit - integration tests for merge co
             ];
 
             mockGitlabAPI.MergeRequests.allCommits.mockResolvedValue(commits);
-            mockGitlabAPI.Repositories.compare.mockResolvedValue({ diffs: compareDiffs });
+            mockGitlabAPI.Repositories.compare.mockResolvedValue({
+                diffs: compareDiffs,
+            });
             mockGitlabAPI.MergeRequests.allDiffs.mockResolvedValue(mrDiffs);
 
             const result = await gitlabService.getChangedFilesSinceLastCommit({
@@ -222,7 +253,11 @@ describe('GitLab getChangedFilesSinceLastCommit - integration tests for merge co
             });
 
             expect(result).toHaveLength(2);
-            expect(result.every((f: any) => f.filename.startsWith('src/real-file'))).toBe(true);
+            expect(
+                result.every((f: any) =>
+                    f.filename.startsWith('src/real-file'),
+                ),
+            ).toBe(true);
         });
 
         it('should return empty when all compare files are from merge (nothing to review)', async () => {
@@ -232,13 +267,19 @@ describe('GitLab getChangedFilesSinceLastCommit - integration tests for merge co
             ];
 
             const compareDiffs = [
-                { new_path: 'src/from-main.ts', diff: '+from main', new_file: true },
+                {
+                    new_path: 'src/from-main.ts',
+                    diff: '+from main',
+                    new_file: true,
+                },
             ];
 
             const mrDiffs: any[] = [];
 
             mockGitlabAPI.MergeRequests.allCommits.mockResolvedValue(commits);
-            mockGitlabAPI.Repositories.compare.mockResolvedValue({ diffs: compareDiffs });
+            mockGitlabAPI.Repositories.compare.mockResolvedValue({
+                diffs: compareDiffs,
+            });
             mockGitlabAPI.MergeRequests.allDiffs.mockResolvedValue(mrDiffs);
 
             const result = await gitlabService.getChangedFilesSinceLastCommit({

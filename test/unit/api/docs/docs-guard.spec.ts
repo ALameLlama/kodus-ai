@@ -28,8 +28,8 @@ describe('docs guard', () => {
         it('reads env vars', () => {
             const cfg = buildDocsConfig({
                 API_DOCS_ENABLED: 'true',
-                DOCS_PATH: '/api-docs',
-                DOCS_SPEC_PATH: '/spec.json',
+                API_DOCS_PATH: '/api-docs',
+                API_DOCS_SPEC_PATH: '/spec.json',
             } as NodeJS.ProcessEnv);
             expect(cfg.enabled).toBe(true);
             expect(cfg.docsPath).toBe('/api-docs');

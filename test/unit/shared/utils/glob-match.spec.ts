@@ -331,7 +331,10 @@ describe('globMatch - isFileMatchingGlobCaseInsensitive', () => {
                 isFileMatchingGlobCaseInsensitive('SRC/App.TS', patterns),
             ).toBe(true);
             expect(
-                isFileMatchingGlobCaseInsensitive('Src/Utils/Helper.Ts', patterns),
+                isFileMatchingGlobCaseInsensitive(
+                    'Src/Utils/Helper.Ts',
+                    patterns,
+                ),
             ).toBe(true);
         });
 

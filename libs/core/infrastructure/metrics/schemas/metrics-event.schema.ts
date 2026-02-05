@@ -10,7 +10,11 @@ export class MetricsEventModel extends Document {
     @Prop({ type: String, required: true, index: true })
     name: string;
 
-    @Prop({ type: String, required: true, enum: ['counter', 'histogram', 'gauge'] })
+    @Prop({
+        type: String,
+        required: true,
+        enum: ['counter', 'histogram', 'gauge'],
+    })
     type: string;
 
     @Prop({ type: Number, required: true })
@@ -32,4 +36,8 @@ export const MetricsEventSchema =
 
 // Compound index for common query patterns
 MetricsEventSchema.index({ name: 1, recordedAt: -1 });
-MetricsEventSchema.index({ name: 1, 'labels.component': 1, recordedAt: -1 });
+MetricsEventSchema.index({
+    'name': 1,
+    'labels.component': 1,
+    'recordedAt': -1,
+});

@@ -24,7 +24,10 @@ export class LoggingInterceptor implements NestInterceptor {
         private readonly configService: ConfigService,
         @Optional() private readonly metricsCollector?: MetricsCollectorService,
     ) {
-        this.componentType = this.configService.get<string>('COMPONENT_TYPE', 'unknown');
+        this.componentType = this.configService.get<string>(
+            'COMPONENT_TYPE',
+            'unknown',
+        );
     }
 
     intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
@@ -45,7 +48,9 @@ export class LoggingInterceptor implements NestInterceptor {
             (Array.isArray(headerCorrelationId)
                 ? headerCorrelationId[0]
                 : headerCorrelationId) ||
-            (Array.isArray(headerRequestId) ? headerRequestId[0] : headerRequestId) ||
+            (Array.isArray(headerRequestId)
+                ? headerRequestId[0]
+                : headerRequestId) ||
             req.requestId ||
             uuidv4();
         req.requestId = correlationId;
@@ -101,15 +106,15 @@ export class LoggingInterceptor implements NestInterceptor {
                             method: req.method,
                             url: req.url,
                             body: req.method === 'POST' ? '[Body]' : {},
-                        headers: req.headers,
-                        query: req.query,
-                        params: req.params,
-                        requestId: req.requestId,
-                        correlationId,
-                        durationMs,
-                        userID: userID,
-                    },
-                });
+                            headers: req.headers,
+                            query: req.query,
+                            params: req.params,
+                            requestId: req.requestId,
+                            correlationId,
+                            durationMs,
+                            userID: userID,
+                        },
+                    });
                 });
             }),
         );

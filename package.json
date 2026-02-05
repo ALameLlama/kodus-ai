@@ -103,7 +103,12 @@
         "yalc:remove:all": "docker compose -f docker-compose.dev.yml exec api sh -lc \"cd /usr/src/app && yalc remove @kodus/kodus-common && yalc remove @kodus/flow && yarn install\"",
         "tunnel": "node scripts/dev/tunnel.js",
         "tunnel:start": "yarn tunnel",
-        "dev:with-tunnel": "yarn tunnel & yarn docker:start"
+        "dev:with-tunnel": "yarn tunnel & yarn docker:start",
+        "openapi:export": "ts-node -r tsconfig-paths/register scripts/openapi/export-openapi.ts",
+        "openapi:lint": "spectral lint docs/openapi.json",
+        "openapi:lint:local": "spectral lint http://localhost:3001/openapi.json",
+        "openapi:postman": "scripts/openapi/generate-postman.sh",
+        "openapi:newman": "scripts/openapi/run-newman.sh"
     },
     "dependencies": {
         "@casl/ability": "^6.8.0",
@@ -233,6 +238,7 @@
         "@types/passport-jwt": "^4.0.1",
         "@types/ramda": "^0.31.1",
         "@types/supertest": "^6.0.3",
+        "@stoplight/spectral-cli": "^6.15.0",
         "@typescript-eslint/eslint-plugin": "^8.54.0",
         "@typescript-eslint/parser": "^8.54.0",
         "esbuild": "^0.27.2",

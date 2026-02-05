@@ -53,7 +53,36 @@ import {
 import { CreateKodyRuleDto } from '@libs/ee/kodyRules/dtos/create-kody-rule.dto';
 import { KodyRulesStatus } from '@libs/kodyRules/domain/interfaces/kodyRules.interface';
 import { FindRecommendedKodyRulesDto } from '../dtos/find-recommended-kody-rules.dto';
+import {
+    ApiBearerAuth,
+    ApiCreatedResponse,
+    ApiNoContentResponse,
+    ApiOkResponse,
+    ApiOperation,
+    ApiQuery,
+    ApiTags,
+} from '@nestjs/swagger';
+import { Public } from '@libs/identity/infrastructure/adapters/services/auth/public.decorator';
+import { ApiStandardResponses } from '../docs/api-standard-responses.decorator';
+import {
+    ApiArrayResponseDto,
+    ApiObjectResponseDto,
+    ApiBooleanResponseDto,
+} from '../dtos/api-response.dto';
+import {
+    KodyRuleResponseDto,
+    KodyRulesArrayResponseDto,
+    KodyRulesBucketsResponseDto,
+    KodyRulesFastSyncResponseDto,
+    KodyRulesFindByOrgResponseDto,
+    KodyRulesInheritedResponseDto,
+    KodyRulesLibraryResponseDto,
+    KodyRulesLimitResponseDto,
+    KodyRulesSyncStatusResponseDto,
+} from '../dtos/kody-rules-response.dto';
 
+@ApiTags('Kody Rules')
+@ApiStandardResponses()
 @Controller('kody-rules')
 export class KodyRulesController {
     constructor(
@@ -81,6 +110,7 @@ export class KodyRulesController {
         private readonly request: UserRequest,
     ) {}
 
+    @ApiBearerAuth('jwt')
     @Post('/create-or-update')
     @UseGuards(PolicyGuard)
     @CheckPolicies(
@@ -89,6 +119,11 @@ export class KodyRulesController {
             resource: ResourceType.KodyRules,
         }),
     )
+    @ApiOperation({
+        summary: 'Create or update rule',
+        description: 'Create a new rule or update an existing one.',
+    })
+    @ApiCreatedResponse({ type: KodyRuleResponseDto })
     public async create(
         @Body()
         body: CreateKodyRuleDto,
@@ -102,6 +137,7 @@ export class KodyRulesController {
         );
     }
 
+    @ApiBearerAuth('jwt')
     @Get('/find-by-organization-id')
     @UseGuards(PolicyGuard)
     @CheckPolicies(
@@ -110,10 +146,16 @@ export class KodyRulesController {
             resource: ResourceType.KodyRules,
         }),
     )
+    @ApiOperation({
+        summary: 'List rules by organization',
+        description: 'Return all rules for the current organization.',
+    })
+    @ApiOkResponse({ type: KodyRulesFindByOrgResponseDto })
     public async findByOrganizationId() {
         return this.findByOrganizationIdKodyRulesUseCase.execute();
     }
 
+    @ApiBearerAuth('jwt')
     @Get('/limits')
     @UseGuards(PolicyGuard)
     @CheckPolicies(
@@ -122,10 +164,16 @@ export class KodyRulesController {
             resource: ResourceType.KodyRules,
         }),
     )
+    @ApiOperation({
+        summary: 'Get rules limit status',
+        description: 'Return the current kody rules limit usage.',
+    })
+    @ApiOkResponse({ type: KodyRulesLimitResponseDto })
     public async getRulesLimitStatus() {
         return this.getRulesLimitStatusUseCase.execute();
     }
 
+    @ApiBearerAuth('jwt')
     @Get('/suggestions')
     @UseGuards(PolicyGuard)
     @CheckPolicies(
@@ -134,12 +182,18 @@ export class KodyRulesController {
             resource: ResourceType.KodyRules,
         }),
     )
+    @ApiOperation({
+        summary: 'Get suggestions by rule',
+        description: 'Return suggestions for a specific rule.',
+    })
+    @ApiOkResponse({ type: ApiArrayResponseDto })
     public async findSuggestionsByRule(
         @Query() query: FindSuggestionsByRuleDto,
     ) {
         return this.findSuggestionsByRuleUseCase.execute(query.ruleId);
     }
 
+    @ApiBearerAuth('jwt')
     @Get('/find-rules-in-organization-by-filter')
     @UseGuards(PolicyGuard)
     @CheckPolicies(
@@ -148,6 +202,15 @@ export class KodyRulesController {
             resource: ResourceType.KodyRules,
         }),
     )
+    @ApiOperation({
+        summary: 'Find rules by filter',
+        description: 'Return rules matching a key/value filter.',
+    })
+    @ApiQuery({ name: 'key', type: String, required: true })
+    @ApiQuery({ name: 'value', type: String, required: true })
+    @ApiQuery({ name: 'repositoryId', type: String, required: false })
+    @ApiQuery({ name: 'directoryId', type: String, required: false })
+    @ApiOkResponse({ type: ApiArrayResponseDto })
     public async findRulesInOrganizationByFilter(
         @Query('key')
         key: string,
@@ -170,6 +233,7 @@ export class KodyRulesController {
         );
     }
 
+    @ApiBearerAuth('jwt')
     @Delete('/delete-rule-in-organization-by-id')
     @UseGuards(PolicyGuard)
     @CheckPolicies(
@@ -178,6 +242,12 @@ export class KodyRulesController {
             resource: ResourceType.KodyRules,
         }),
     )
+    @ApiOperation({
+        summary: 'Delete rule by id',
+        description: 'Delete a rule in the organization by rule id.',
+    })
+    @ApiQuery({ name: 'ruleId', type: String, required: true })
+    @ApiOkResponse({ type: ApiBooleanResponseDto })
     public async deleteRuleInOrganizationById(
         @Query('ruleId')
         ruleId: string,
@@ -188,11 +258,23 @@ export class KodyRulesController {
     }
 
     @Get('/find-library-kody-rules')
+    @Public()
+    @ApiOperation({
+        summary: 'List library rules',
+        description: 'Return library rules with pagination.',
+    })
+    @ApiOkResponse({ type: KodyRulesLibraryResponseDto })
     public async findLibraryKodyRules(@Query() query: FindLibraryKodyRulesDto) {
         return this.findLibraryKodyRulesUseCase.execute(query);
     }
 
+    @ApiBearerAuth('jwt')
     @Get('/find-library-kody-rules-with-feedback')
+    @ApiOperation({
+        summary: 'List library rules with feedback',
+        description: 'Return library rules with user feedback and pagination.',
+    })
+    @ApiOkResponse({ type: KodyRulesLibraryResponseDto })
     public async findLibraryKodyRulesWithFeedback(
         @Query() query: FindLibraryKodyRulesDto,
     ) {
@@ -200,10 +282,17 @@ export class KodyRulesController {
     }
 
     @Get('/find-library-kody-rules-buckets')
+    @Public()
+    @ApiOperation({
+        summary: 'List library buckets',
+        description: 'Return available kody rules buckets.',
+    })
+    @ApiOkResponse({ type: KodyRulesBucketsResponseDto })
     public async findLibraryKodyRulesBuckets() {
         return this.findLibraryKodyRulesBucketsUseCase.execute();
     }
 
+    @ApiBearerAuth('jwt')
     @Get('/find-recommended-kody-rules')
     @UseGuards(PolicyGuard)
     @CheckPolicies(
@@ -212,6 +301,12 @@ export class KodyRulesController {
             resource: ResourceType.KodyRules,
         }),
     )
+    @ApiOperation({
+        summary: 'Find recommended rules',
+        description: 'Return recommended rules for the organization.',
+    })
+    @ApiQuery({ name: 'limit', type: Number, required: false })
+    @ApiOkResponse({ type: ApiArrayResponseDto })
     public async findRecommendedKodyRules(
         @Query() query: FindRecommendedKodyRulesDto,
     ) {
@@ -240,6 +335,7 @@ export class KodyRulesController {
         return result;
     }
 
+    @ApiBearerAuth('jwt')
     @Post('/add-library-kody-rules')
     @UseGuards(PolicyGuard)
     @CheckPolicies(
@@ -248,10 +344,16 @@ export class KodyRulesController {
             resource: ResourceType.KodyRules,
         }),
     )
+    @ApiOperation({
+        summary: 'Add library rules',
+        description: 'Add library rules to the organization repositories.',
+    })
+    @ApiCreatedResponse({ type: KodyRulesArrayResponseDto })
     public async addLibraryKodyRules(@Body() body: AddLibraryKodyRulesDto) {
         return this.addLibraryKodyRulesUseCase.execute(body);
     }
 
+    @ApiBearerAuth('jwt')
     @Post('/generate-kody-rules')
     @UseGuards(PolicyGuard)
     @CheckPolicies(
@@ -260,6 +362,11 @@ export class KodyRulesController {
             resource: ResourceType.KodyRules,
         }),
     )
+    @ApiOperation({
+        summary: 'Generate rules',
+        description: 'Generate rules based on repository history.',
+    })
+    @ApiCreatedResponse({ type: KodyRulesArrayResponseDto })
     public async generateKodyRules(@Body() body: GenerateKodyRulesDTO) {
         if (!this.request.user.organization.uuid) {
             throw new Error('Organization ID not found');
@@ -271,6 +378,7 @@ export class KodyRulesController {
         );
     }
 
+    @ApiBearerAuth('jwt')
     @Post('/change-status-kody-rules')
     @UseGuards(PolicyGuard)
     @CheckPolicies(
@@ -279,10 +387,16 @@ export class KodyRulesController {
             resource: ResourceType.KodyRules,
         }),
     )
+    @ApiOperation({
+        summary: 'Change rule status',
+        description: 'Update status for one or more rules.',
+    })
+    @ApiCreatedResponse({ type: KodyRulesArrayResponseDto })
     public async changeStatusKodyRules(@Body() body: ChangeStatusKodyRulesDTO) {
         return this.changeStatusKodyRulesUseCase.execute(body);
     }
 
+    @ApiBearerAuth('jwt')
     @Get('/check-sync-status')
     @UseGuards(PolicyGuard)
     @CheckPolicies(
@@ -291,6 +405,13 @@ export class KodyRulesController {
             resource: ResourceType.KodyRules,
         }),
     )
+    @ApiOperation({
+        summary: 'Check sync status',
+        description: 'Return sync status flags for IDE and generator.',
+    })
+    @ApiQuery({ name: 'teamId', type: String, required: true })
+    @ApiQuery({ name: 'repositoryId', type: String, required: false })
+    @ApiOkResponse({ type: KodyRulesSyncStatusResponseDto })
     public async checkSyncStatus(
         @Query('teamId')
         teamId: string,
@@ -317,6 +438,7 @@ export class KodyRulesController {
         return result;
     }
 
+    @ApiBearerAuth('jwt')
     @Post('/sync-ide-rules')
     @UseGuards(PolicyGuard)
     @CheckPolicies(
@@ -325,6 +447,11 @@ export class KodyRulesController {
             resource: ResourceType.KodyRules,
         }),
     )
+    @ApiOperation({
+        summary: 'Sync IDE rules',
+        description: 'Sync IDE rules for a repository.',
+    })
+    @ApiNoContentResponse({ description: 'Sync started' })
     public async syncIdeRules(
         @Body() body: { teamId: string; repositoryId: string },
     ) {
@@ -336,6 +463,7 @@ export class KodyRulesController {
         });
     }
 
+    @ApiBearerAuth('jwt')
     @Post('/fast-sync-ide-rules')
     @UseGuards(PolicyGuard)
     @CheckPolicies(
@@ -344,6 +472,11 @@ export class KodyRulesController {
             resource: ResourceType.KodyRules,
         }),
     )
+    @ApiOperation({
+        summary: 'Fast sync IDE rules',
+        description: 'Fast sync IDE rules with optional limits.',
+    })
+    @ApiCreatedResponse({ type: KodyRulesFastSyncResponseDto })
     public async fastSyncIdeRules(
         @Body()
         body: {
@@ -357,6 +490,7 @@ export class KodyRulesController {
         return this.fastSyncIdeRulesUseCase.execute(body);
     }
 
+    @ApiBearerAuth('jwt')
     @Get('/pending-ide-rules')
     @UseGuards(PolicyGuard)
     @CheckPolicies(
@@ -365,6 +499,13 @@ export class KodyRulesController {
             resource: ResourceType.KodyRules,
         }),
     )
+    @ApiOperation({
+        summary: 'List pending IDE rules',
+        description: 'Return pending IDE rules for a repository.',
+    })
+    @ApiQuery({ name: 'teamId', type: String, required: true })
+    @ApiQuery({ name: 'repositoryId', type: String, required: false })
+    @ApiOkResponse({ type: ApiArrayResponseDto })
     public async listPendingIdeRules(
         @Query('teamId') teamId: string,
         @Query('repositoryId') repositoryId?: string,
@@ -377,6 +518,7 @@ export class KodyRulesController {
         );
     }
 
+    @ApiBearerAuth('jwt')
     @Post('/import-fast-ide-rules')
     @UseGuards(PolicyGuard)
     @CheckPolicies(
@@ -385,10 +527,16 @@ export class KodyRulesController {
             resource: ResourceType.KodyRules,
         }),
     )
+    @ApiOperation({
+        summary: 'Import fast IDE rules',
+        description: 'Import rules from fast sync results.',
+    })
+    @ApiCreatedResponse({ type: KodyRulesArrayResponseDto })
     public async importFastIdeRules(@Body() body: ImportFastKodyRulesDto) {
         return this.importFastKodyRulesUseCase.execute(body);
     }
 
+    @ApiBearerAuth('jwt')
     @Post('/review-fast-ide-rules')
     @UseGuards(PolicyGuard)
     @CheckPolicies(
@@ -397,6 +545,11 @@ export class KodyRulesController {
             resource: ResourceType.KodyRules,
         }),
     )
+    @ApiOperation({
+        summary: 'Review fast IDE rules',
+        description: 'Activate or delete fast imported rules.',
+    })
+    @ApiCreatedResponse({ type: ApiObjectResponseDto })
     public async reviewFastIdeRules(@Body() body: ReviewFastKodyRulesDto) {
         const results: any = {};
 
@@ -419,6 +572,7 @@ export class KodyRulesController {
         return results;
     }
 
+    @ApiBearerAuth('jwt')
     @Get('/inherited-rules')
     @UseGuards(PolicyGuard)
     @CheckPolicies(
@@ -432,6 +586,11 @@ export class KodyRulesController {
             },
         }),
     )
+    @ApiOperation({
+        summary: 'Get inherited rules',
+        description: 'Return global and repository inherited rules.',
+    })
+    @ApiOkResponse({ type: KodyRulesInheritedResponseDto })
     public async getInheritedRules(
         @Query('teamId') teamId: string,
         @Query('repositoryId') repositoryId: string,
@@ -460,6 +619,7 @@ export class KodyRulesController {
     }
 
     // NOT USED IN WEB - INTERNAL USE ONLY
+    @ApiBearerAuth('jwt')
     @Post('/resync-ide-rules')
     @UseGuards(PolicyGuard)
     @CheckPolicies(
@@ -468,6 +628,11 @@ export class KodyRulesController {
             resource: ResourceType.KodyRules,
         }),
     )
+    @ApiOperation({
+        summary: 'Resync IDE rules',
+        description: 'Resync IDE rules (internal).',
+    })
+    @ApiNoContentResponse({ description: 'Resync started' })
     public async resyncIdeRules(
         @Body() body: { teamId: string; repositoryId: string },
     ) {

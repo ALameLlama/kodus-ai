@@ -59,13 +59,18 @@ describe('GitLab getChangedFilesSinceLastCommit', () => {
                 lastAnalyzedCommit: { sha: string };
             };
         };
-        compareCommits: (base: string, head: string) => Promise<Array<{
-            new_path: string;
-            diff: string;
-            new_file?: boolean;
-            deleted_file?: boolean;
-            renamed_file?: boolean;
-        }>>;
+        compareCommits: (
+            base: string,
+            head: string,
+        ) => Promise<
+            Array<{
+                new_path: string;
+                diff: string;
+                new_file?: boolean;
+                deleted_file?: boolean;
+                renamed_file?: boolean;
+            }>
+        >;
     }) {
         const { commits, lastCommit, compareCommits } = params;
 
@@ -157,9 +162,7 @@ describe('GitLab getChangedFilesSinceLastCommit', () => {
             const compareCommits = async (base: string, head: string) => {
                 expect(base).toBe('commit-a');
                 expect(head).toBe('commit-c'); // Most recent by date
-                return [
-                    { new_path: 'file.ts', diff: '+test' },
-                ];
+                return [{ new_path: 'file.ts', diff: '+test' }];
             };
 
             const result = await simulateGetChangedFilesSinceLastCommit({
@@ -230,7 +233,11 @@ describe('GitLab getChangedFilesSinceLastCommit', () => {
             const compareCommits = async () => [
                 { new_path: 'file1.ts', diff: '+file1 changes' },
                 { new_path: 'file2.ts', diff: '+file2 new', new_file: true },
-                { new_path: 'file3.ts', diff: '-file3 removed', deleted_file: true },
+                {
+                    new_path: 'file3.ts',
+                    diff: '-file3 removed',
+                    deleted_file: true,
+                },
             ];
 
             const result = await simulateGetChangedFilesSinceLastCommit({
@@ -321,7 +328,11 @@ describe('GitLab getChangedFilesSinceLastCommit', () => {
                 { new_path: 'new-file.ts', diff: '+new', new_file: true },
                 { new_path: 'modified-file.ts', diff: '+modified' },
                 { new_path: 'renamed-file.ts', diff: '', renamed_file: true },
-                { new_path: 'deleted-file.ts', diff: '-deleted', deleted_file: true },
+                {
+                    new_path: 'deleted-file.ts',
+                    diff: '-deleted',
+                    deleted_file: true,
+                },
             ];
 
             const result = await simulateGetChangedFilesSinceLastCommit({
@@ -331,10 +342,18 @@ describe('GitLab getChangedFilesSinceLastCommit', () => {
             });
 
             expect(result).toHaveLength(4);
-            expect(result.find(f => f.filename === 'new-file.ts')?.status).toBe('added');
-            expect(result.find(f => f.filename === 'modified-file.ts')?.status).toBe('modified');
-            expect(result.find(f => f.filename === 'renamed-file.ts')?.status).toBe('renamed');
-            expect(result.find(f => f.filename === 'deleted-file.ts')?.status).toBe('removed');
+            expect(
+                result.find((f) => f.filename === 'new-file.ts')?.status,
+            ).toBe('added');
+            expect(
+                result.find((f) => f.filename === 'modified-file.ts')?.status,
+            ).toBe('modified');
+            expect(
+                result.find((f) => f.filename === 'renamed-file.ts')?.status,
+            ).toBe('renamed');
+            expect(
+                result.find((f) => f.filename === 'deleted-file.ts')?.status,
+            ).toBe('removed');
         });
     });
 });

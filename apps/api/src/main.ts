@@ -28,6 +28,7 @@ import {
     createDocsBasicAuthMiddleware,
     createDocsIpAllowlistMiddleware,
 } from './docs/docs-guard';
+import { ApiErrorDto } from './dtos/api-error.dto';
 
 declare const module: any;
 
@@ -128,6 +129,10 @@ async function bootstrap() {
 
         app.enableShutdownHooks();
 
+        const apiPort = process.env.API_PORT
+            ? parseInt(process.env.API_PORT, 10)
+            : port;
+
         const docsConfig = buildDocsConfig(process.env);
         if (docsConfig.enabled) {
             app.use(
@@ -139,27 +144,90 @@ async function bootstrap() {
                 ),
             );
 
-            const swaggerConfig = new DocumentBuilder()
+            const swaggerBuilder = new DocumentBuilder()
                 .setTitle('Kodus API')
+                .setDescription('Public API for the Kodus platform.')
                 .setVersion('1.0')
-                .build();
-            const document = SwaggerModule.createDocument(app, swaggerConfig);
+                .addBearerAuth(
+                    {
+                        type: 'http',
+                        scheme: 'bearer',
+                        bearerFormat: 'JWT',
+                    },
+                    'jwt',
+                );
+
+            const servers =
+                docsConfig.servers.length > 0
+                    ? docsConfig.servers
+                    : [
+                          {
+                              url: `http://${
+                                  host === '0.0.0.0' ? 'localhost' : host
+                              }:${apiPort}`,
+                              description: 'Local',
+                          },
+                      ];
+
+            servers.forEach((server) => {
+                swaggerBuilder.addServer(server.url, server.description);
+            });
+
+            [
+                'Agent',
+                'Auth',
+                'CLI Review',
+                'Code Base',
+                'Code Management',
+                'Code Review Logs',
+                'Dry Run',
+                'Health',
+                'Integration',
+                'Integration Config',
+                'Internal Metrics',
+                'Issues',
+                'Kody Rules',
+                'MCP',
+                'Organization',
+                'Organization Parameters',
+                'Parameters',
+                'Permissions',
+                'Pull Request Messages',
+                'Pull Requests',
+                'Rule Likes',
+                'Segment',
+                'SSO Config',
+                'Team',
+                'Team CLI Key',
+                'Team Members',
+                'Token Usage',
+                'User',
+                'Webhook Health',
+                'Workflow Queue',
+            ].forEach((tag) => swaggerBuilder.addTag(tag));
+
+            const document = SwaggerModule.createDocument(
+                app,
+                swaggerBuilder.build(),
+                {
+                    extraModels: [ApiErrorDto],
+                },
+            );
 
             SwaggerModule.setup(docsConfig.docsPath, app, document, {
                 swaggerOptions: {
                     supportedSubmitMethods: [],
+                    tagsSorter: 'alpha',
+                    operationsSorter: 'alpha',
                 },
             });
 
             const httpAdapter = app.getHttpAdapter().getInstance();
-            httpAdapter.get(docsConfig.specPath, (_req: Request, res: Response) =>
-                res.json(document),
+            httpAdapter.get(
+                docsConfig.specPath,
+                (_req: Request, res: Response) => res.json(document),
             );
         }
-
-        const apiPort = process.env.API_PORT
-            ? parseInt(process.env.API_PORT, 10)
-            : port;
 
         console.log(
             `[API] - Running in ${environment.API_CLOUD_MODE ? 'CLOUD' : 'SELF-HOSTED'} mode`,

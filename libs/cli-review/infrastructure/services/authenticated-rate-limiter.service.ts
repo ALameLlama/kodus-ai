@@ -14,7 +14,9 @@ export interface AuthenticatedRateLimitResult {
  */
 @Injectable()
 export class AuthenticatedRateLimiterService {
-    private readonly logger = createLogger(AuthenticatedRateLimiterService.name);
+    private readonly logger = createLogger(
+        AuthenticatedRateLimiterService.name,
+    );
     private readonly RATE_LIMIT = 1000; // 1000 requests per window for authenticated users
     private readonly WINDOW_MS = 60 * 60 * 1000; // 1 hour
     private readonly FALLBACK_LIMIT = 100; // More restrictive limit when cache fails
@@ -26,7 +28,9 @@ export class AuthenticatedRateLimiterService {
 
     constructor(private readonly cacheService: CacheService) {}
 
-    async checkRateLimit(teamId: string): Promise<AuthenticatedRateLimitResult> {
+    async checkRateLimit(
+        teamId: string,
+    ): Promise<AuthenticatedRateLimitResult> {
         const key = `cli:auth:ratelimit:${teamId}`;
         const now = Date.now();
         const windowStart = now - this.WINDOW_MS;
@@ -97,7 +101,9 @@ export class AuthenticatedRateLimiterService {
      * In-memory fallback rate limiter with more restrictive limits
      * Used when cache is unavailable
      */
-    private checkRateLimitFallback(teamId: string): AuthenticatedRateLimitResult {
+    private checkRateLimitFallback(
+        teamId: string,
+    ): AuthenticatedRateLimitResult {
         const now = Date.now();
         const windowStart = now - this.WINDOW_MS;
 

@@ -46,8 +46,8 @@ describe('docs guard', () => {
     it('reads env vars', () => {
       const cfg = buildDocsConfig({
         API_DOCS_ENABLED: 'true',
-        DOCS_PATH: '/api-docs',
-        DOCS_SPEC_PATH: '/spec.json',
+        API_DOCS_PATH: '/api-docs',
+        API_DOCS_SPEC_PATH: '/spec.json',
       } as NodeJS.ProcessEnv);
       expect(cfg.enabled).toBe(true);
       expect(cfg.docsPath).toBe('/api-docs');
@@ -185,11 +185,11 @@ export const normalizePath = (path: string) =>
 
 export const buildDocsConfig = (env: NodeJS.ProcessEnv): DocsConfig => ({
   enabled: env.API_DOCS_ENABLED === 'true',
-  docsPath: normalizePath(env.DOCS_PATH || '/docs'),
-  specPath: normalizePath(env.DOCS_SPEC_PATH || '/openapi.json'),
-  ipAllowlist: env.DOCS_IP_ALLOWLIST || '',
-  basicUser: env.DOCS_BASIC_USER || '',
-  basicPass: env.DOCS_BASIC_PASS || '',
+  docsPath: normalizePath(env.API_DOCS_PATH || '/docs'),
+  specPath: normalizePath(env.API_DOCS_SPEC_PATH || '/openapi.json'),
+  ipAllowlist: env.API_DOCS_IP_ALLOWLIST || '',
+  basicUser: env.API_DOCS_BASIC_USER || '',
+  basicPass: env.API_DOCS_BASIC_PASS || '',
 });
 
 const parseAllowlist = (raw: string) =>

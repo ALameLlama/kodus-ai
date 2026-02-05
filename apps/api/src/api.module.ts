@@ -132,7 +132,6 @@ import { ConfigService } from '@nestjs/config';
         GlobalCacheModule,
     ],
     controllers: [
-        // WorkflowQueueController,
         CodeManagementController,
         DryRunController,
         CodeReviewSettingLogController,
