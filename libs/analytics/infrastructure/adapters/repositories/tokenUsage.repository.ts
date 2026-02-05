@@ -194,8 +194,31 @@ export class TokenUsageRepository implements ITokenUsageRepository {
             },
         };
 
+        // Exclude spans without token data (wrapper/parent spans that have no LLM usage)
+        const matchHasTokenData = {
+            $match: {
+                $expr: {
+                    $gt: [
+                        {
+                            $ifNull: [
+                                {
+                                    $getField: {
+                                        field: 'gen_ai.usage.total_tokens',
+                                        input: '$attributes',
+                                    },
+                                },
+                                0,
+                            ],
+                        },
+                        0,
+                    ],
+                },
+            },
+        };
+
         const pipeline: any[] = [
             matchStageFinal,
+            matchHasTokenData,
             matchBYOKStage,
             matchPRNumberStage,
             matchModelStage,
@@ -217,15 +240,38 @@ export class TokenUsageRepository implements ITokenUsageRepository {
             query,
         });
 
+        // Add final aggregation stage to sum across all models in the database
+        pipeline.push(
+            {
+                $group: {
+                    _id: null,
+                    input: { $sum: '$input' },
+                    output: { $sum: '$output' },
+                    total: { $sum: '$total' },
+                    outputReasoning: { $sum: '$outputReasoning' },
+                },
+            },
+            {
+                $project: {
+                    _id: 0,
+                    input: 1,
+                    output: 1,
+                    total: 1,
+                    outputReasoning: 1,
+                    model: { $literal: '' },
+                },
+            },
+        );
+
         const results = await this.observabilityTelemetryModel
             .aggregate<UsageSummaryContract>(pipeline)
             .exec();
 
-        if (results.length > 0) {
-            return results[0];
+        if (results.length === 0) {
+            return { input: 0, output: 0, total: 0, outputReasoning: 0, model: '' };
         }
 
-        return { input: 0, output: 0, total: 0, outputReasoning: 0, model: '' };
+        return results[0];
     }
 
     async getDailyUsage(

@@ -337,7 +337,8 @@ export class ValidatePrerequisitesStage extends BasePipelineStage<CodeReviewPipe
                 params.platformType === PlatformType.AZURE_REPOS ||
                 params.platformType === PlatformType.BITBUCKET
             ) {
-                const message = 'License validation failed 👎';
+                const message =
+                    '[👎](https://docs.kodus.io/how_to_use/en/code_review/flow#what-each-emoji-means)';
                 if (
                     params.triggerCommentId &&
                     params.platformType === PlatformType.BITBUCKET
