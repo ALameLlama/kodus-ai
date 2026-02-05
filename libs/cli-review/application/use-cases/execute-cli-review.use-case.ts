@@ -34,6 +34,7 @@ import {
     TEAM_AUTOMATION_SERVICE_TOKEN,
 } from '@libs/automation/domain/teamAutomation/contracts/team-automation.service';
 import { PlatformType } from '@libs/core/domain/enums/platform-type.enum';
+import { deepMerge } from '@libs/common/utils/deep';
 
 interface GitContext {
     remote?: string;
@@ -315,14 +316,7 @@ export class ExecuteCliReviewUseCase implements IUseCase {
         defaults: CodeReviewConfig,
     ): DeepPartial<CodeReviewConfig> {
         const base = defaults as DeepPartial<CodeReviewConfig>;
-        const merged = {
-            ...base,
-            ...config,
-            reviewOptions: {
-                ...(base.reviewOptions || {}),
-                ...(config.reviewOptions || {}),
-            },
-        } as DeepPartial<CodeReviewConfig>;
+        const merged = deepMerge(base, config || {}) as DeepPartial<CodeReviewConfig>;
 
         merged.codeReviewVersion = CodeReviewVersion.v2;
 
