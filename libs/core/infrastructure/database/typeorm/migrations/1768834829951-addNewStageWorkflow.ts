@@ -1,7 +1,7 @@
-import { MigrationInterface, QueryRunner } from "typeorm";
+import { MigrationInterface, QueryRunner } from 'typeorm';
 
 export class AddNewStageWorkflow1768834829951 implements MigrationInterface {
-    name = 'AddNewStageWorkflow1768834829951'
+    name = 'AddNewStageWorkflow1768834829951';
 
     public async up(queryRunner: QueryRunner): Promise<void> {
         await queryRunner.query(`
@@ -49,5 +49,4 @@ export class AddNewStageWorkflow1768834829951 implements MigrationInterface {
             RENAME TO "workflow_jobs_workflowtype_enum"
         `);
     }
-
 }

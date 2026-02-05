@@ -10,7 +10,19 @@ import {
 } from '@libs/identity/infrastructure/adapters/services/permissions/policy.guard';
 import { checkPermissions } from '@libs/identity/infrastructure/adapters/services/permissions/policy.handlers';
 import { GetIntegrationConfigsByIntegrationCategoryUseCase } from '@libs/integrations/application/use-cases/integrationConfig/getIntegrationConfigsByIntegrationCategory.use-case';
+import {
+    ApiBearerAuth,
+    ApiOkResponse,
+    ApiOperation,
+    ApiQuery,
+    ApiTags,
+} from '@nestjs/swagger';
+import { ApiStandardResponses } from '../docs/api-standard-responses.decorator';
+import { ApiArrayResponseDto } from '../dtos/api-response.dto';
 
+@ApiTags('Integration Config')
+@ApiBearerAuth('jwt')
+@ApiStandardResponses()
 @Controller('integration-config')
 export class IntegrationConfigController {
     constructor(
@@ -25,6 +37,14 @@ export class IntegrationConfigController {
             resource: ResourceType.GitSettings,
         }),
     )
+    @ApiOperation({
+        summary: 'List integration configs by category',
+        description:
+            'Return integration configurations for a category and team.',
+    })
+    @ApiQuery({ name: 'integrationCategory', type: String, required: true })
+    @ApiQuery({ name: 'teamId', type: String, required: true })
+    @ApiOkResponse({ type: ApiArrayResponseDto })
     public async getIntegrationConfigsByIntegrationCategory(
         @Query('integrationCategory') integrationCategory: string,
         @Query('teamId') teamId: string,

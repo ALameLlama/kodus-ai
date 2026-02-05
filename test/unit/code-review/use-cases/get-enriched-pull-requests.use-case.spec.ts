@@ -475,9 +475,13 @@ describe('GetEnrichedPullRequestsUseCase - extractSuggestionsCount', () => {
                     } else {
                         status = DeliveryStatus.FAILED; // 10%
                     }
-                    suggestions.push(createMockSuggestion({ deliveryStatus: status }));
+                    suggestions.push(
+                        createMockSuggestion({ deliveryStatus: status }),
+                    );
                 }
-                files.push(createMockFile({ path: `file${i}.ts`, suggestions }));
+                files.push(
+                    createMockFile({ path: `file${i}.ts`, suggestions }),
+                );
             }
 
             const pr = createMockPullRequest({ files });
@@ -510,7 +514,9 @@ describe('GetEnrichedPullRequestsUseCase - extractSuggestionsCount', () => {
                             : j % 3 === 1
                               ? DeliveryStatus.NOT_SENT
                               : DeliveryStatus.FAILED;
-                    suggestions.push(createMockSuggestion({ deliveryStatus: status }));
+                    suggestions.push(
+                        createMockSuggestion({ deliveryStatus: status }),
+                    );
                 }
                 files.push(createMockFile({ suggestions }));
             }
@@ -551,9 +557,15 @@ describe('GetEnrichedPullRequestsUseCase - Behavior Snapshots', () => {
                 files: [
                     createMockFile({
                         suggestions: [
-                            createMockSuggestion({ deliveryStatus: DeliveryStatus.SENT }),
-                            createMockSuggestion({ deliveryStatus: DeliveryStatus.SENT }),
-                            createMockSuggestion({ deliveryStatus: DeliveryStatus.SENT }),
+                            createMockSuggestion({
+                                deliveryStatus: DeliveryStatus.SENT,
+                            }),
+                            createMockSuggestion({
+                                deliveryStatus: DeliveryStatus.SENT,
+                            }),
+                            createMockSuggestion({
+                                deliveryStatus: DeliveryStatus.SENT,
+                            }),
                         ],
                     }),
                 ],
@@ -566,8 +578,12 @@ describe('GetEnrichedPullRequestsUseCase - Behavior Snapshots', () => {
                 files: [
                     createMockFile({
                         suggestions: [
-                            createMockSuggestion({ deliveryStatus: DeliveryStatus.NOT_SENT }),
-                            createMockSuggestion({ deliveryStatus: DeliveryStatus.NOT_SENT }),
+                            createMockSuggestion({
+                                deliveryStatus: DeliveryStatus.NOT_SENT,
+                            }),
+                            createMockSuggestion({
+                                deliveryStatus: DeliveryStatus.NOT_SENT,
+                            }),
                         ],
                     }),
                 ],
@@ -580,10 +596,19 @@ describe('GetEnrichedPullRequestsUseCase - Behavior Snapshots', () => {
                 files: [
                     createMockFile({
                         suggestions: [
-                            createMockSuggestion({ deliveryStatus: DeliveryStatus.SENT }),
-                            createMockSuggestion({ deliveryStatus: DeliveryStatus.NOT_SENT }),
-                            createMockSuggestion({ deliveryStatus: DeliveryStatus.FAILED }),
-                            createMockSuggestion({ deliveryStatus: DeliveryStatus.FAILED_LINES_MISMATCH }),
+                            createMockSuggestion({
+                                deliveryStatus: DeliveryStatus.SENT,
+                            }),
+                            createMockSuggestion({
+                                deliveryStatus: DeliveryStatus.NOT_SENT,
+                            }),
+                            createMockSuggestion({
+                                deliveryStatus: DeliveryStatus.FAILED,
+                            }),
+                            createMockSuggestion({
+                                deliveryStatus:
+                                    DeliveryStatus.FAILED_LINES_MISMATCH,
+                            }),
                         ],
                     }),
                 ],
@@ -597,22 +622,34 @@ describe('GetEnrichedPullRequestsUseCase - Behavior Snapshots', () => {
                     createMockFile({
                         path: 'a.ts',
                         suggestions: [
-                            createMockSuggestion({ deliveryStatus: DeliveryStatus.SENT }),
+                            createMockSuggestion({
+                                deliveryStatus: DeliveryStatus.SENT,
+                            }),
                         ],
                     }),
                     createMockFile({
                         path: 'b.ts',
                         suggestions: [
-                            createMockSuggestion({ deliveryStatus: DeliveryStatus.NOT_SENT }),
-                            createMockSuggestion({ deliveryStatus: DeliveryStatus.NOT_SENT }),
+                            createMockSuggestion({
+                                deliveryStatus: DeliveryStatus.NOT_SENT,
+                            }),
+                            createMockSuggestion({
+                                deliveryStatus: DeliveryStatus.NOT_SENT,
+                            }),
                         ],
                     }),
                     createMockFile({
                         path: 'c.ts',
                         suggestions: [
-                            createMockSuggestion({ deliveryStatus: DeliveryStatus.SENT }),
-                            createMockSuggestion({ deliveryStatus: DeliveryStatus.SENT }),
-                            createMockSuggestion({ deliveryStatus: DeliveryStatus.FAILED }),
+                            createMockSuggestion({
+                                deliveryStatus: DeliveryStatus.SENT,
+                            }),
+                            createMockSuggestion({
+                                deliveryStatus: DeliveryStatus.SENT,
+                            }),
+                            createMockSuggestion({
+                                deliveryStatus: DeliveryStatus.FAILED,
+                            }),
                         ],
                     }),
                 ],

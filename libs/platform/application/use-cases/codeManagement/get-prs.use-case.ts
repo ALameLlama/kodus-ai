@@ -113,7 +113,8 @@ export class GetPRsUseCase implements IUseCase {
         repositoryId?: string;
         repositoryName?: string;
     }): Promise<{ id: string; name: string } | undefined> {
-        const { organizationAndTeamData, repositoryId, repositoryName } = params;
+        const { organizationAndTeamData, repositoryId, repositoryName } =
+            params;
 
         if (!repositoryId && !repositoryName) {
             return undefined;
@@ -151,8 +152,7 @@ export class GetPRsUseCase implements IUseCase {
                 ].filter(Boolean) as string[];
 
                 return candidates.some(
-                    (candidate) =>
-                        candidate.toLowerCase() === normalizedName,
+                    (candidate) => candidate.toLowerCase() === normalizedName,
                 );
             };
 

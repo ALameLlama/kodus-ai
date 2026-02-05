@@ -34,10 +34,27 @@ import {
 import { checkPermissions } from '@libs/identity/infrastructure/adapters/services/permissions/policy.handlers';
 import { DeliveryStatus } from '@libs/platformData/domain/pullRequests/enums/deliveryStatus.enum';
 import {
+    ApiBearerAuth,
+    ApiCreatedResponse,
+    ApiOkResponse,
+    ApiOperation,
+    ApiTags,
+} from '@nestjs/swagger';
+import {
     ITeamCliKeyService,
     TEAM_CLI_KEY_SERVICE_TOKEN,
 } from '@libs/organization/domain/team-cli-key/contracts/team-cli-key.service.contract';
+import { Public } from '@libs/identity/infrastructure/adapters/services/auth/public.decorator';
+import { ApiStandardResponses } from '../docs/api-standard-responses.decorator';
+import { PullRequestSuggestionsResponseDto } from '../dtos/pull-request-suggestions-response.dto';
+import {
+    PullRequestBackfillResponseDto,
+    PullRequestExecutionsResponseDto,
+    PullRequestOnboardingSignalsResponseDto,
+} from '../dtos/pull-request-executions-response.dto';
 
+@ApiTags('Pull Requests')
+@ApiStandardResponses()
 @Controller('pull-requests')
 export class PullRequestController {
     constructor(
@@ -53,6 +70,7 @@ export class PullRequestController {
     ) {}
 
     @Get('/executions')
+    @ApiBearerAuth('jwt')
     @UseGuards(PolicyGuard)
     @CheckPolicies(
         checkPermissions({
@@ -60,6 +78,11 @@ export class PullRequestController {
             resource: ResourceType.PullRequests,
         }),
     )
+    @ApiOperation({
+        summary: 'List PR executions',
+        description: 'Return pull request execution history with pagination.',
+    })
+    @ApiOkResponse({ type: PullRequestExecutionsResponseDto })
     public async getPullRequestExecutions(
         @Query() query: EnrichedPullRequestsQueryDto,
     ): Promise<PaginatedEnrichedPullRequestsResponse> {
@@ -67,6 +90,13 @@ export class PullRequestController {
     }
 
     @Get('/suggestions')
+    @Public()
+    @ApiOperation({
+        summary: 'Get PR suggestions',
+        description:
+            'Returns suggestions for a PR. Requires `x-team-key` when not authenticated. `format=markdown` returns `{ markdown }`.',
+    })
+    @ApiOkResponse({ type: PullRequestSuggestionsResponseDto })
     public async getSuggestionsByPullRequest(
         @Query('prUrl') prUrl?: string,
         @Query('repositoryId') repositoryId?: string,
@@ -114,6 +144,13 @@ export class PullRequestController {
     }
 
     @Post('/cli/suggestions')
+    @Public()
+    @ApiOperation({
+        summary: 'Get PR suggestions (CLI)',
+        description:
+            'Returns suggestions for a PR via CLI key. `format=markdown` returns `{ markdown }`.',
+    })
+    @ApiCreatedResponse({ type: PullRequestSuggestionsResponseDto })
     public async getSuggestionsByPullRequestWithKey(
         @Body('prUrl') prUrl?: string,
         @Body('repositoryId') repositoryId?: string,
@@ -137,6 +174,13 @@ export class PullRequestController {
     }
 
     @Get('/cli/suggestions')
+    @Public()
+    @ApiOperation({
+        summary: 'Get PR suggestions (CLI) via GET',
+        description:
+            'Returns suggestions for a PR via CLI key. `format=markdown` returns `{ markdown }`.',
+    })
+    @ApiOkResponse({ type: PullRequestSuggestionsResponseDto })
     public async getSuggestionsByPullRequestWithKeyGet(
         @Query('prUrl') prUrl?: string,
         @Query('repositoryId') repositoryId?: string,
@@ -373,6 +417,7 @@ ${'```'}`,
     }
 
     @Get('/onboarding-signals')
+    @ApiBearerAuth('jwt')
     @UseGuards(PolicyGuard)
     @CheckPolicies(
         checkPermissions({
@@ -380,6 +425,11 @@ ${'```'}`,
             resource: ResourceType.PullRequests,
         }),
     )
+    @ApiOperation({
+        summary: 'Get onboarding review signals',
+        description: 'Return metrics and recommendation for review mode.',
+    })
+    @ApiOkResponse({ type: PullRequestOnboardingSignalsResponseDto })
     public async getOnboardingSignals(
         @Query() query: OnboardingReviewModeSignalsQueryDto,
     ) {
@@ -405,6 +455,7 @@ ${'```'}`,
 
     // NOT USED IN WEB - INTERNAL USE ONLY
     @Post('/backfill')
+    @ApiBearerAuth('jwt')
     @UseGuards(PolicyGuard)
     @CheckPolicies(
         checkPermissions({
@@ -412,6 +463,11 @@ ${'```'}`,
             resource: ResourceType.PullRequests,
         }),
     )
+    @ApiOperation({
+        summary: 'Backfill PRs',
+        description: 'Trigger historical pull request backfill in background.',
+    })
+    @ApiCreatedResponse({ type: PullRequestBackfillResponseDto })
     public async backfillHistoricalPRs(@Body() body: BackfillPRsDto) {
         const { teamId, repositoryIds, startDate, endDate } = body;
         const organizationId = this.request.user?.organization?.uuid;

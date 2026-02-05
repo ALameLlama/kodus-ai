@@ -44,7 +44,10 @@ export class PullRequestsRepository implements IPullRequestsRepository {
 
     //#region Get/Find
     async findById(uuid: string): Promise<PullRequestsEntity | null> {
-        const doc = await this.pullRequestsModel.findOne({ uuid }).lean().exec();
+        const doc = await this.pullRequestsModel
+            .findOne({ uuid })
+            .lean()
+            .exec();
         return doc ? mapSimpleModelToEntity(doc, PullRequestsEntity) : null;
     }
 
@@ -75,7 +78,7 @@ export class PullRequestsRepository implements IPullRequestsRepository {
         }
 
         const results = await this.pullRequestsModel
-            .find(filter, { number: 1, 'repository.id': 1 })
+            .find(filter, { 'number': 1, 'repository.id': 1 })
             .lean()
             .exec();
 
@@ -90,11 +93,13 @@ export class PullRequestsRepository implements IPullRequestsRepository {
         repositoryName: string,
         organizationAndTeamData: OrganizationAndTeamData,
     ): Promise<PullRequestsEntity | null> {
-        const pullRequest = await this.pullRequestsModel.findOne({
-            'number': pullRequestNumber,
-            'repository.name': repositoryName,
-            'organizationId': organizationAndTeamData.organizationId,
-        }).lean();
+        const pullRequest = await this.pullRequestsModel
+            .findOne({
+                'number': pullRequestNumber,
+                'repository.name': repositoryName,
+                'organizationId': organizationAndTeamData.organizationId,
+            })
+            .lean();
 
         return pullRequest
             ? mapSimpleModelToEntity(pullRequest, PullRequestsEntity)
@@ -106,11 +111,13 @@ export class PullRequestsRepository implements IPullRequestsRepository {
         repositoryName: string,
         organizationAndTeamData: OrganizationAndTeamData,
     ): Promise<PullRequestsEntity | null> {
-        const pullRequest = await this.pullRequestsModel.findOne({
-            'number': pullRequestNumber,
-            'repository.id': repositoryName,
-            'organizationId': organizationAndTeamData.organizationId,
-        }).lean();
+        const pullRequest = await this.pullRequestsModel
+            .findOne({
+                'number': pullRequestNumber,
+                'repository.id': repositoryName,
+                'organizationId': organizationAndTeamData.organizationId,
+            })
+            .lean();
 
         return pullRequest
             ? mapSimpleModelToEntity(pullRequest, PullRequestsEntity)
@@ -123,21 +130,23 @@ export class PullRequestsRepository implements IPullRequestsRepository {
         organizationAndTeamData: OrganizationAndTeamData,
     ): Promise<PullRequestsEntity | null> {
         // Use projection to exclude heavy fields (files.suggestions details)
-        const pullRequest = await this.pullRequestsModel.findOne(
-            {
-                'number': pullRequestNumber,
-                'repository.id': repositoryId,
-                'organizationId': organizationAndTeamData.organizationId,
-            },
-            {
-                // Exclude suggestion content but keep count
-                'files.suggestions.existingCode': 0,
-                'files.suggestions.improvedCode': 0,
-                'files.suggestions.suggestionContent': 0,
-                'commits': 0,
-                'prLevelSuggestions': 0,
-            },
-        ).lean();
+        const pullRequest = await this.pullRequestsModel
+            .findOne(
+                {
+                    'number': pullRequestNumber,
+                    'repository.id': repositoryId,
+                    'organizationId': organizationAndTeamData.organizationId,
+                },
+                {
+                    // Exclude suggestion content but keep count
+                    'files.suggestions.existingCode': 0,
+                    'files.suggestions.improvedCode': 0,
+                    'files.suggestions.suggestionContent': 0,
+                    'commits': 0,
+                    'prLevelSuggestions': 0,
+                },
+            )
+            .lean();
 
         return pullRequest
             ? mapSimpleModelToEntity(pullRequest, PullRequestsEntity)
@@ -160,19 +169,22 @@ export class PullRequestsRepository implements IPullRequestsRepository {
             'repository.id': c.repositoryId,
         }));
 
-        const pullRequests = await this.pullRequestsModel.find(
-            {
-                organizationId,
-                $or: orConditions,
-            },
-            {
-                // PERF: Exclude heavy fields - suggestion counts come from aggregation
-                // This reduces data transfer from ~3MB to ~50KB per batch
-                'files': 0,
-                'commits': 0,
-                'prLevelSuggestions': 0,
-            },
-        ).lean().exec();
+        const pullRequests = await this.pullRequestsModel
+            .find(
+                {
+                    organizationId,
+                    $or: orConditions,
+                },
+                {
+                    // PERF: Exclude heavy fields - suggestion counts come from aggregation
+                    // This reduces data transfer from ~3MB to ~50KB per batch
+                    files: 0,
+                    commits: 0,
+                    prLevelSuggestions: 0,
+                },
+            )
+            .lean()
+            .exec();
 
         return mapSimpleModelsToEntities(pullRequests, PullRequestsEntity);
     }
@@ -190,18 +202,21 @@ export class PullRequestsRepository implements IPullRequestsRepository {
             return [];
         }
 
-        const pullRequests = await this.pullRequestsModel.find(
-            {
-                organizationId,
-                number: { $in: prNumbers },
-            },
-            {
-                // Only fetch fields needed for developer mapping
-                'number': 1,
-                'user': 1,
-                'organizationId': 1,
-            },
-        ).lean().exec();
+        const pullRequests = await this.pullRequestsModel
+            .find(
+                {
+                    organizationId,
+                    number: { $in: prNumbers },
+                },
+                {
+                    // Only fetch fields needed for developer mapping
+                    number: 1,
+                    user: 1,
+                    organizationId: 1,
+                },
+            )
+            .lean()
+            .exec();
 
         return pullRequests.map((pr) => ({
             number: pr.number,
@@ -240,66 +255,78 @@ export class PullRequestsRepository implements IPullRequestsRepository {
             'repository.id': c.repositoryId,
         }));
 
-        const aggregationResult = await this.pullRequestsModel.aggregate([
-            // Match the PRs we need
-            {
-                $match: {
-                    organizationId,
-                    $or: orConditions,
-                },
-            },
-            // Unwind files array
-            {
-                $unwind: {
-                    path: '$files',
-                    preserveNullAndEmptyArrays: true,
-                },
-            },
-            // Unwind suggestions array
-            {
-                $unwind: {
-                    path: '$files.suggestions',
-                    preserveNullAndEmptyArrays: true,
-                },
-            },
-            // Group by PR and count by deliveryStatus
-            {
-                $group: {
-                    _id: {
-                        repositoryId: '$repository.id',
-                        prNumber: '$number',
+        const aggregationResult = await this.pullRequestsModel
+            .aggregate([
+                // Match the PRs we need
+                {
+                    $match: {
+                        organizationId,
+                        $or: orConditions,
                     },
-                    sent: {
-                        $sum: {
-                            $cond: [
-                                { $eq: ['$files.suggestions.deliveryStatus', DeliveryStatus.SENT] },
-                                1,
-                                0,
-                            ],
+                },
+                // Unwind files array
+                {
+                    $unwind: {
+                        path: '$files',
+                        preserveNullAndEmptyArrays: true,
+                    },
+                },
+                // Unwind suggestions array
+                {
+                    $unwind: {
+                        path: '$files.suggestions',
+                        preserveNullAndEmptyArrays: true,
+                    },
+                },
+                // Group by PR and count by deliveryStatus
+                {
+                    $group: {
+                        _id: {
+                            repositoryId: '$repository.id',
+                            prNumber: '$number',
+                        },
+                        sent: {
+                            $sum: {
+                                $cond: [
+                                    {
+                                        $eq: [
+                                            '$files.suggestions.deliveryStatus',
+                                            DeliveryStatus.SENT,
+                                        ],
+                                    },
+                                    1,
+                                    0,
+                                ],
+                            },
+                        },
+                        filtered: {
+                            $sum: {
+                                $cond: [
+                                    {
+                                        $eq: [
+                                            '$files.suggestions.deliveryStatus',
+                                            DeliveryStatus.NOT_SENT,
+                                        ],
+                                    },
+                                    1,
+                                    0,
+                                ],
+                            },
                         },
                     },
-                    filtered: {
-                        $sum: {
-                            $cond: [
-                                { $eq: ['$files.suggestions.deliveryStatus', DeliveryStatus.NOT_SENT] },
-                                1,
-                                0,
-                            ],
-                        },
+                },
+                // Project to clean output
+                {
+                    $project: {
+                        _id: 0,
+                        repositoryId: '$_id.repositoryId',
+                        prNumber: '$_id.prNumber',
+                        sent: 1,
+                        filtered: 1,
                     },
                 },
-            },
-            // Project to clean output
-            {
-                $project: {
-                    _id: 0,
-                    repositoryId: '$_id.repositoryId',
-                    prNumber: '$_id.prNumber',
-                    sent: 1,
-                    filtered: 1,
-                },
-            },
-        ]).exec();
+            ])
+            .exec();
 
         // Build the result map
         for (const row of aggregationResult) {

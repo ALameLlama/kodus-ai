@@ -16,7 +16,8 @@ export class RabbitMQDLQInitializer implements OnModuleInit {
     async onModuleInit(): Promise<void> {
         if (!this.amqpConnection) {
             this.logger.warn({
-                message: 'RabbitMQ connection not available; skipping DLQ setup',
+                message:
+                    'RabbitMQ connection not available; skipping DLQ setup',
                 context: RabbitMQDLQInitializer.name,
             });
             return;
@@ -92,4 +93,3 @@ export class RabbitMQDLQInitializer implements OnModuleInit {
         });
     }
 }
-

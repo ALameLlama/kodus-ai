@@ -56,10 +56,16 @@ describe('CreateFileCommentsStage', () => {
         teamId: 'team-456',
     };
 
-    const createBaseContext = (overrides: Partial<CodeReviewPipelineContext> = {}): CodeReviewPipelineContext => ({
+    const createBaseContext = (
+        overrides: Partial<CodeReviewPipelineContext> = {},
+    ): CodeReviewPipelineContext => ({
         dryRun: { enabled: false },
         organizationAndTeamData: mockOrganizationAndTeamData as any,
-        repository: { id: 'repo-1', name: 'test-repo', language: 'typescript' } as any,
+        repository: {
+            id: 'repo-1',
+            name: 'test-repo',
+            language: 'typescript',
+        } as any,
         branch: 'main',
         pullRequest: {
             number: 123,
@@ -94,11 +100,23 @@ describe('CreateFileCommentsStage', () => {
         const module: TestingModule = await Test.createTestingModule({
             providers: [
                 CreateFileCommentsStage,
-                { provide: COMMENT_MANAGER_SERVICE_TOKEN, useValue: mockCommentManagerService },
-                { provide: PULL_REQUESTS_SERVICE_TOKEN, useValue: mockPullRequestService },
-                { provide: SUGGESTION_SERVICE_TOKEN, useValue: mockSuggestionService },
+                {
+                    provide: COMMENT_MANAGER_SERVICE_TOKEN,
+                    useValue: mockCommentManagerService,
+                },
+                {
+                    provide: PULL_REQUESTS_SERVICE_TOKEN,
+                    useValue: mockPullRequestService,
+                },
+                {
+                    provide: SUGGESTION_SERVICE_TOKEN,
+                    useValue: mockSuggestionService,
+                },
                 { provide: DRY_RUN_SERVICE_TOKEN, useValue: mockDryRunService },
-                { provide: CodeManagementService, useValue: mockCodeManagementService },
+                {
+                    provide: CodeManagementService,
+                    useValue: mockCodeManagementService,
+                },
             ],
         }).compile();
 
@@ -121,7 +139,9 @@ describe('CreateFileCommentsStage', () => {
             const result = await (stage as any).executeStage(context);
 
             expect(result).toBeDefined();
-            expect(mockCommentManagerService.createLineComments).not.toHaveBeenCalled();
+            expect(
+                mockCommentManagerService.createLineComments,
+            ).not.toHaveBeenCalled();
         });
 
         it('should return context unchanged when pullRequest is missing', async () => {
@@ -132,7 +152,9 @@ describe('CreateFileCommentsStage', () => {
             const result = await (stage as any).executeStage(context);
 
             expect(result).toBeDefined();
-            expect(mockCommentManagerService.createLineComments).not.toHaveBeenCalled();
+            expect(
+                mockCommentManagerService.createLineComments,
+            ).not.toHaveBeenCalled();
         });
 
         it('should return context unchanged when repository is missing', async () => {
@@ -143,7 +165,9 @@ describe('CreateFileCommentsStage', () => {
             const result = await (stage as any).executeStage(context);
 
             expect(result).toBeDefined();
-            expect(mockCommentManagerService.createLineComments).not.toHaveBeenCalled();
+            expect(
+                mockCommentManagerService.createLineComments,
+            ).not.toHaveBeenCalled();
         });
     });
 
@@ -161,10 +185,12 @@ describe('CreateFileCommentsStage', () => {
                 },
             ];
 
-            mockSuggestionService.sortAndPrioritizeSuggestions.mockResolvedValue({
-                sortedPrioritizedSuggestions: validSuggestions,
-                allDiscardedSuggestions: [],
-            });
+            mockSuggestionService.sortAndPrioritizeSuggestions.mockResolvedValue(
+                {
+                    sortedPrioritizedSuggestions: validSuggestions,
+                    allDiscardedSuggestions: [],
+                },
+            );
 
             mockCommentManagerService.createLineComments.mockResolvedValue({
                 lastAnalyzedCommit: 'abc123',
@@ -182,10 +208,12 @@ describe('CreateFileCommentsStage', () => {
                 { sha: 'abc123' },
             ]);
 
-            mockPullRequestService.findByNumberAndRepositoryName.mockResolvedValue({
-                number: 123,
-                files: [],
-            });
+            mockPullRequestService.findByNumberAndRepositoryName.mockResolvedValue(
+                {
+                    number: 123,
+                    files: [],
+                },
+            );
 
             const context = createBaseContext({
                 validSuggestions,
@@ -194,17 +222,23 @@ describe('CreateFileCommentsStage', () => {
 
             const result = await (stage as any).executeStage(context);
 
-            expect(mockSuggestionService.sortAndPrioritizeSuggestions).toHaveBeenCalled();
-            expect(mockCommentManagerService.createLineComments).toHaveBeenCalled();
+            expect(
+                mockSuggestionService.sortAndPrioritizeSuggestions,
+            ).toHaveBeenCalled();
+            expect(
+                mockCommentManagerService.createLineComments,
+            ).toHaveBeenCalled();
             expect(result.lineComments).toHaveLength(1);
             expect(result.lastAnalyzedCommit).toBe('abc123');
         });
 
         it('should return empty line comments when no valid suggestions', async () => {
-            mockPullRequestService.findByNumberAndRepositoryName.mockResolvedValue({
-                number: 123,
-                files: [],
-            });
+            mockPullRequestService.findByNumberAndRepositoryName.mockResolvedValue(
+                {
+                    number: 123,
+                    files: [],
+                },
+            );
 
             const context = createBaseContext({
                 validSuggestions: [],
@@ -216,7 +250,9 @@ describe('CreateFileCommentsStage', () => {
             const result = await (stage as any).executeStage(context);
 
             expect(result.lineComments).toHaveLength(0);
-            expect(mockSuggestionService.sortAndPrioritizeSuggestions).not.toHaveBeenCalled();
+            expect(
+                mockSuggestionService.sortAndPrioritizeSuggestions,
+            ).not.toHaveBeenCalled();
         });
 
         it('should filter out RELATED suggestions from line comments', async () => {
@@ -233,10 +269,12 @@ describe('CreateFileCommentsStage', () => {
                 },
             ];
 
-            mockSuggestionService.sortAndPrioritizeSuggestions.mockResolvedValue({
-                sortedPrioritizedSuggestions: suggestions,
-                allDiscardedSuggestions: [],
-            });
+            mockSuggestionService.sortAndPrioritizeSuggestions.mockResolvedValue(
+                {
+                    sortedPrioritizedSuggestions: suggestions,
+                    allDiscardedSuggestions: [],
+                },
+            );
 
             mockCommentManagerService.createLineComments.mockResolvedValue({
                 lastAnalyzedCommit: 'abc123',
@@ -252,10 +290,12 @@ describe('CreateFileCommentsStage', () => {
                 { sha: 'abc123' },
             ]);
 
-            mockPullRequestService.findByNumberAndRepositoryName.mockResolvedValue({
-                number: 123,
-                files: [],
-            });
+            mockPullRequestService.findByNumberAndRepositoryName.mockResolvedValue(
+                {
+                    number: 123,
+                    files: [],
+                },
+            );
 
             const context = createBaseContext({
                 validSuggestions: suggestions,
@@ -265,7 +305,8 @@ describe('CreateFileCommentsStage', () => {
             await (stage as any).executeStage(context);
 
             // Check that the line comments passed to createLineComments filtered out RELATED
-            const callArgs = mockCommentManagerService.createLineComments.mock.calls[0];
+            const callArgs =
+                mockCommentManagerService.createLineComments.mock.calls[0];
             const lineComments = callArgs[3]; // 4th argument
             expect(lineComments).toHaveLength(1);
             expect(lineComments[0].suggestion.id).toBe('s1');
@@ -278,20 +319,24 @@ describe('CreateFileCommentsStage', () => {
                 { id: 's1', relevantFile: 'test.ts', severity: 'high' },
             ];
 
-            mockSuggestionService.sortAndPrioritizeSuggestions.mockResolvedValue({
-                sortedPrioritizedSuggestions: validSuggestions,
-                allDiscardedSuggestions: [],
-            });
+            mockSuggestionService.sortAndPrioritizeSuggestions.mockResolvedValue(
+                {
+                    sortedPrioritizedSuggestions: validSuggestions,
+                    allDiscardedSuggestions: [],
+                },
+            );
 
             mockCommentManagerService.createLineComments.mockResolvedValue({
                 lastAnalyzedCommit: 'abc123',
                 commentResults: [],
             });
 
-            mockPullRequestService.findByNumberAndRepositoryName.mockResolvedValue({
-                number: 123,
-                files: [],
-            });
+            mockPullRequestService.findByNumberAndRepositoryName.mockResolvedValue(
+                {
+                    number: 123,
+                    files: [],
+                },
+            );
 
             const context = createBaseContext({
                 dryRun: { enabled: true, id: 'dry-run-1' },
@@ -313,20 +358,24 @@ describe('CreateFileCommentsStage', () => {
                 { id: 's1', relevantFile: 'test.ts', severity: 'high' },
             ];
 
-            mockSuggestionService.sortAndPrioritizeSuggestions.mockResolvedValue({
-                sortedPrioritizedSuggestions: validSuggestions,
-                allDiscardedSuggestions: [],
-            });
+            mockSuggestionService.sortAndPrioritizeSuggestions.mockResolvedValue(
+                {
+                    sortedPrioritizedSuggestions: validSuggestions,
+                    allDiscardedSuggestions: [],
+                },
+            );
 
             mockCommentManagerService.createLineComments.mockResolvedValue({
                 lastAnalyzedCommit: 'abc123',
                 commentResults: [],
             });
 
-            mockPullRequestService.findByNumberAndRepositoryName.mockResolvedValue({
-                number: 123,
-                files: [],
-            });
+            mockPullRequestService.findByNumberAndRepositoryName.mockResolvedValue(
+                {
+                    number: 123,
+                    files: [],
+                },
+            );
 
             const context = createBaseContext({
                 dryRun: { enabled: true, id: 'dry-run-1' },
@@ -336,7 +385,9 @@ describe('CreateFileCommentsStage', () => {
 
             await (stage as any).executeStage(context);
 
-            expect(mockPullRequestService.aggregateAndSaveDataStructure).not.toHaveBeenCalled();
+            expect(
+                mockPullRequestService.aggregateAndSaveDataStructure,
+            ).not.toHaveBeenCalled();
         });
     });
 
@@ -346,19 +397,23 @@ describe('CreateFileCommentsStage', () => {
                 { id: 's1', relevantFile: 'test.ts', severity: 'high' },
             ];
 
-            mockSuggestionService.sortAndPrioritizeSuggestions.mockResolvedValue({
-                sortedPrioritizedSuggestions: validSuggestions,
-                allDiscardedSuggestions: [],
-            });
+            mockSuggestionService.sortAndPrioritizeSuggestions.mockResolvedValue(
+                {
+                    sortedPrioritizedSuggestions: validSuggestions,
+                    allDiscardedSuggestions: [],
+                },
+            );
 
             mockCommentManagerService.createLineComments.mockRejectedValue(
                 new Error('API error'),
             );
 
-            mockPullRequestService.findByNumberAndRepositoryName.mockResolvedValue({
-                number: 123,
-                files: [],
-            });
+            mockPullRequestService.findByNumberAndRepositoryName.mockResolvedValue(
+                {
+                    number: 123,
+                    files: [],
+                },
+            );
 
             const context = createBaseContext({
                 validSuggestions,
@@ -380,10 +435,12 @@ describe('CreateFileCommentsStage', () => {
                 new Error('Prioritization error'),
             );
 
-            mockPullRequestService.findByNumberAndRepositoryName.mockResolvedValue({
-                number: 123,
-                files: [],
-            });
+            mockPullRequestService.findByNumberAndRepositoryName.mockResolvedValue(
+                {
+                    number: 123,
+                    files: [],
+                },
+            );
 
             const context = createBaseContext({
                 validSuggestions,
@@ -399,14 +456,16 @@ describe('CreateFileCommentsStage', () => {
 
     describe('resolving implemented suggestions', () => {
         it('should not resolve comments when dry run is enabled', async () => {
-            mockPullRequestService.findByNumberAndRepositoryName.mockResolvedValue({
-                number: 123,
-                files: [],
-            });
+            mockPullRequestService.findByNumberAndRepositoryName.mockResolvedValue(
+                {
+                    number: 123,
+                    files: [],
+                },
+            );
 
-            mockCodeManagementService.getCommitsForPullRequestForCodeReview.mockResolvedValue([
-                { sha: 'abc123' },
-            ]);
+            mockCodeManagementService.getCommitsForPullRequestForCodeReview.mockResolvedValue(
+                [{ sha: 'abc123' }],
+            );
 
             const context = createBaseContext({
                 dryRun: { enabled: true, id: 'dry-run-1' },
@@ -415,7 +474,9 @@ describe('CreateFileCommentsStage', () => {
 
             await (stage as any).executeStage(context);
 
-            expect(mockCodeManagementService.markReviewCommentAsResolved).not.toHaveBeenCalled();
+            expect(
+                mockCodeManagementService.markReviewCommentAsResolved,
+            ).not.toHaveBeenCalled();
         });
 
         it('should resolve comments for implemented suggestions on GitHub', async () => {
@@ -434,15 +495,17 @@ describe('CreateFileCommentsStage', () => {
                 ],
             };
 
-            mockPullRequestService.findByNumberAndRepositoryName.mockResolvedValue(prEntity);
+            mockPullRequestService.findByNumberAndRepositoryName.mockResolvedValue(
+                prEntity,
+            );
 
-            mockCodeManagementService.getPullRequestReviewThreads.mockResolvedValue([
-                { id: 1, fullDatabaseId: '100', threadId: 'thread-1' },
-            ]);
+            mockCodeManagementService.getPullRequestReviewThreads.mockResolvedValue(
+                [{ id: 1, fullDatabaseId: '100', threadId: 'thread-1' }],
+            );
 
-            mockCodeManagementService.getCommitsForPullRequestForCodeReview.mockResolvedValue([
-                { sha: 'abc123' },
-            ]);
+            mockCodeManagementService.getCommitsForPullRequestForCodeReview.mockResolvedValue(
+                [{ sha: 'abc123' }],
+            );
 
             const context = createBaseContext({
                 validSuggestions: [],
@@ -467,13 +530,18 @@ describe('CreateFileCommentsStage', () => {
             const changedFiles = [{ filename: 'test.ts' } as any];
 
             const fileMetadata = new Map([
-                ['test.ts', { reviewMode: 'heavy', codeReviewModelUsed: 'gpt-4' }],
+                [
+                    'test.ts',
+                    { reviewMode: 'heavy', codeReviewModelUsed: 'gpt-4' },
+                ],
             ]);
 
-            mockSuggestionService.sortAndPrioritizeSuggestions.mockResolvedValue({
-                sortedPrioritizedSuggestions: validSuggestions,
-                allDiscardedSuggestions: [],
-            });
+            mockSuggestionService.sortAndPrioritizeSuggestions.mockResolvedValue(
+                {
+                    sortedPrioritizedSuggestions: validSuggestions,
+                    allDiscardedSuggestions: [],
+                },
+            );
 
             mockCommentManagerService.createLineComments.mockResolvedValue({
                 lastAnalyzedCommit: 'abc123',
@@ -489,10 +557,12 @@ describe('CreateFileCommentsStage', () => {
                 { sha: 'abc123' },
             ]);
 
-            mockPullRequestService.findByNumberAndRepositoryName.mockResolvedValue({
-                number: 123,
-                files: [],
-            });
+            mockPullRequestService.findByNumberAndRepositoryName.mockResolvedValue(
+                {
+                    number: 123,
+                    files: [],
+                },
+            );
 
             const context = createBaseContext({
                 validSuggestions,
@@ -503,8 +573,12 @@ describe('CreateFileCommentsStage', () => {
             await (stage as any).executeStage(context);
 
             // Verify aggregateAndSaveDataStructure was called with enriched files
-            expect(mockPullRequestService.aggregateAndSaveDataStructure).toHaveBeenCalled();
-            const callArgs = mockPullRequestService.aggregateAndSaveDataStructure.mock.calls[0];
+            expect(
+                mockPullRequestService.aggregateAndSaveDataStructure,
+            ).toHaveBeenCalled();
+            const callArgs =
+                mockPullRequestService.aggregateAndSaveDataStructure.mock
+                    .calls[0];
             const enrichedFiles = callArgs[2]; // 3rd argument
             expect(enrichedFiles[0].reviewMode).toBe('heavy');
             expect(enrichedFiles[0].codeReviewModelUsed).toBe('gpt-4');

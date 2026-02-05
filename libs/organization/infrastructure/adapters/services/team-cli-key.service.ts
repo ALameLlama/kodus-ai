@@ -116,7 +116,10 @@ export class TeamCliKeyService implements ITeamCliKeyService {
     }
 
     async revokeKey(keyId: string): Promise<void> {
-        await this.teamCliKeyRepository.update({ uuid: keyId }, { active: false });
+        await this.teamCliKeyRepository.update(
+            { uuid: keyId },
+            { active: false },
+        );
     }
 
     // Repository methods delegation
@@ -124,7 +127,9 @@ export class TeamCliKeyService implements ITeamCliKeyService {
         return this.teamCliKeyRepository.find(filter);
     }
 
-    findOne(filter: Partial<ITeamCliKey>): Promise<TeamCliKeyEntity | undefined> {
+    findOne(
+        filter: Partial<ITeamCliKey>,
+    ): Promise<TeamCliKeyEntity | undefined> {
         return this.teamCliKeyRepository.findOne(filter);
     }
 

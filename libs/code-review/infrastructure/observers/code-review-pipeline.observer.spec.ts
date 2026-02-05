@@ -1,18 +1,27 @@
-import { CodeReviewPipelineObserver } from './code-review-pipeline.observer';
-import { IAutomationExecutionService } from '@libs/automation/domain/automationExecution/contracts/automation-execution.service';
 import { AutomationStatus } from '@libs/automation/domain/automation/enum/automation-status';
+import { IAutomationExecutionService } from '@libs/automation/domain/automationExecution/contracts/automation-execution.service';
 import { CodeReviewPipelineContext } from '@libs/code-review/pipeline/context/code-review-pipeline.context';
 import { StageVisibility } from '@libs/core/infrastructure/pipeline/enums/stage-visibility.enum';
+import {
+    CheckConclusion,
+    CheckStatus,
+} from '@libs/core/infrastructure/pipeline/interfaces/checks-adapter.interface';
+import { IPipelineChecksService } from '@libs/core/infrastructure/pipeline/interfaces/pipeline-checks-service.interface';
+import { PipelineObserverContext } from '@libs/core/infrastructure/pipeline/interfaces/pipeline-observer.interface';
+import { CheckStageNames } from '@libs/core/infrastructure/pipeline/services/pipeline-checks.service';
+import { CodeReviewPipelineObserver } from './code-review-pipeline.observer';
 
 describe('CodeReviewPipelineObserver', () => {
     let observer: CodeReviewPipelineObserver;
-    let mockService: jest.Mocked<IAutomationExecutionService>;
+    let mockAutomationExecutionService: jest.Mocked<IAutomationExecutionService>;
+    let mockPipelineCheckService: jest.Mocked<IPipelineChecksService>;
     let context: Partial<CodeReviewPipelineContext>;
+    let observersContext: Partial<PipelineObserverContext>;
 
     beforeEach(() => {
         const stageLogs = new Map<string, any>();
 
-        mockService = {
+        mockAutomationExecutionService = {
             updateCodeReview: jest
                 .fn()
                 .mockImplementation(
@@ -35,7 +44,17 @@ describe('CodeReviewPipelineObserver', () => {
                     return stageLogs.get(stageName);
                 }),
         } as any;
-        observer = new CodeReviewPipelineObserver(mockService);
+
+        mockPipelineCheckService = {
+            startCheck: jest.fn().mockResolvedValue(undefined),
+            updateCheck: jest.fn().mockResolvedValue(undefined),
+            finalizeCheck: jest.fn().mockResolvedValue(undefined),
+        };
+
+        observer = new CodeReviewPipelineObserver(
+            mockAutomationExecutionService,
+            mockPipelineCheckService,
+        );
 
         context = {
             pipelineMetadata: { lastExecution: { uuid: 'exec-1' } } as any,
@@ -44,15 +63,93 @@ describe('CodeReviewPipelineObserver', () => {
             organizationAndTeamData: { organizationId: 'org-1' } as any,
             correlationId: 'exec-1',
         };
+
+        observersContext = {};
+    });
+
+    it('should start pipeline check on pipeline start', async () => {
+        await observer.onPipelineStart(
+            context as CodeReviewPipelineContext,
+            observersContext,
+        );
+
+        expect(mockPipelineCheckService.startCheck).toHaveBeenCalledWith(
+            observersContext,
+            context,
+            '_pipelineStart',
+        );
+    });
+
+    it('should finalize pipeline check on pipeline finish (success)', async () => {
+        context.statusInfo = { status: AutomationStatus.SUCCESS } as any;
+        context.errors = [];
+
+        await observer.onPipelineFinish(
+            context as CodeReviewPipelineContext,
+            observersContext,
+        );
+
+        expect(mockPipelineCheckService.finalizeCheck).toHaveBeenCalledWith(
+            observersContext,
+            context,
+            CheckConclusion.SUCCESS,
+            CheckStageNames._pipelineEndSuccess,
+        );
+    });
+
+    it('should finalize pipeline check on pipeline finish (failure)', async () => {
+        context.statusInfo = { status: AutomationStatus.ERROR } as any;
+
+        await observer.onPipelineFinish(
+            context as CodeReviewPipelineContext,
+            observersContext,
+        );
+
+        expect(mockPipelineCheckService.finalizeCheck).toHaveBeenCalledWith(
+            observersContext,
+            context,
+            CheckConclusion.FAILURE,
+            CheckStageNames._pipelineEndFailure,
+        );
+    });
+
+    it('should finalize pipeline check on pipeline finish (skipped)', async () => {
+        context.statusInfo = {
+            status: AutomationStatus.SKIPPED,
+            message: 'Skipped reason',
+        } as any;
+
+        await observer.onPipelineFinish(
+            context as CodeReviewPipelineContext,
+            observersContext,
+        );
+
+        expect(mockPipelineCheckService.finalizeCheck).toHaveBeenCalledWith(
+            observersContext,
+            context,
+            CheckConclusion.SKIPPED,
+            CheckStageNames._pipelineEndSkipped,
+            'Skipped reason',
+        );
     });
 
     it('should log stage start and store log ID in map', async () => {
         await observer.onStageStart(
             'TestStage',
             context as CodeReviewPipelineContext,
+            observersContext,
         );
 
-        expect(mockService.updateCodeReview).toHaveBeenCalledWith(
+        expect(mockPipelineCheckService.updateCheck).toHaveBeenCalledWith(
+            observersContext,
+            context,
+            'TestStage',
+            CheckStatus.IN_PROGRESS,
+        );
+
+        expect(
+            mockAutomationExecutionService.updateCodeReview,
+        ).toHaveBeenCalledWith(
             expect.objectContaining({
                 uuid: 'exec-1',
             }),
@@ -68,15 +165,26 @@ describe('CodeReviewPipelineObserver', () => {
         await observer.onStageStart(
             'TestStage',
             context as CodeReviewPipelineContext,
+            observersContext,
         );
 
         // Then finish the stage
         await observer.onStageFinish(
             'TestStage',
             context as CodeReviewPipelineContext,
+            observersContext,
         );
 
-        expect(mockService.updateStageLog).toHaveBeenCalledWith(
+        expect(mockPipelineCheckService.updateCheck).toHaveBeenCalledWith(
+            observersContext,
+            context,
+            'TestStage',
+            expect.anything(),
+        );
+
+        expect(
+            mockAutomationExecutionService.updateStageLog,
+        ).toHaveBeenCalledWith(
             'stage-log-uuid',
             expect.objectContaining({
                 status: AutomationStatus.SUCCESS,
@@ -92,9 +200,12 @@ describe('CodeReviewPipelineObserver', () => {
         await observer.onStageFinish(
             'TestStage',
             context as CodeReviewPipelineContext,
+            observersContext,
         );
 
-        expect(mockService.updateCodeReview).toHaveBeenCalledWith(
+        expect(
+            mockAutomationExecutionService.updateCodeReview,
+        ).toHaveBeenCalledWith(
             expect.objectContaining({
                 uuid: 'exec-1',
             }),
@@ -103,7 +214,9 @@ describe('CodeReviewPipelineObserver', () => {
             'TestStage',
             undefined,
         );
-        expect(mockService.updateStageLog).not.toHaveBeenCalled();
+        expect(
+            mockAutomationExecutionService.updateStageLog,
+        ).not.toHaveBeenCalled();
     });
 
     it('should update stage log on error using ID from map', async () => {
@@ -111,15 +224,19 @@ describe('CodeReviewPipelineObserver', () => {
         await observer.onStageStart(
             'TestStage',
             context as CodeReviewPipelineContext,
+            observersContext,
         );
 
         await observer.onStageError(
             'TestStage',
             new Error('Boom'),
             context as CodeReviewPipelineContext,
+            observersContext,
         );
 
-        expect(mockService.updateStageLog).toHaveBeenCalledWith(
+        expect(
+            mockAutomationExecutionService.updateStageLog,
+        ).toHaveBeenCalledWith(
             'stage-log-uuid',
             expect.objectContaining({
                 status: AutomationStatus.ERROR,
@@ -134,15 +251,19 @@ describe('CodeReviewPipelineObserver', () => {
         await observer.onStageStart(
             'TestStage',
             context as CodeReviewPipelineContext,
+            observersContext,
         );
 
         await observer.onStageSkipped(
             'TestStage',
             'Some reason',
             context as CodeReviewPipelineContext,
+            observersContext,
         );
 
-        expect(mockService.updateStageLog).toHaveBeenCalledWith(
+        expect(
+            mockAutomationExecutionService.updateStageLog,
+        ).toHaveBeenCalledWith(
             'stage-log-uuid',
             expect.objectContaining({
                 status: AutomationStatus.SKIPPED,
@@ -162,11 +283,11 @@ describe('CodeReviewPipelineObserver', () => {
             stageLog: { uuid: 'stage-log-2' },
         };
 
-        mockService.updateCodeReview
+        mockAutomationExecutionService.updateCodeReview
             .mockResolvedValueOnce(stage1Mock as any)
             .mockResolvedValueOnce(stage2Mock as any);
 
-        mockService.findLatestStageLog
+        mockAutomationExecutionService.findLatestStageLog
             .mockResolvedValueOnce(stage1Mock.stageLog as any)
             .mockResolvedValueOnce(stage2Mock.stageLog as any);
 
@@ -174,15 +295,19 @@ describe('CodeReviewPipelineObserver', () => {
         await observer.onStageStart(
             'Stage1',
             context as CodeReviewPipelineContext,
+            observersContext,
         );
 
         // Stage 1 Finish
         await observer.onStageFinish(
             'Stage1',
             context as CodeReviewPipelineContext,
+            observersContext,
         );
 
-        expect(mockService.updateStageLog).toHaveBeenLastCalledWith(
+        expect(
+            mockAutomationExecutionService.updateStageLog,
+        ).toHaveBeenLastCalledWith(
             'stage-log-1',
             expect.objectContaining({ message: '' }),
         );
@@ -191,15 +316,19 @@ describe('CodeReviewPipelineObserver', () => {
         await observer.onStageStart(
             'Stage2',
             context as CodeReviewPipelineContext,
+            observersContext,
         );
 
         // Stage 2 Finish
         await observer.onStageFinish(
             'Stage2',
             context as CodeReviewPipelineContext,
+            observersContext,
         );
 
-        expect(mockService.updateStageLog).toHaveBeenLastCalledWith(
+        expect(
+            mockAutomationExecutionService.updateStageLog,
+        ).toHaveBeenLastCalledWith(
             'stage-log-2',
             expect.objectContaining({ message: '' }),
         );
@@ -209,35 +338,41 @@ describe('CodeReviewPipelineObserver', () => {
         context.pipelineMetadata!.lastExecution = undefined;
         context.correlationId = undefined as any;
         // Mock recovery success
-        mockService.findLatestExecutionByFilters.mockResolvedValue({
-            uuid: 'recovered-exec-uuid',
-        } as any);
+        mockAutomationExecutionService.findLatestExecutionByFilters.mockResolvedValue(
+            {
+                uuid: 'recovered-exec-uuid',
+            } as any,
+        );
 
         // Mock stage log found
-        mockService.findLatestStageLog.mockResolvedValue({
+        mockAutomationExecutionService.findLatestStageLog.mockResolvedValue({
             uuid: 'recovered-stage-log-uuid',
         } as any);
 
         await observer.onStageFinish(
             'TestStage',
             context as CodeReviewPipelineContext,
+            observersContext,
         );
 
         // Verify recovery attempt
-        expect(mockService.findLatestExecutionByFilters).toHaveBeenCalledWith({
+        expect(
+            mockAutomationExecutionService.findLatestExecutionByFilters,
+        ).toHaveBeenCalledWith({
             pullRequestNumber: 123,
             repositoryId: 'repo-1',
             status: AutomationStatus.IN_PROGRESS,
         });
 
         // Verify it used the recovered UUID to find the stage log
-        expect(mockService.findLatestStageLog).toHaveBeenCalledWith(
-            'recovered-exec-uuid',
-            'TestStage',
-        );
+        expect(
+            mockAutomationExecutionService.findLatestStageLog,
+        ).toHaveBeenCalledWith('recovered-exec-uuid', 'TestStage');
 
         // Verify it updated the stage log
-        expect(mockService.updateStageLog).toHaveBeenCalledWith(
+        expect(
+            mockAutomationExecutionService.updateStageLog,
+        ).toHaveBeenCalledWith(
             'recovered-stage-log-uuid',
             expect.objectContaining({
                 status: AutomationStatus.SUCCESS,
@@ -250,21 +385,30 @@ describe('CodeReviewPipelineObserver', () => {
         context.pipelineMetadata!.lastExecution = undefined;
         context.correlationId = undefined as any;
         // Mock recovery failure
-        mockService.findLatestExecutionByFilters.mockResolvedValue(null);
+        mockAutomationExecutionService.findLatestExecutionByFilters.mockResolvedValue(
+            null,
+        );
 
         await observer.onStageFinish(
             'TestStage',
             context as CodeReviewPipelineContext,
+            observersContext,
         );
 
         // Verify recovery attempt
-        expect(mockService.findLatestExecutionByFilters).toHaveBeenCalled();
+        expect(
+            mockAutomationExecutionService.findLatestExecutionByFilters,
+        ).toHaveBeenCalled();
 
         // Verify it did NOT try to find stage log (since no UUID recovered)
-        expect(mockService.findLatestStageLog).not.toHaveBeenCalled();
+        expect(
+            mockAutomationExecutionService.findLatestStageLog,
+        ).not.toHaveBeenCalled();
 
         // Verify fallback to updateCodeReview
-        expect(mockService.updateCodeReview).toHaveBeenCalledWith(
+        expect(
+            mockAutomationExecutionService.updateCodeReview,
+        ).toHaveBeenCalledWith(
             expect.objectContaining({
                 pullRequestNumber: 123,
                 repositoryId: 'repo-1',
@@ -283,9 +427,12 @@ describe('CodeReviewPipelineObserver', () => {
         await observer.onStageStart(
             'TestStage',
             context as CodeReviewPipelineContext,
+            observersContext,
         );
 
-        expect(mockService.updateCodeReview).toHaveBeenCalledWith(
+        expect(
+            mockAutomationExecutionService.updateCodeReview,
+        ).toHaveBeenCalledWith(
             expect.objectContaining({
                 uuid: 'correlation-uuid',
             }),
@@ -309,15 +456,19 @@ describe('CodeReviewPipelineObserver', () => {
         await observer.onStageStart(
             'TestStage',
             context as CodeReviewPipelineContext,
+            observersContext,
         );
 
         // Finish stage
         await observer.onStageFinish(
             'TestStage',
             context as CodeReviewPipelineContext,
+            observersContext,
         );
 
-        expect(mockService.updateStageLog).toHaveBeenCalledWith(
+        expect(
+            mockAutomationExecutionService.updateStageLog,
+        ).toHaveBeenCalledWith(
             'stage-log-uuid',
             expect.objectContaining({
                 status: AutomationStatus.PARTIAL_ERROR,
@@ -338,15 +489,19 @@ describe('CodeReviewPipelineObserver', () => {
         await observer.onStageStart(
             'TestStage',
             context as CodeReviewPipelineContext,
+            observersContext,
         );
 
         await observer.onStageFinish(
             'TestStage',
             context as CodeReviewPipelineContext,
+            observersContext,
             { visibility: StageVisibility.PRIMARY },
         );
 
-        expect(mockService.updateStageLog).toHaveBeenCalledWith(
+        expect(
+            mockAutomationExecutionService.updateStageLog,
+        ).toHaveBeenCalledWith(
             'stage-log-uuid',
             expect.objectContaining({
                 metadata: expect.objectContaining({
@@ -360,16 +515,20 @@ describe('CodeReviewPipelineObserver', () => {
         await observer.onStageStart(
             'TestStage',
             context as CodeReviewPipelineContext,
+            observersContext,
         );
 
         await observer.onStageError(
             'TestStage',
             new Error('Boom'),
             context as CodeReviewPipelineContext,
+            observersContext,
             { visibility: StageVisibility.INTERNAL },
         );
 
-        expect(mockService.updateStageLog).toHaveBeenCalledWith(
+        expect(
+            mockAutomationExecutionService.updateStageLog,
+        ).toHaveBeenCalledWith(
             'stage-log-uuid',
             expect.objectContaining({
                 metadata: expect.objectContaining({
@@ -383,16 +542,20 @@ describe('CodeReviewPipelineObserver', () => {
         await observer.onStageStart(
             'TestStage',
             context as CodeReviewPipelineContext,
+            observersContext,
         );
 
         await observer.onStageSkipped(
             'TestStage',
             'Reason',
             context as CodeReviewPipelineContext,
+            observersContext,
             { visibility: StageVisibility.PRIMARY },
         );
 
-        expect(mockService.updateStageLog).toHaveBeenCalledWith(
+        expect(
+            mockAutomationExecutionService.updateStageLog,
+        ).toHaveBeenCalledWith(
             'stage-log-uuid',
             expect.objectContaining({
                 metadata: expect.objectContaining({
@@ -411,14 +574,18 @@ describe('CodeReviewPipelineObserver', () => {
         await observer.onStageStart(
             'FetchChangedFilesStage',
             context as CodeReviewPipelineContext,
+            observersContext,
         );
 
         await observer.onStageFinish(
             'FetchChangedFilesStage',
             context as CodeReviewPipelineContext,
+            observersContext,
         );
 
-        expect(mockService.updateStageLog).toHaveBeenCalledWith(
+        expect(
+            mockAutomationExecutionService.updateStageLog,
+        ).toHaveBeenCalledWith(
             'stage-log-uuid',
             expect.objectContaining({
                 metadata: expect.objectContaining({
@@ -431,7 +598,8 @@ describe('CodeReviewPipelineObserver', () => {
         );
 
         // Verify truncation
-        const callArgs = mockService.updateStageLog.mock.calls[0];
+        const callArgs =
+            mockAutomationExecutionService.updateStageLog.mock.calls[0];
         const metadata = callArgs[1].metadata;
         expect(metadata.ignoredFiles).toHaveLength(50);
         expect(metadata.ignoredFiles).not.toContain('file-50.ts');
@@ -443,15 +611,19 @@ describe('CodeReviewPipelineObserver', () => {
         await observer.onStageStart(
             'FetchChangedFilesStage',
             context as CodeReviewPipelineContext,
+            observersContext,
         );
 
         await observer.onStageSkipped(
             'FetchChangedFilesStage',
             'All files ignored',
             context as CodeReviewPipelineContext,
+            observersContext,
         );
 
-        expect(mockService.updateStageLog).toHaveBeenCalledWith(
+        expect(
+            mockAutomationExecutionService.updateStageLog,
+        ).toHaveBeenCalledWith(
             'stage-log-uuid',
             expect.objectContaining({
                 status: AutomationStatus.SKIPPED,

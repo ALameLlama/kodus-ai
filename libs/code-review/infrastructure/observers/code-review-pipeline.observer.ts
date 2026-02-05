@@ -1,14 +1,26 @@
-import { IPipelineObserver } from '@libs/core/infrastructure/pipeline/interfaces/pipeline-observer.interface';
-import { Inject, Injectable } from '@nestjs/common';
+import { createLogger } from '@kodus/flow';
+import { AutomationStatus } from '@libs/automation/domain/automation/enum/automation-status';
 import {
     AUTOMATION_EXECUTION_SERVICE_TOKEN,
     IAutomationExecutionService,
 } from '@libs/automation/domain/automationExecution/contracts/automation-execution.service';
-import { CodeReviewPipelineContext } from '@libs/code-review/pipeline/context/code-review-pipeline.context';
-import { AutomationStatus } from '@libs/automation/domain/automation/enum/automation-status';
-import { createLogger } from '@kodus/flow';
 import { IAutomationExecution } from '@libs/automation/domain/automationExecution/interfaces/automation-execution.interface';
+import { CodeReviewPipelineContext } from '@libs/code-review/pipeline/context/code-review-pipeline.context';
 import { StageVisibility } from '@libs/core/infrastructure/pipeline/enums/stage-visibility.enum';
+import {
+    CheckConclusion,
+    CheckStatus,
+} from '@libs/core/infrastructure/pipeline/interfaces/checks-adapter.interface';
+import {
+    IPipelineChecksService,
+    PIPELINE_CHECKS_SERVICE_TOKEN,
+} from '@libs/core/infrastructure/pipeline/interfaces/pipeline-checks-service.interface';
+import {
+    IPipelineObserver,
+    PipelineObserverContext,
+} from '@libs/core/infrastructure/pipeline/interfaces/pipeline-observer.interface';
+import { CheckStageNames } from '@libs/core/infrastructure/pipeline/services/pipeline-checks.service';
+import { Inject, Injectable } from '@nestjs/common';
 
 @Injectable()
 export class CodeReviewPipelineObserver implements IPipelineObserver {
@@ -17,13 +29,67 @@ export class CodeReviewPipelineObserver implements IPipelineObserver {
     constructor(
         @Inject(AUTOMATION_EXECUTION_SERVICE_TOKEN)
         private readonly automationExecutionService: IAutomationExecutionService,
+        @Inject(PIPELINE_CHECKS_SERVICE_TOKEN)
+        private readonly pipelineChecksService: IPipelineChecksService,
     ) {}
+
+    async onPipelineStart(
+        context: CodeReviewPipelineContext,
+        observerContext: PipelineObserverContext,
+    ): Promise<void> {
+        await this.pipelineChecksService.startCheck(
+            observerContext,
+            context,
+            '_pipelineStart',
+        );
+    }
+
+    async onPipelineFinish(
+        context: CodeReviewPipelineContext,
+        observerContext: PipelineObserverContext,
+    ): Promise<void> {
+        if (context.statusInfo.status === AutomationStatus.SKIPPED) {
+            const reason = context.statusInfo.message;
+
+            await this.pipelineChecksService.finalizeCheck(
+                observerContext,
+                context,
+                CheckConclusion.SKIPPED,
+                CheckStageNames._pipelineEndSkipped,
+                reason,
+            );
+        } else if (
+            context.statusInfo.status === AutomationStatus.ERROR ||
+            (context.errors && context.errors.length > 0)
+        ) {
+            await this.pipelineChecksService.finalizeCheck(
+                observerContext,
+                context,
+                CheckConclusion.FAILURE,
+                CheckStageNames._pipelineEndFailure,
+            );
+        } else {
+            await this.pipelineChecksService.finalizeCheck(
+                observerContext,
+                context,
+                CheckConclusion.SUCCESS,
+                CheckStageNames._pipelineEndSuccess,
+            );
+        }
+    }
 
     async onStageStart(
         stageName: string,
         context: CodeReviewPipelineContext,
+        observerContext: PipelineObserverContext,
         options?: { visibility?: StageVisibility; label?: string },
     ): Promise<void> {
+        await this.pipelineChecksService.updateCheck(
+            observerContext,
+            context,
+            stageName,
+            CheckStatus.IN_PROGRESS,
+        );
         await this.logStage(
             stageName,
             AutomationStatus.IN_PROGRESS,
@@ -36,6 +102,7 @@ export class CodeReviewPipelineObserver implements IPipelineObserver {
     async onStageFinish(
         stageName: string,
         context: CodeReviewPipelineContext,
+        observerContext: PipelineObserverContext,
         options?: { visibility?: StageVisibility; label?: string },
     ): Promise<void> {
         const errors =
@@ -112,6 +179,7 @@ export class CodeReviewPipelineObserver implements IPipelineObserver {
         stageName: string,
         error: Error,
         context: CodeReviewPipelineContext,
+        observerContext: PipelineObserverContext,
         options?: { visibility?: StageVisibility; label?: string },
     ): Promise<void> {
         await this.logStage(
@@ -127,6 +195,7 @@ export class CodeReviewPipelineObserver implements IPipelineObserver {
         stageName: string,
         reason: string,
         context: CodeReviewPipelineContext,
+        observerContext: PipelineObserverContext,
         options?: { visibility?: StageVisibility; label?: string },
     ): Promise<void> {
         const additionalMetadata = this.getIgnoredFilesMetadata(

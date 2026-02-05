@@ -13,6 +13,10 @@ import { ObservabilityService } from '@libs/core/log/observability.service';
 @Injectable()
 export class CodeReviewFeedbackConsumer {
     private readonly logger = createLogger(CodeReviewFeedbackConsumer.name);
+    private readonly handlerTimeoutMs = this.parseTimeoutMs(
+        process.env.WORKFLOW_QUEUE_HANDLER_TIMEOUT_MS,
+        60000,
+    );
     constructor(
         private readonly saveCodeReviewFeedbackUseCase: SaveCodeReviewFeedbackUseCase,
         private readonly observability: ObservabilityService,
@@ -40,10 +44,12 @@ export class CodeReviewFeedbackConsumer {
     async handleSyncCodeReviewReactions(message: any, amqpMsg: ConsumeMessage) {
         const payload = message?.payload;
         const headers = amqpMsg?.properties?.headers;
+        const messageId = amqpMsg?.properties?.messageId;
         const correlationId =
             headers?.['x-correlation-id'] ||
             payload?.correlationId ||
             amqpMsg?.properties?.correlationId;
+        const attempts = headers?.['x-attempts'];
 
         if (correlationId) {
             this.observability.setContext(correlationId);
@@ -52,17 +58,37 @@ export class CodeReviewFeedbackConsumer {
         return await this.observability.runInSpan(
             'code_review.feedback.sync',
             async (span) => {
+                const startedAt = Date.now();
+                this.logger.debug({
+                    message: 'Code review feedback processing started',
+                    context: CodeReviewFeedbackConsumer.name,
+                    metadata: {
+                        messageId,
+                        correlationId,
+                        attempts,
+                        teamId: payload?.teamId,
+                        organizationId: payload?.organizationId,
+                    },
+                });
+
                 if (payload) {
                     span.setAttributes({
                         'code_review.team_id': payload.teamId,
                         'code_review.organization_id': payload.organizationId,
                         'code_review.correlation_id': correlationId,
+                        'code_review.message_id': messageId,
+                        ...(attempts !== undefined && {
+                            'code_review.attempts': attempts,
+                        }),
                     });
 
                     try {
-                        await this.saveCodeReviewFeedbackUseCase.execute(
-                            payload,
+                        await this.withTimeout(
+                            this.saveCodeReviewFeedbackUseCase.execute(payload),
+                            this.handlerTimeoutMs,
+                            'syncCodeReviewReactions',
                         );
+                        const durationMs = Date.now() - startedAt;
                         this.logger.debug({
                             message: `Code review feedback processing for team ${payload.teamId} completed successfully.`,
                             context: CodeReviewFeedbackConsumer.name,
@@ -71,12 +97,16 @@ export class CodeReviewFeedbackConsumer {
                                 organizationId: payload.organizationId,
                                 timestamp: new Date().toISOString(),
                                 correlationId,
+                                messageId,
+                                durationMs,
                             },
                         });
                     } catch (error) {
                         span.setAttributes({
                             'error': true,
                             'exception.message': error.message,
+                            'workflow.handler.timeout_ms':
+                                this.handlerTimeoutMs,
                         });
 
                         this.logger.error({
@@ -114,5 +144,34 @@ export class CodeReviewFeedbackConsumer {
                 }
             },
         );
+    }
+
+    private parseTimeoutMs(raw: string | undefined, fallback: number): number {
+        const parsed = Number.parseInt(raw ?? '', 10);
+        if (!Number.isFinite(parsed) || parsed <= 0) {
+            return fallback;
+        }
+        return parsed;
+    }
+
+    private async withTimeout<T>(
+        promise: Promise<T>,
+        timeoutMs: number,
+        label: string,
+    ): Promise<T> {
+        let timeoutId: NodeJS.Timeout | undefined;
+        const timeout = new Promise<never>((_, reject) => {
+            timeoutId = setTimeout(() => {
+                reject(new Error(`Timeout after ${timeoutMs}ms in ${label}`));
+            }, timeoutMs);
+        });
+
+        try {
+            return await Promise.race([promise, timeout]);
+        } finally {
+            if (timeoutId) {
+                clearTimeout(timeoutId);
+            }
+        }
     }
 }

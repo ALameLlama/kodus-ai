@@ -13,8 +13,10 @@ export interface PyroscopeConfig {
 let isInitialized = false;
 
 export function initPyroscope(config: PyroscopeConfig): void {
-    const serverAddress = config.serverAddress || process.env.PYROSCOPE_SERVER_ADDRESS;
-    const enableHeapProfiling = config.enableHeapProfiling ??
+    const serverAddress =
+        config.serverAddress || process.env.PYROSCOPE_SERVER_ADDRESS;
+    const enableHeapProfiling =
+        config.enableHeapProfiling ??
         process.env.PYROSCOPE_HEAP_PROFILING === 'true';
 
     if (!serverAddress) {
@@ -42,10 +44,12 @@ export function initPyroscope(config: PyroscopeConfig): void {
                 ...config.tags,
             },
             // Heap profiling configuration
-            heap: enableHeapProfiling ? {
-                samplingIntervalBytes: 524288, // 512KB - sample every 512KB allocated
-                stackDepth: 32,                // Capture up to 32 frames in stack traces
-            } : undefined,
+            heap: enableHeapProfiling
+                ? {
+                      samplingIntervalBytes: 524288, // 512KB - sample every 512KB allocated
+                      stackDepth: 32, // Capture up to 32 frames in stack traces
+                  }
+                : undefined,
         });
 
         // Start CPU/Wall profiling

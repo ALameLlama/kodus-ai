@@ -68,6 +68,12 @@ export class ASTEventHandler {
         exchange: 'workflow.events.delayed',
         routingKey: 'ast.task.completed',
         queue: 'workflow.events.ast',
+        allowNonJsonMessages: false,
+        errorBehavior: MessageHandlerErrorBehavior.ACK,
+        errorHandler: (channel, msg, err) =>
+            RabbitMQErrorHandler.instance?.handle(channel, msg, err, {
+                dlqRoutingKey: 'workflow.events.dlq',
+            }),
         queueOptions: {
             arguments: {
                 'x-queue-type': 'quorum',

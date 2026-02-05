@@ -1,110 +1,167 @@
-import { IsString, IsOptional, IsBoolean, IsArray, ValidateNested, IsEnum, MaxLength, ArrayMaxSize } from 'class-validator';
+import {
+    IsString,
+    IsOptional,
+    IsBoolean,
+    IsArray,
+    ValidateNested,
+    IsEnum,
+    MaxLength,
+    ArrayMaxSize,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 import { PlatformType } from '@libs/core/domain/enums/platform-type.enum';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 class CliFileInputDto {
     @IsString()
     @MaxLength(500, { message: 'File path too long (max 500 characters)' })
+    @ApiProperty({ example: 'src/services/user.service.ts' })
     path: string;
 
     @IsString()
     @MaxLength(2000000, { message: 'File content too large (max 2MB)' })
+    @ApiProperty({ example: 'export const isActive = (user) => user?.active;' })
     content: string;
 
     @IsEnum(['added', 'modified', 'deleted', 'renamed'])
+    @ApiProperty({
+        enum: ['added', 'modified', 'deleted', 'renamed'],
+        example: 'modified',
+    })
     status: 'added' | 'modified' | 'deleted' | 'renamed';
 
     @IsString()
     @MaxLength(500000, { message: 'Diff too large (max 500KB)' })
+    @ApiProperty({ example: '+ const isActive = (user) => user?.active;' })
     diff: string;
 }
 
 class CliReviewRulesDto {
     @IsOptional()
     @IsBoolean()
+    @ApiPropertyOptional({ type: Boolean, example: true })
     security?: boolean;
 
     @IsOptional()
     @IsBoolean()
+    @ApiPropertyOptional({ type: Boolean, example: false })
     performance?: boolean;
 
     @IsOptional()
     @IsBoolean()
+    @ApiPropertyOptional({ type: Boolean, example: true })
     style?: boolean;
 
     @IsOptional()
     @IsBoolean()
+    @ApiPropertyOptional({ type: Boolean, example: true })
     bestPractices?: boolean;
 }
 
 class CliConfigDto {
     @IsOptional()
     @IsString()
+    @ApiPropertyOptional({ example: 'medium' })
     severity?: string;
 
     @IsOptional()
     @ValidateNested()
     @Type(() => CliReviewRulesDto)
+    @ApiPropertyOptional({
+        type: CliReviewRulesDto,
+        example: { security: true, style: true },
+    })
     rules?: CliReviewRulesDto;
 
     @IsOptional()
     @IsBoolean()
+    @ApiPropertyOptional({ type: Boolean, example: false })
     rulesOnly?: boolean;
 
     @IsOptional()
     @IsBoolean()
+    @ApiPropertyOptional({ type: Boolean, example: true })
     fast?: boolean;
 
     @IsOptional()
     @IsArray()
-    @ArrayMaxSize(100, { message: 'Too many files (max 100 files per request)' })
+    @ArrayMaxSize(100, {
+        message: 'Too many files (max 100 files per request)',
+    })
     @ValidateNested({ each: true })
     @Type(() => CliFileInputDto)
+    @ApiPropertyOptional({
+        type: CliFileInputDto,
+        isArray: true,
+        example: [
+            {
+                path: 'src/services/user.service.ts',
+                content: 'export const isActive = (user) => user?.active;',
+                status: 'modified',
+                diff: '+ const isActive = (user) => user?.active;',
+            },
+        ],
+    })
     files?: CliFileInputDto[];
 }
 
 export class CliReviewRequestDto {
     @IsString()
     @MaxLength(5000000, { message: 'Diff too large (max 5MB)' })
+    @ApiProperty({
+        example: 'diff --git a/src/app.ts b/src/app.ts\n+const x = 1;',
+    })
     diff: string;
 
     @IsOptional()
     @ValidateNested()
     @Type(() => CliConfigDto)
+    @ApiPropertyOptional({ type: CliConfigDto })
     config?: CliConfigDto;
 
     @IsOptional()
     @IsString()
     @MaxLength(254, { message: 'Email too long' })
+    @ApiPropertyOptional({ format: 'email', example: 'dev@kodus.io' })
     userEmail?: string; // git config user.email for tracking
 
     @IsOptional()
     @IsString()
     @MaxLength(500, { message: 'Git remote URL too long' })
+    @ApiPropertyOptional({ example: 'https://github.com/kodus/kodus-ai.git' })
     gitRemote?: string; // git remote get-url origin
 
     @IsOptional()
     @IsString()
     @MaxLength(255, { message: 'Branch name too long' })
+    @ApiPropertyOptional({ example: 'feat/openapi-docs' })
     branch?: string; // git branch --show-current
 
     @IsOptional()
     @IsString()
     @MaxLength(40, { message: 'Commit SHA too long' })
+    @ApiPropertyOptional({ example: 'a1b2c3d4e5f6g7h8i9j0' })
     commitSha?: string; // git rev-parse HEAD
 
     @IsOptional()
     @IsEnum(PlatformType)
+    @ApiPropertyOptional({
+        enum: PlatformType,
+        enumName: 'PlatformType',
+        example: PlatformType.GITHUB,
+    })
     inferredPlatform?: PlatformType; // Inferred from gitRemote
 
     @IsOptional()
     @IsString()
     @MaxLength(50, { message: 'CLI version too long' })
+    @ApiPropertyOptional({ example: '1.12.0' })
     cliVersion?: string; // CLI version for tracking
 }
 
 export class TrialCliReviewRequestDto extends CliReviewRequestDto {
     @IsString()
     @MaxLength(256, { message: 'Fingerprint too long (max 256 characters)' })
+    @ApiProperty({ example: 'device_fingerprint_123' })
     fingerprint: string; // Device fingerprint for rate limiting
 }

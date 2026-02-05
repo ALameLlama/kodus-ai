@@ -1,7 +1,7 @@
-import { MigrationInterface, QueryRunner } from "typeorm";
+import { MigrationInterface, QueryRunner } from 'typeorm';
 
 export class AddCliConfigToTeam1768153600000 implements MigrationInterface {
-    name = 'AddCliConfigToTeam1768153600000'
+    name = 'AddCliConfigToTeam1768153600000';
 
     public async up(queryRunner: QueryRunner): Promise<void> {
         await queryRunner.query(`

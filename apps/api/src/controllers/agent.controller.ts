@@ -4,7 +4,17 @@ import { OrganizationAndTeamDataDto } from '@libs/core/domain/dtos/organizationA
 import { UserRequest } from '@libs/core/infrastructure/config/types/http/user-request.type';
 import { Body, Controller, Inject, Post } from '@nestjs/common';
 import { REQUEST } from '@nestjs/core';
+import {
+    ApiTags,
+    ApiBearerAuth,
+    ApiOkResponse,
+    ApiOperation,
+} from '@nestjs/swagger';
+import { ApiStandardResponses } from '../docs/api-standard-responses.decorator';
 
+@ApiTags('Agent')
+@ApiBearerAuth('jwt')
+@ApiStandardResponses()
 @Controller('agent')
 export class AgentController {
     constructor(
@@ -15,6 +25,14 @@ export class AgentController {
     ) {}
 
     @Post('/conversation')
+    @ApiOperation({
+        summary: 'Start agent conversation',
+        description: 'Send a prompt to the agent and return its response.',
+    })
+    @ApiOkResponse({
+        description: 'Agent response (plain text or JSON string)',
+        schema: { type: 'string' },
+    })
     public async conversation(
         @Body()
         body: {

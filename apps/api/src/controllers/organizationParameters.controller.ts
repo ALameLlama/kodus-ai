@@ -36,8 +36,29 @@ import {
     UseGuards,
 } from '@nestjs/common';
 import { REQUEST } from '@nestjs/core';
+import {
+    ApiBody,
+    ApiBearerAuth,
+    ApiCreatedResponse,
+    ApiNoContentResponse,
+    ApiOkResponse,
+    ApiOperation,
+    ApiQuery,
+    ApiTags,
+} from '@nestjs/swagger';
+import { ApiStandardResponses } from '../docs/api-standard-responses.decorator';
 import { ProviderService } from '@libs/core/infrastructure/services/providers/provider.service';
+import {
+    OrganizationMetricsVisibilityResponseDto,
+    OrganizationParameterStoredResponseDto,
+    OrganizationProviderModelsResponseDto,
+    OrganizationProvidersResponseDto,
+} from '../dtos/organization-parameters-response.dto';
+import { ApiBooleanResponseDto } from '../dtos/api-response.dto';
 
+@ApiTags('Organization Parameters')
+@ApiBearerAuth('jwt')
+@ApiStandardResponses()
 @Controller('organization-parameters')
 export class OrganizationParametersController {
     constructor(
@@ -56,6 +77,28 @@ export class OrganizationParametersController {
     ) {}
 
     @Post('/create-or-update')
+    @ApiBody({
+        schema: {
+            type: 'object',
+            required: ['key', 'configValue'],
+            properties: {
+                key: {
+                    type: 'string',
+                    enum: Object.values(OrganizationParametersKey),
+                },
+                configValue: {
+                    type: 'object',
+                },
+            },
+            example: {
+                key: OrganizationParametersKey.REVIEW_MODE_CONFIG,
+                configValue: {
+                    mode: 'comment',
+                    threshold: 'medium',
+                },
+            },
+        },
+    })
     @UseGuards(PolicyGuard)
     @CheckPolicies(
         checkPermissions({
@@ -63,6 +106,11 @@ export class OrganizationParametersController {
             resource: ResourceType.OrganizationSettings,
         }),
     )
+    @ApiOperation({
+        summary: 'Create or update organization parameter',
+        description: 'Create or update an organization parameter key/value.',
+    })
+    @ApiOkResponse({ type: OrganizationParameterStoredResponseDto })
     public async createOrUpdate(
         @Body()
         body: {
@@ -86,6 +134,17 @@ export class OrganizationParametersController {
     }
 
     @Get('/find-by-key')
+    @ApiQuery({
+        name: 'key',
+        enum: OrganizationParametersKey,
+        type: String,
+        required: true,
+    })
+    @ApiOperation({
+        summary: 'Find org parameter by key',
+        description: 'Return an organization parameter configuration by key.',
+    })
+    @ApiOkResponse({ type: OrganizationParameterStoredResponseDto })
     @UseGuards(PolicyGuard)
     @CheckPolicies(
         checkPermissions({
@@ -106,6 +165,11 @@ export class OrganizationParametersController {
     }
 
     @Get('/list-providers')
+    @ApiOperation({
+        summary: 'List providers',
+        description: 'Return supported model providers.',
+    })
+    @ApiOkResponse({ type: OrganizationProvidersResponseDto })
     public async listProviders() {
         const providers = this.providerService.getAllProviders();
         return {
@@ -120,6 +184,11 @@ export class OrganizationParametersController {
     }
 
     @Get('/list-models')
+    @ApiOperation({
+        summary: 'List models',
+        description: 'Return supported models for a provider.',
+    })
+    @ApiOkResponse({ type: OrganizationProviderModelsResponseDto })
     public async listModels(
         @Query('provider') provider: string,
     ): Promise<ModelResponse> {
@@ -127,6 +196,16 @@ export class OrganizationParametersController {
     }
 
     @Delete('/delete-byok-config')
+    @ApiOperation({
+        summary: 'Delete BYOK config',
+        description: 'Delete main or fallback BYOK configuration.',
+    })
+    @ApiQuery({
+        name: 'configType',
+        required: true,
+        schema: { type: 'string', enum: ['main', 'fallback'] },
+    })
+    @ApiOkResponse({ type: ApiBooleanResponseDto })
     public async deleteByokConfig(
         @Query('configType') configType: 'main' | 'fallback',
     ) {
@@ -150,6 +229,11 @@ export class OrganizationParametersController {
             resource: ResourceType.OrganizationSettings,
         }),
     )
+    @ApiOperation({
+        summary: 'Get cockpit metrics visibility',
+        description: 'Return cockpit metrics visibility configuration.',
+    })
+    @ApiOkResponse({ type: OrganizationMetricsVisibilityResponseDto })
     public async getCockpitMetricsVisibility(): Promise<ICockpitMetricsVisibility> {
         const organizationId = this.request?.user?.organization?.uuid;
 
@@ -170,6 +254,11 @@ export class OrganizationParametersController {
             resource: ResourceType.OrganizationSettings,
         }),
     )
+    @ApiOperation({
+        summary: 'Update cockpit metrics visibility',
+        description: 'Persist cockpit metrics visibility configuration.',
+    })
+    @ApiCreatedResponse({ type: OrganizationParameterStoredResponseDto })
     public async updateCockpitMetricsVisibility(
         @Body()
         body: {
@@ -201,6 +290,11 @@ export class OrganizationParametersController {
             resource: ResourceType.OrganizationSettings,
         }),
     )
+    @ApiOperation({
+        summary: 'Ignore bot users',
+        description: 'Mark bot users to be ignored in auto-licensing.',
+    })
+    @ApiNoContentResponse({ description: 'Bots ignored successfully' })
     public async ignoreBots(
         @Body()
         body: {
@@ -227,6 +321,12 @@ export class OrganizationParametersController {
             resource: ResourceType.OrganizationSettings,
         }),
     )
+    @ApiOperation({
+        summary: 'Update auto-license allowed users',
+        description:
+            'Ensure allowed users include the current user when requested.',
+    })
+    @ApiCreatedResponse({ type: ApiBooleanResponseDto })
     public async updateAutoLicenseAllowedUsers(
         @Body()
         body: {

@@ -1,4 +1,5 @@
 import { Transform } from 'class-transformer';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
     IsArray,
     IsNotEmpty,
@@ -11,6 +12,7 @@ import {
 export class OnboardingReviewModeSignalsQueryDto {
     @IsNotEmpty()
     @IsString()
+    @ApiProperty()
     teamId: string;
 
     @IsArray()
@@ -25,11 +27,13 @@ export class OnboardingReviewModeSignalsQueryDto {
         }
         return [];
     })
+    @ApiProperty()
     repositoryIds: string[];
 
     @IsOptional()
     @Transform(({ value }) => parseInt(value))
     @Min(1)
     @Max(50)
+    @ApiPropertyOptional()
     limit?: number = 10;
 }

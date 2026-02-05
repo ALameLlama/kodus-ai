@@ -9,7 +9,22 @@ import {
     PipelinePerformanceResult,
     MetricsSummary,
 } from './interfaces/metrics.interfaces';
+import {
+    ApiBearerAuth,
+    ApiOkResponse,
+    ApiOperation,
+    ApiQuery,
+    ApiTags,
+} from '@nestjs/swagger';
+import {
+    MetricsErrorRateResponseDto,
+    MetricsPipelinePerformanceResponseDto,
+    MetricsResponseTimeResponseDto,
+    MetricsSummaryResponseDto,
+} from './metrics-response.dto';
 
+@ApiTags('Internal Metrics')
+@ApiBearerAuth('jwt')
 @Controller('internal/metrics')
 export class MetricsController {
     private readonly logger = createLogger(MetricsController.name);
@@ -20,6 +35,19 @@ export class MetricsController {
     ) {}
 
     @Get('error-rates')
+    @ApiOperation({
+        summary: 'Error rate by component',
+        description:
+            'Internal endpoint (requires JWT). Returns aggregated error rates by component for the requested window. Do not expose publicly.',
+    })
+    @ApiQuery({
+        name: 'window',
+        required: false,
+        description: 'Window in minutes (1 to 1440). Default: 15',
+        type: Number,
+        example: 15,
+    })
+    @ApiOkResponse({ type: MetricsErrorRateResponseDto })
     async getErrorRates(
         @Query('window') windowParam?: string,
     ): Promise<ErrorRateResult[]> {
@@ -33,14 +61,18 @@ export class MetricsController {
             const pipeline = [
                 {
                     $match: {
-                        name: { $in: ['http_errors_total', 'http_request_total'] },
+                        name: {
+                            $in: ['http_errors_total', 'http_request_total'],
+                        },
                         recordedAt: { $gte: since },
                     },
                 },
                 {
                     $group: {
                         _id: {
-                            component: { $ifNull: ['$labels.component', 'unknown'] },
+                            component: {
+                                $ifNull: ['$labels.component', 'unknown'],
+                            },
                             name: '$name',
                         },
                         count: { $sum: '$value' },
@@ -92,6 +124,19 @@ export class MetricsController {
     }
 
     @Get('review-response-times')
+    @ApiOperation({
+        summary: 'Review response times',
+        description:
+            'Internal endpoint (requires JWT). Response time statistics for reviews in hours. Do not expose publicly.',
+    })
+    @ApiQuery({
+        name: 'hours',
+        required: false,
+        description: 'Window in hours (1 to 168). Default: 24',
+        type: Number,
+        example: 24,
+    })
+    @ApiOkResponse({ type: MetricsResponseTimeResponseDto })
     async getReviewResponseTimes(
         @Query('hours') hoursParam?: string,
     ): Promise<ResponseTimeResult> {
@@ -144,6 +189,19 @@ export class MetricsController {
     }
 
     @Get('pipeline-performance')
+    @ApiOperation({
+        summary: 'Pipeline performance',
+        description:
+            'Internal endpoint (requires JWT). Aggregates average duration by pipeline and stage. Do not expose publicly.',
+    })
+    @ApiQuery({
+        name: 'hours',
+        required: false,
+        description: 'Window in hours (1 to 168). Default: 24',
+        type: Number,
+        example: 24,
+    })
+    @ApiOkResponse({ type: MetricsPipelinePerformanceResponseDto })
     async getPipelinePerformance(
         @Query('hours') hoursParam?: string,
     ): Promise<PipelinePerformanceResult[]> {
@@ -172,7 +230,10 @@ export class MetricsController {
                     },
                 },
                 {
-                    $sort: { '_id.pipeline': 1 as const, avgDurationMs: -1 as const },
+                    $sort: {
+                        '_id.pipeline': 1 as const,
+                        'avgDurationMs': -1 as const,
+                    },
                 },
             ];
 
@@ -196,6 +257,12 @@ export class MetricsController {
     }
 
     @Get('summary')
+    @ApiOperation({
+        summary: 'Metrics summary',
+        description:
+            'Internal endpoint (requires JWT). Consolidated metrics snapshot. Do not expose publicly.',
+    })
+    @ApiOkResponse({ type: MetricsSummaryResponseDto })
     async getSummary(): Promise<MetricsSummary> {
         try {
             const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);

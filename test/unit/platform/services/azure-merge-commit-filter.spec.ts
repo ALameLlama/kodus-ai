@@ -2,15 +2,9 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import { AzureReposService } from '@libs/platform/infrastructure/services/azureRepos/azureRepos.service';
 import { AzureReposRequestHelper } from '@libs/platform/infrastructure/services/azureRepos/azure-repos-request-helper';
-import {
-    INTEGRATION_SERVICE_TOKEN,
-} from '@libs/integrations/domain/integrations/contracts/integration.service.contracts';
-import {
-    INTEGRATION_CONFIG_SERVICE_TOKEN,
-} from '@libs/integrations/domain/integrationConfigs/contracts/integration-config.service.contracts';
-import {
-    AUTH_INTEGRATION_SERVICE_TOKEN,
-} from '@libs/integrations/domain/authIntegrations/contracts/auth-integration.service.contracts';
+import { INTEGRATION_SERVICE_TOKEN } from '@libs/integrations/domain/integrations/contracts/integration.service.contracts';
+import { INTEGRATION_CONFIG_SERVICE_TOKEN } from '@libs/integrations/domain/integrationConfigs/contracts/integration-config.service.contracts';
+import { AUTH_INTEGRATION_SERVICE_TOKEN } from '@libs/integrations/domain/authIntegrations/contracts/auth-integration.service.contracts';
 
 jest.mock('@kodus/flow', () => ({
     createLogger: () => ({
@@ -80,15 +74,29 @@ describe('AzureReposService.getChangedFilesSinceLastCommit - merge commit filter
     };
 
     beforeEach(async () => {
-        const { MCPManagerService } = jest.requireMock('@libs/mcp-server/services/mcp-manager.service');
+        const { MCPManagerService } = jest.requireMock(
+            '@libs/mcp-server/services/mcp-manager.service',
+        );
 
         const module: TestingModule = await Test.createTestingModule({
             providers: [
                 AzureReposService,
-                { provide: INTEGRATION_SERVICE_TOKEN, useValue: mockIntegrationService },
-                { provide: INTEGRATION_CONFIG_SERVICE_TOKEN, useValue: mockIntegrationConfigService },
-                { provide: AUTH_INTEGRATION_SERVICE_TOKEN, useValue: mockAuthIntegrationService },
-                { provide: AzureReposRequestHelper, useValue: mockAzureReposRequestHelper },
+                {
+                    provide: INTEGRATION_SERVICE_TOKEN,
+                    useValue: mockIntegrationService,
+                },
+                {
+                    provide: INTEGRATION_CONFIG_SERVICE_TOKEN,
+                    useValue: mockIntegrationConfigService,
+                },
+                {
+                    provide: AUTH_INTEGRATION_SERVICE_TOKEN,
+                    useValue: mockAuthIntegrationService,
+                },
+                {
+                    provide: AzureReposRequestHelper,
+                    useValue: mockAzureReposRequestHelper,
+                },
                 { provide: ConfigService, useValue: mockConfigService },
                 { provide: MCPManagerService, useValue: {} },
             ],
@@ -108,11 +116,16 @@ describe('AzureReposService.getChangedFilesSinceLastCommit - merge commit filter
         // Default: map Azure change types to standard statuses
         mockMapAzureStatus.mockImplementation((status: string) => {
             switch (status.toLowerCase()) {
-                case 'add': return 'added';
-                case 'edit': return 'modified';
-                case 'delete': return 'removed';
-                case 'rename': return 'renamed';
-                default: return 'changed';
+                case 'add':
+                    return 'added';
+                case 'edit':
+                    return 'modified';
+                case 'delete':
+                    return 'removed';
+                case 'rename':
+                    return 'renamed';
+                default:
+                    return 'changed';
             }
         });
     });
@@ -139,7 +152,9 @@ describe('AzureReposService.getChangedFilesSinceLastCommit - merge commit filter
         });
     }
 
-    function setupDiffResponse(changes: Array<{ path: string; changeType: string }>) {
+    function setupDiffResponse(
+        changes: Array<{ path: string; changeType: string }>,
+    ) {
         mockGetDiff.mockResolvedValue(
             changes.map((c) => ({
                 item: { path: c.path, gitObjectType: 'blob' },
@@ -166,9 +181,7 @@ describe('AzureReposService.getChangedFilesSinceLastCommit - merge commit filter
      * This represents only the files that belong to the PR relative to the target branch.
      */
     function setupPrFilesResponse(filePaths: string[]) {
-        mockGetIterations.mockResolvedValue([
-            { id: 1 },
-        ]);
+        mockGetIterations.mockResolvedValue([{ id: 1 }]);
         mockGetChanges.mockResolvedValue(
             filePaths.map((path) => ({
                 item: { path },
@@ -244,8 +257,14 @@ describe('AzureReposService.getChangedFilesSinceLastCommit - merge commit filter
 
             // getDiff returns blob and tree items
             mockGetDiff.mockResolvedValue([
-                { item: { path: '/src/app.ts', gitObjectType: 'blob' }, changeType: 'edit' },
-                { item: { path: '/src/folder', gitObjectType: 'tree' }, changeType: 'add' },
+                {
+                    item: { path: '/src/app.ts', gitObjectType: 'blob' },
+                    changeType: 'edit',
+                },
+                {
+                    item: { path: '/src/folder', gitObjectType: 'tree' },
+                    changeType: 'add',
+                },
             ]);
 
             setupPrFilesResponse(['/src/app.ts', '/src/folder']);
@@ -305,15 +324,15 @@ describe('AzureReposService.getChangedFilesSinceLastCommit - merge commit filter
 
             // After fix: only returns the 2 real files
             expect(result).toHaveLength(realFileCount);
-            expect(result.every(f => f.filename.startsWith('/src/real-file'))).toBe(true);
+            expect(
+                result.every((f) => f.filename.startsWith('/src/real-file')),
+            ).toBe(true);
         });
 
         it('should preserve file metadata correctly', async () => {
             setupPrResponse('target-commit-hash');
 
-            setupDiffResponse([
-                { path: '/src/app.ts', changeType: 'edit' },
-            ]);
+            setupDiffResponse([{ path: '/src/app.ts', changeType: 'edit' }]);
 
             setupPrFilesResponse(['/src/app.ts']);
 
@@ -344,8 +363,14 @@ describe('AzureReposService.getChangedFilesSinceLastCommit - merge commit filter
             setupPrResponse('head-hash');
 
             mockGetDiff.mockResolvedValue([
-                { item: { path: '/src/valid.ts', gitObjectType: 'blob' }, changeType: 'edit' },
-                { item: { path: null, gitObjectType: 'blob' }, changeType: 'add' },
+                {
+                    item: { path: '/src/valid.ts', gitObjectType: 'blob' },
+                    changeType: 'edit',
+                },
+                {
+                    item: { path: null, gitObjectType: 'blob' },
+                    changeType: 'add',
+                },
                 { item: null, changeType: 'edit' },
             ]);
 

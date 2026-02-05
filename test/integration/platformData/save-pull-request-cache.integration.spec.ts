@@ -45,13 +45,18 @@ const shouldSkip = !MONGODB_URI;
                     ConfigModule.forRoot(),
                     MongooseModule.forRoot(mongoUri),
                     MongooseModule.forFeature([
-                        { name: PullRequestsModel.name, schema: PullRequestsSchema },
+                        {
+                            name: PullRequestsModel.name,
+                            schema: PullRequestsSchema,
+                        },
                     ]),
                 ],
                 providers: [PullRequestsRepository],
             }).compile();
 
-            repository = module.get<PullRequestsRepository>(PullRequestsRepository);
+            repository = module.get<PullRequestsRepository>(
+                PullRequestsRepository,
+            );
             model = module.get<Model<PullRequestsModel>>(
                 getModelToken(PullRequestsModel.name),
             );
@@ -108,13 +113,31 @@ const shouldSkip = !MONGODB_URI;
         describe('Cache retrieval via findByNumberAndRepositoryId', () => {
             it('should return files and commits from DB for an existing PR', async () => {
                 const testFiles = [
-                    { filename: 'src/app.ts', additions: 10, deletions: 5, patch: '@@ -1,5 +1,10 @@' },
-                    { filename: 'src/utils.ts', additions: 20, deletions: 0, patch: '@@ -1,0 +1,20 @@' },
+                    {
+                        filename: 'src/app.ts',
+                        additions: 10,
+                        deletions: 5,
+                        patch: '@@ -1,5 +1,10 @@',
+                    },
+                    {
+                        filename: 'src/utils.ts',
+                        additions: 20,
+                        deletions: 0,
+                        patch: '@@ -1,0 +1,20 @@',
+                    },
                 ];
 
                 const testCommits = [
-                    { sha: 'abc123', message: 'feat: add new feature', author: { name: 'dev', email: 'dev@test.com' } },
-                    { sha: 'def456', message: 'fix: bug fix', author: { name: 'dev', email: 'dev@test.com' } },
+                    {
+                        sha: 'abc123',
+                        message: 'feat: add new feature',
+                        author: { name: 'dev', email: 'dev@test.com' },
+                    },
+                    {
+                        sha: 'def456',
+                        message: 'fix: bug fix',
+                        author: { name: 'dev', email: 'dev@test.com' },
+                    },
                 ];
 
                 await createTestPR({
@@ -176,14 +199,18 @@ const shouldSkip = !MONGODB_URI;
                 await createTestPR({
                     number: 42,
                     repositoryId: 'repo-A',
-                    files: [{ filename: 'fileA.ts', additions: 1, deletions: 0 }],
+                    files: [
+                        { filename: 'fileA.ts', additions: 1, deletions: 0 },
+                    ],
                     commits: [{ sha: 'aaa', message: 'commit A' }],
                 });
 
                 await createTestPR({
                     number: 42,
                     repositoryId: 'repo-B',
-                    files: [{ filename: 'fileB.ts', additions: 2, deletions: 0 }],
+                    files: [
+                        { filename: 'fileB.ts', additions: 2, deletions: 0 },
+                    ],
                     commits: [{ sha: 'bbb', message: 'commit B' }],
                 });
 
@@ -260,7 +287,8 @@ const shouldSkip = !MONGODB_URI;
             it('should preserve commit structure with all relevant fields', async () => {
                 const richCommit = {
                     sha: 'full-sha-abc123def456',
-                    message: 'feat(auth): implement OAuth2 flow\n\nThis adds Google OAuth2 support.',
+                    message:
+                        'feat(auth): implement OAuth2 flow\n\nThis adds Google OAuth2 support.',
                     author: {
                         name: 'Developer',
                         email: 'dev@company.com',

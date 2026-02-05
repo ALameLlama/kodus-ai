@@ -33,50 +33,88 @@ describe('buildCommitUrl - commit URL construction per platform', () => {
 
     describe('GitHub', () => {
         it('should produce correct GitHub commit URL', () => {
-            const url = buildCommitUrl('github', 'https://github.com/owner/repo', sha);
+            const url = buildCommitUrl(
+                'github',
+                'https://github.com/owner/repo',
+                sha,
+            );
             expect(url).toBe(`https://github.com/owner/repo/commit/${sha}`);
         });
 
         it('should NOT produce API URL', () => {
             // This would be the old buggy behavior
-            const buggyUrl = buildCommitUrl('github', 'https://api.github.com/repos/owner/repo', sha);
+            const buggyUrl = buildCommitUrl(
+                'github',
+                'https://api.github.com/repos/owner/repo',
+                sha,
+            );
             expect(buggyUrl).toContain('api.github.com'); // proves this would be wrong
         });
     });
 
     describe('GitLab', () => {
         it('should produce correct GitLab commit URL', () => {
-            const url = buildCommitUrl('gitlab', 'https://gitlab.com/owner/repo', sha);
+            const url = buildCommitUrl(
+                'gitlab',
+                'https://gitlab.com/owner/repo',
+                sha,
+            );
             expect(url).toBe(`https://gitlab.com/owner/repo/-/commit/${sha}`);
         });
 
         it('should NOT produce SSH-based URL', () => {
-            const buggyUrl = buildCommitUrl('gitlab', 'git@gitlab.com:owner/repo.git', sha);
+            const buggyUrl = buildCommitUrl(
+                'gitlab',
+                'git@gitlab.com:owner/repo.git',
+                sha,
+            );
             expect(buggyUrl).toContain('git@'); // proves this would be wrong
         });
     });
 
     describe('Azure DevOps', () => {
         it('should produce correct Azure DevOps commit URL', () => {
-            const url = buildCommitUrl('azure', 'https://dev.azure.com/org/project/_git/repo', sha);
-            expect(url).toBe(`https://dev.azure.com/org/project/_git/repo/commit/${sha}`);
+            const url = buildCommitUrl(
+                'azure',
+                'https://dev.azure.com/org/project/_git/repo',
+                sha,
+            );
+            expect(url).toBe(
+                `https://dev.azure.com/org/project/_git/repo/commit/${sha}`,
+            );
         });
 
         it('should also work with azuredevops provider string', () => {
-            const url = buildCommitUrl('azuredevops', 'https://dev.azure.com/org/project/_git/repo', sha);
-            expect(url).toBe(`https://dev.azure.com/org/project/_git/repo/commit/${sha}`);
+            const url = buildCommitUrl(
+                'azuredevops',
+                'https://dev.azure.com/org/project/_git/repo',
+                sha,
+            );
+            expect(url).toBe(
+                `https://dev.azure.com/org/project/_git/repo/commit/${sha}`,
+            );
         });
 
         it('should NOT produce API URL', () => {
-            const buggyUrl = buildCommitUrl('azure', 'https://dev.azure.com/org/project/_apis/git/repositories/guid', sha);
+            const buggyUrl = buildCommitUrl(
+                'azure',
+                'https://dev.azure.com/org/project/_apis/git/repositories/guid',
+                sha,
+            );
             expect(buggyUrl).toContain('_apis'); // proves this would be wrong
         });
     });
 
     describe('Bitbucket', () => {
         it('should produce correct Bitbucket commit URL', () => {
-            const url = buildCommitUrl('bitbucket', 'https://bitbucket.org/workspace/repo', sha);
-            expect(url).toBe(`https://bitbucket.org/workspace/repo/commits/${sha}`);
+            const url = buildCommitUrl(
+                'bitbucket',
+                'https://bitbucket.org/workspace/repo',
+                sha,
+            );
+            expect(url).toBe(
+                `https://bitbucket.org/workspace/repo/commits/${sha}`,
+            );
         });
     });
 
@@ -90,7 +128,11 @@ describe('buildCommitUrl - commit URL construction per platform', () => {
         });
 
         it('should default to GitHub format for unknown providers', () => {
-            const url = buildCommitUrl('unknown', 'https://example.com/repo', sha);
+            const url = buildCommitUrl(
+                'unknown',
+                'https://example.com/repo',
+                sha,
+            );
             expect(url).toBe(`https://example.com/repo/commit/${sha}`);
         });
     });

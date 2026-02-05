@@ -1,15 +1,21 @@
 import { AmqpConnection } from '@golevelup/nestjs-rabbitmq';
 import { Controller, Get, HttpStatus, Res } from '@nestjs/common';
 import { Response } from 'express';
+import { ApiTags } from '@nestjs/swagger';
+import { Public } from '@libs/identity/infrastructure/adapters/services/auth/public.decorator';
+import { ApiStandardResponses } from '../docs/api-standard-responses.decorator';
 
 /**
- * WebhookHealthController - Health Check Simplificado para Webhook Handler
+ * WebhookHealthController - Simplified health check for the webhook handler
  *
- * Verifica apenas o essencial:
- * - Status da aplicação
- * - Conexão com RabbitMQ (crítico - precisa enfileirar mensagens)
- * - Conexão com PostgreSQL (crítico - precisa salvar logs de webhook)
+ * Checks only the essentials:
+ * - Application status
+ * - RabbitMQ connection (critical to enqueue messages)
+ * - PostgreSQL connection (critical to persist webhook logs)
  */
+@ApiTags('Webhook Health')
+@ApiStandardResponses({ includeAuth: false })
+@Public()
 @Controller('health')
 export class WebhookHealthController {
     constructor(private readonly amqpConnection: AmqpConnection) {}
@@ -69,15 +75,15 @@ export class WebhookHealthController {
 
     private async checkRabbitMQ(): Promise<{ status: string }> {
         try {
-            // Verificar se conexão RabbitMQ está ativa
+            // Check if RabbitMQ connection is active
             const channel = this.amqpConnection.channel;
             if (!channel) {
                 return { status: 'error' };
             }
 
-            // Tentar verificar uma queue (não bloqueia se não existir)
+            // Try to check a queue (non-blocking if it doesn't exist yet)
             await channel.checkQueue('workflow.webhooks.queue').catch(() => {
-                // Queue pode não existir ainda, mas conexão está OK
+                // Queue may not exist yet, but the connection is OK
             });
 
             return { status: 'ok' };
@@ -88,7 +94,7 @@ export class WebhookHealthController {
 
     private async checkPostgreSQL(): Promise<{ status: string }> {
         try {
-            // Verificar se conexão PostgreSQL está ativa
+            // Check if PostgreSQL connection is active
             // await this.dataSource.query('SELECT 1');
             return { status: 'ok' };
         } catch {

@@ -93,7 +93,12 @@ export class BackfillHistoricalPRsUseCase {
 
     private async backfillRepositoryPRs(
         organizationAndTeamData: OrganizationAndTeamData,
-        repository: { id: string; name: string; fullName?: string; url?: string },
+        repository: {
+            id: string;
+            name: string;
+            fullName?: string;
+            url?: string;
+        },
         startDate: string,
         endDate: string,
     ): Promise<void> {
@@ -286,7 +291,12 @@ export class BackfillHistoricalPRsUseCase {
             totalChanges: number;
         },
         commits: any[],
-        repository: { id: string; name: string; fullName?: string; url?: string },
+        repository: {
+            id: string;
+            name: string;
+            fullName?: string;
+            url?: string;
+        },
     ): Omit<IPullRequests, 'uuid'> {
         const isMerged = !!pr.merged_at;
         const repoData = pr.head?.repo || pr.base?.repo;
