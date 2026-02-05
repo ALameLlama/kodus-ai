@@ -6,11 +6,13 @@ import { COMMENT_MANAGER_SERVICE_TOKEN } from '@/code-review/domain/contracts/Co
 import { CodeManagementService } from '@/platform/infrastructure/adapters/services/codeManagement.service';
 import { PriorityStatus } from '@/platformData/domain/pullRequests/enums/priorityStatus.enum';
 import { DeliveryStatus } from '@/platformData/domain/pullRequests/enums/deliveryStatus.enum';
+import { ImplementationStatus } from '@/platformData/domain/pullRequests/enums/implementationStatus.enum';
 import {
     LimitationType,
     GroupingModeSuggestions,
     ClusteringType,
     CodeSuggestion,
+    CommentResult,
 } from '@/core/infrastructure/config/types/general/codeReview.type';
 import { SeverityLevel } from '@/common/utils/enums/severityLevel.enum';
 
@@ -825,6 +827,189 @@ __new hunk__
             );
 
             expect(result).toHaveLength(2);
+        });
+    });
+
+    describe('extractRepriorizedSuggestions', () => {
+        it('should extract repriorized suggestions from comment results', () => {
+            const suggestion1 = { id: 's1', priorityStatus: PriorityStatus.REPRIORIZED, label: 'security' };
+            const suggestion2 = { id: 's2', priorityStatus: PriorityStatus.PRIORITIZED, label: 'code_style' };
+
+            const commentResults: CommentResult[] = [
+                {
+                    comment: { suggestion: suggestion1 } as any,
+                    deliveryStatus: DeliveryStatus.SENT,
+                    codeReviewFeedbackData: { commentId: 123, pullRequestReviewId: 456, suggestionId: 's1' },
+                },
+                {
+                    comment: { suggestion: suggestion2 } as any,
+                    deliveryStatus: DeliveryStatus.SENT,
+                    codeReviewFeedbackData: { commentId: 789, pullRequestReviewId: 456, suggestionId: 's2' },
+                },
+            ];
+
+            const discardedSuggestions = [
+                { id: 's1', priorityStatus: PriorityStatus.DISCARDED_BY_QUANTITY, label: 'security' },
+                { id: 's3', priorityStatus: PriorityStatus.DISCARDED_BY_SEVERITY, label: 'maintainability' },
+            ];
+
+            const result = service.extractRepriorizedSuggestions(commentResults, discardedSuggestions);
+
+            expect(result.repriorizedSuggestions).toHaveLength(1);
+            expect(result.repriorizedSuggestions[0].id).toBe('s1');
+            expect(result.repriorizedSuggestions[0].deliveryStatus).toBe(DeliveryStatus.SENT);
+            expect(result.repriorizedSuggestions[0].implementationStatus).toBe(ImplementationStatus.NOT_IMPLEMENTED);
+            expect(result.repriorizedSuggestions[0].comment).toEqual({
+                id: 123,
+                pullRequestReviewId: 456,
+            });
+
+            expect(result.filteredDiscardedSuggestions).toHaveLength(1);
+            expect(result.filteredDiscardedSuggestions[0].id).toBe('s3');
+        });
+
+        it('should return empty repriorized array when no repriorized suggestions exist', () => {
+            const suggestion1 = { id: 's1', priorityStatus: PriorityStatus.PRIORITIZED };
+
+            const commentResults: CommentResult[] = [
+                {
+                    comment: { suggestion: suggestion1 } as any,
+                    deliveryStatus: DeliveryStatus.SENT,
+                    codeReviewFeedbackData: { commentId: 123, pullRequestReviewId: 456, suggestionId: 's1' },
+                },
+            ];
+
+            const discardedSuggestions = [
+                { id: 's2', priorityStatus: PriorityStatus.DISCARDED_BY_QUANTITY },
+            ];
+
+            const result = service.extractRepriorizedSuggestions(commentResults, discardedSuggestions);
+
+            expect(result.repriorizedSuggestions).toHaveLength(0);
+            expect(result.filteredDiscardedSuggestions).toHaveLength(1);
+        });
+
+        it('should not extract repriorized suggestions that failed to send', () => {
+            const suggestion1 = { id: 's1', priorityStatus: PriorityStatus.REPRIORIZED };
+
+            const commentResults: CommentResult[] = [
+                {
+                    comment: { suggestion: suggestion1 } as any,
+                    deliveryStatus: DeliveryStatus.FAILED,
+                },
+            ];
+
+            const discardedSuggestions = [
+                { id: 's1', priorityStatus: PriorityStatus.DISCARDED_BY_QUANTITY },
+            ];
+
+            const result = service.extractRepriorizedSuggestions(commentResults, discardedSuggestions);
+
+            expect(result.repriorizedSuggestions).toHaveLength(0);
+            expect(result.filteredDiscardedSuggestions).toHaveLength(1);
+        });
+
+        it('should handle empty comment results', () => {
+            const discardedSuggestions = [
+                { id: 's1', priorityStatus: PriorityStatus.DISCARDED_BY_QUANTITY },
+            ];
+
+            const result = service.extractRepriorizedSuggestions([], discardedSuggestions);
+
+            expect(result.repriorizedSuggestions).toHaveLength(0);
+            expect(result.filteredDiscardedSuggestions).toHaveLength(1);
+        });
+
+        it('should handle empty discarded suggestions', () => {
+            const suggestion1 = { id: 's1', priorityStatus: PriorityStatus.REPRIORIZED };
+
+            const commentResults: CommentResult[] = [
+                {
+                    comment: { suggestion: suggestion1 } as any,
+                    deliveryStatus: DeliveryStatus.SENT,
+                    codeReviewFeedbackData: { commentId: 123, pullRequestReviewId: 456, suggestionId: 's1' },
+                },
+            ];
+
+            const result = service.extractRepriorizedSuggestions(commentResults, []);
+
+            expect(result.repriorizedSuggestions).toHaveLength(1);
+            expect(result.filteredDiscardedSuggestions).toHaveLength(0);
+        });
+
+        it('should preserve existing comment data when extracting repriorized suggestions', () => {
+            const suggestion1 = {
+                id: 's1',
+                priorityStatus: PriorityStatus.REPRIORIZED,
+                comment: { existingField: 'value' },
+            };
+
+            const commentResults: CommentResult[] = [
+                {
+                    comment: { suggestion: suggestion1 } as any,
+                    deliveryStatus: DeliveryStatus.SENT,
+                    codeReviewFeedbackData: { commentId: 123, pullRequestReviewId: 456, suggestionId: 's1' },
+                },
+            ];
+
+            const result = service.extractRepriorizedSuggestions(commentResults, []);
+
+            expect(result.repriorizedSuggestions[0].comment).toEqual({
+                existingField: 'value',
+                id: 123,
+                pullRequestReviewId: 456,
+            });
+        });
+
+        it('should handle repriorized suggestion without codeReviewFeedbackData', () => {
+            const suggestion1 = {
+                id: 's1',
+                priorityStatus: PriorityStatus.REPRIORIZED,
+                comment: { originalId: 999 },
+            };
+
+            const commentResults: CommentResult[] = [
+                {
+                    comment: { suggestion: suggestion1 } as any,
+                    deliveryStatus: DeliveryStatus.SENT,
+                    // No codeReviewFeedbackData
+                },
+            ];
+
+            const result = service.extractRepriorizedSuggestions(commentResults, []);
+
+            expect(result.repriorizedSuggestions).toHaveLength(1);
+            expect(result.repriorizedSuggestions[0].comment).toEqual({ originalId: 999 });
+        });
+
+        it('should filter out multiple repriorized suggestions from discarded', () => {
+            const suggestion1 = { id: 's1', priorityStatus: PriorityStatus.REPRIORIZED };
+            const suggestion2 = { id: 's2', priorityStatus: PriorityStatus.REPRIORIZED };
+
+            const commentResults: CommentResult[] = [
+                {
+                    comment: { suggestion: suggestion1 } as any,
+                    deliveryStatus: DeliveryStatus.SENT,
+                    codeReviewFeedbackData: { commentId: 1, pullRequestReviewId: 1, suggestionId: 's1' },
+                },
+                {
+                    comment: { suggestion: suggestion2 } as any,
+                    deliveryStatus: DeliveryStatus.SENT,
+                    codeReviewFeedbackData: { commentId: 2, pullRequestReviewId: 1, suggestionId: 's2' },
+                },
+            ];
+
+            const discardedSuggestions = [
+                { id: 's1', priorityStatus: PriorityStatus.DISCARDED_BY_QUANTITY },
+                { id: 's2', priorityStatus: PriorityStatus.DISCARDED_BY_QUANTITY },
+                { id: 's3', priorityStatus: PriorityStatus.DISCARDED_BY_SEVERITY },
+            ];
+
+            const result = service.extractRepriorizedSuggestions(commentResults, discardedSuggestions);
+
+            expect(result.repriorizedSuggestions).toHaveLength(2);
+            expect(result.filteredDiscardedSuggestions).toHaveLength(1);
+            expect(result.filteredDiscardedSuggestions[0].id).toBe('s3');
         });
     });
 });
