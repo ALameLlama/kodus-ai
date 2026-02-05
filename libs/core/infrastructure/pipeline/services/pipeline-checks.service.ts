@@ -265,11 +265,9 @@ export class PipelineChecksService implements IPipelineChecksService {
             return;
         }
 
-        let [name, title, summary] = [
-            undefined,
-            undefined,
-            reason || undefined,
-        ];
+        let name: string | undefined;
+        let title: string | undefined;
+        let summary: string | undefined = reason || undefined;
         if (stageName) {
             const stageCheckInfo = checkStageMap[stageName];
             if (stageCheckInfo) {
@@ -286,8 +284,10 @@ export class PipelineChecksService implements IPipelineChecksService {
                 repository,
                 status: CheckStatus.COMPLETED,
                 conclusion,
-                output: title && summary ? { title, summary } : undefined,
                 name,
+                output: summary
+                    ? { title: title ?? 'Code Review', summary }
+                    : undefined,
             });
 
             observerContext.checkRunId = undefined;
