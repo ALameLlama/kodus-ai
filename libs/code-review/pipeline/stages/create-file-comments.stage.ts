@@ -401,6 +401,7 @@ export class CreateFileCommentsStage extends BasePipelineStage<CodeReviewPipelin
             return;
         }
 
+        // Update status for originally prioritized suggestions based on comment results
         const suggestionsWithStatus =
             await this.suggestionService.verifyIfSuggestionsWereSent(
                 organizationAndTeamData,
@@ -409,6 +410,20 @@ export class CreateFileCommentsStage extends BasePipelineStage<CodeReviewPipelin
                 commentResults,
             );
 
+        // Extract repriorized suggestions (fallback suggestions that were sent)
+        // and remove them from discarded to avoid duplicate saves
+        const { repriorizedSuggestions, filteredDiscardedSuggestions } =
+            this.suggestionService.extractRepriorizedSuggestions(
+                commentResults,
+                discardedSuggestions,
+            );
+
+        // Combine original prioritized suggestions with repriorized ones
+        const allPrioritizedSuggestions = [
+            ...suggestionsWithStatus,
+            ...repriorizedSuggestions,
+        ];
+
         // Reutilizar commits do context (buscados no ValidateNewCommitsStage)
         const pullRequestCommits = prCommits || [];
 
@@ -416,8 +431,8 @@ export class CreateFileCommentsStage extends BasePipelineStage<CodeReviewPipelin
             pullRequest,
             repository,
             enrichedFiles,
-            suggestionsWithStatus,
-            discardedSuggestions,
+            allPrioritizedSuggestions,
+            filteredDiscardedSuggestions,
             platformType,
             organizationAndTeamData,
             pullRequestCommits as unknown as ICommit[],

@@ -1623,6 +1623,66 @@ export class SuggestionService implements ISuggestionService {
     }
 
     /**
+     * Extracts repriorized suggestions from comment results and removes them from discarded suggestions.
+     * This prevents duplicate saves when a fallback suggestion replaces a failed prioritized suggestion.
+     *
+     * When a prioritized suggestion fails all retry attempts, it gets replaced by a fallback suggestion
+     * from the discarded pool. The fallback suggestion is marked as REPRIORIZED and SENT.
+     * This method extracts those repriorized suggestions and filters them out of the discarded array
+     * to avoid saving them twice (once as sent, once as discarded).
+     *
+     * @public
+     */
+    public extractRepriorizedSuggestions(
+        commentResults: CommentResult[],
+        discardedSuggestions: Partial<CodeSuggestion>[],
+    ): {
+        repriorizedSuggestions: Partial<CodeSuggestion>[];
+        filteredDiscardedSuggestions: Partial<CodeSuggestion>[];
+    } {
+        // Find all repriorized suggestions from comment results
+        const repriorizedSuggestions: Partial<CodeSuggestion>[] = [];
+
+        for (const result of commentResults) {
+            const suggestion = result?.comment?.suggestion;
+            if (
+                suggestion?.priorityStatus === PriorityStatus.REPRIORIZED &&
+                result?.deliveryStatus === DeliveryStatus.SENT
+            ) {
+                repriorizedSuggestions.push({
+                    ...suggestion,
+                    deliveryStatus: DeliveryStatus.SENT,
+                    implementationStatus: ImplementationStatus.NOT_IMPLEMENTED,
+                    comment: result?.codeReviewFeedbackData
+                        ? {
+                              ...(suggestion?.comment || {}),
+                              id: result.codeReviewFeedbackData.commentId,
+                              pullRequestReviewId:
+                                  result.codeReviewFeedbackData
+                                      .pullRequestReviewId,
+                          }
+                        : suggestion?.comment,
+                });
+            }
+        }
+
+        // Build a Set of repriorized suggestion IDs for efficient lookup
+        const repriorizedIds = new Set(
+            repriorizedSuggestions.map((s) => s.id).filter(Boolean),
+        );
+
+        // Filter out repriorized suggestions from discarded suggestions
+        const filteredDiscardedSuggestions = discardedSuggestions.filter(
+            (suggestion) => !repriorizedIds.has(suggestion.id),
+        );
+
+        return {
+            repriorizedSuggestions,
+            filteredDiscardedSuggestions,
+        };
+    }
+
+    /**
      * Transforma commentResults de suggestions de PR level em ISuggestionByPR[]
      */
     public transformCommentResultsToPrLevelSuggestions(
