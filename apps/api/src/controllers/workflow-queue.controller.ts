@@ -17,7 +17,12 @@ import { CheckPolicies } from '@libs/identity/infrastructure/adapters/services/p
 import { checkPermissions } from '@libs/identity/infrastructure/adapters/services/permissions/policy.handlers';
 import { JOB_STATUS_SERVICE_TOKEN } from '@libs/core/workflow/domain/contracts/job-status.service.contract';
 import { IJobStatusService } from '@libs/core/workflow/domain/contracts/job-status.service.contract';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { ApiStandardResponses } from '../docs/api-standard-responses.decorator';
 
+@ApiTags('Workflow Queue')
+@ApiBearerAuth('jwt')
+@ApiStandardResponses()
 @Controller('workflow-queue')
 @UseGuards(PolicyGuard)
 export class WorkflowQueueController {

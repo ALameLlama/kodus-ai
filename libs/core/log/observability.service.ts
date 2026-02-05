@@ -422,9 +422,7 @@ export class ObservabilityService implements OnModuleInit {
                 flushIntervalMs:
                     options.customSettings?.flushIntervalMs ??
                     ObservabilityService.DEFAULT_SETTINGS.flushIntervalMs,
-                ttlDays:
-                    options.customSettings?.ttlDays ??
-                    ObservabilityService.DEFAULT_SETTINGS.ttlDays,
+                ttlDays: 0,
                 enableObservability: true,
                 secondaryIndexes:
                     options.customSettings?.secondaryIndexes ??

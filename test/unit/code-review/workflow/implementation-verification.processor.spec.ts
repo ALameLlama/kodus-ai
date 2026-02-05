@@ -111,16 +111,36 @@ describe('ImplementationVerificationProcessor', () => {
         const module: TestingModule = await Test.createTestingModule({
             providers: [
                 ImplementationVerificationProcessor,
-                { provide: WORKFLOW_JOB_REPOSITORY_TOKEN, useValue: mockJobRepository },
-                { provide: SUGGESTION_SERVICE_TOKEN, useValue: mockSuggestionService },
-                { provide: PULL_REQUESTS_SERVICE_TOKEN, useValue: mockPullRequestsService },
-                { provide: PULL_REQUEST_MANAGER_SERVICE_TOKEN, useValue: mockPullRequestManagerService },
-                { provide: AUTOMATION_EXECUTION_SERVICE_TOKEN, useValue: mockAutomationExecutionService },
-                { provide: TEAM_AUTOMATION_SERVICE_TOKEN, useValue: mockTeamAutomationService },
+                {
+                    provide: WORKFLOW_JOB_REPOSITORY_TOKEN,
+                    useValue: mockJobRepository,
+                },
+                {
+                    provide: SUGGESTION_SERVICE_TOKEN,
+                    useValue: mockSuggestionService,
+                },
+                {
+                    provide: PULL_REQUESTS_SERVICE_TOKEN,
+                    useValue: mockPullRequestsService,
+                },
+                {
+                    provide: PULL_REQUEST_MANAGER_SERVICE_TOKEN,
+                    useValue: mockPullRequestManagerService,
+                },
+                {
+                    provide: AUTOMATION_EXECUTION_SERVICE_TOKEN,
+                    useValue: mockAutomationExecutionService,
+                },
+                {
+                    provide: TEAM_AUTOMATION_SERVICE_TOKEN,
+                    useValue: mockTeamAutomationService,
+                },
             ],
         }).compile();
 
-        processor = module.get<ImplementationVerificationProcessor>(ImplementationVerificationProcessor);
+        processor = module.get<ImplementationVerificationProcessor>(
+            ImplementationVerificationProcessor,
+        );
         jest.clearAllMocks();
     });
 
@@ -129,11 +149,13 @@ describe('ImplementationVerificationProcessor', () => {
             it('should throw error when job is not found', async () => {
                 mockJobRepository.findOne.mockResolvedValue(null);
 
-                await expect(processor.process('non-existent-job')).rejects.toThrow(
-                    'Job non-existent-job not found',
-                );
+                await expect(
+                    processor.process('non-existent-job'),
+                ).rejects.toThrow('Job non-existent-job not found');
 
-                expect(mockJobRepository.findOne).toHaveBeenCalledWith('non-existent-job');
+                expect(mockJobRepository.findOne).toHaveBeenCalledWith(
+                    'non-existent-job',
+                );
             });
 
             it('should throw error when workflow type is invalid', async () => {
@@ -156,12 +178,17 @@ describe('ImplementationVerificationProcessor', () => {
 
                 await processor.process('job-123');
 
-                expect(mockJobRepository.update).toHaveBeenCalledWith('job-123', {
-                    status: JobStatus.COMPLETED,
-                    completedAt: expect.any(Date),
-                    result: { reason: 'PR_NOT_FOUND' },
-                });
-                expect(mockSuggestionService.validateImplementedSuggestions).not.toHaveBeenCalled();
+                expect(mockJobRepository.update).toHaveBeenCalledWith(
+                    'job-123',
+                    {
+                        status: JobStatus.COMPLETED,
+                        completedAt: expect.any(Date),
+                        result: { reason: 'PR_NOT_FOUND' },
+                    },
+                );
+                expect(
+                    mockSuggestionService.validateImplementedSuggestions,
+                ).not.toHaveBeenCalled();
             });
 
             it.each([
@@ -171,74 +198,118 @@ describe('ImplementationVerificationProcessor', () => {
                 },
                 {
                     scenario: 'all suggestions already implemented',
-                    files: [{
-                        filename: 'src/index.ts',
-                        suggestions: [createMockSuggestion({ implementationStatus: ImplementationStatus.IMPLEMENTED })],
-                    }],
+                    files: [
+                        {
+                            filename: 'src/index.ts',
+                            suggestions: [
+                                createMockSuggestion({
+                                    implementationStatus:
+                                        ImplementationStatus.IMPLEMENTED,
+                                }),
+                            ],
+                        },
+                    ],
                 },
                 {
                     scenario: 'suggestions not SENT',
-                    files: [{
-                        filename: 'src/index.ts',
-                        suggestions: [createMockSuggestion({ deliveryStatus: DeliveryStatus.NOT_SENT })],
-                    }],
+                    files: [
+                        {
+                            filename: 'src/index.ts',
+                            suggestions: [
+                                createMockSuggestion({
+                                    deliveryStatus: DeliveryStatus.NOT_SENT,
+                                }),
+                            ],
+                        },
+                    ],
                 },
                 {
                     scenario: 'suggestions SENT but FAILED delivery',
-                    files: [{
-                        filename: 'src/index.ts',
-                        suggestions: [createMockSuggestion({ deliveryStatus: DeliveryStatus.FAILED })],
-                    }],
+                    files: [
+                        {
+                            filename: 'src/index.ts',
+                            suggestions: [
+                                createMockSuggestion({
+                                    deliveryStatus: DeliveryStatus.FAILED,
+                                }),
+                            ],
+                        },
+                    ],
                 },
-            ])('should complete with NO_SUGGESTIONS when $scenario', async ({ files }) => {
-                const job = createMockJob();
-                const pr = createMockPR({ files });
+            ])(
+                'should complete with NO_SUGGESTIONS when $scenario',
+                async ({ files }) => {
+                    const job = createMockJob();
+                    const pr = createMockPR({ files });
 
-                mockJobRepository.findOne.mockResolvedValue(job);
-                mockPullRequestsService.findOne.mockResolvedValue(pr);
+                    mockJobRepository.findOne.mockResolvedValue(job);
+                    mockPullRequestsService.findOne.mockResolvedValue(pr);
 
-                await processor.process('job-123');
+                    await processor.process('job-123');
 
-                expect(mockJobRepository.update).toHaveBeenCalledWith('job-123', {
-                    status: JobStatus.COMPLETED,
-                    completedAt: expect.any(Date),
-                    result: { reason: 'NO_SUGGESTIONS' },
-                });
-                expect(mockSuggestionService.validateImplementedSuggestions).not.toHaveBeenCalled();
-            });
+                    expect(mockJobRepository.update).toHaveBeenCalledWith(
+                        'job-123',
+                        {
+                            status: JobStatus.COMPLETED,
+                            completedAt: expect.any(Date),
+                            result: { reason: 'NO_SUGGESTIONS' },
+                        },
+                    );
+                    expect(
+                        mockSuggestionService.validateImplementedSuggestions,
+                    ).not.toHaveBeenCalled();
+                },
+            );
 
             it('should include PARTIALLY_IMPLEMENTED suggestions in verification', async () => {
                 const job = createMockJob();
                 const pr = createMockPR({
-                    files: [{
-                        filename: 'src/index.ts',
-                        suggestions: [
-                            createMockSuggestion({
-                                id: 'partial-suggestion',
-                                implementationStatus: ImplementationStatus.PARTIALLY_IMPLEMENTED,
-                                deliveryStatus: DeliveryStatus.SENT,
-                            }),
-                        ],
-                    }],
+                    files: [
+                        {
+                            filename: 'src/index.ts',
+                            suggestions: [
+                                createMockSuggestion({
+                                    id: 'partial-suggestion',
+                                    implementationStatus:
+                                        ImplementationStatus.PARTIALLY_IMPLEMENTED,
+                                    deliveryStatus: DeliveryStatus.SENT,
+                                }),
+                            ],
+                        },
+                    ],
                 });
 
                 mockJobRepository.findOne.mockResolvedValue(job);
                 mockPullRequestsService.findOne.mockResolvedValue(pr);
                 mockTeamAutomationService.find.mockResolvedValue([]);
-                mockAutomationExecutionService.findLatestExecutionByFilters.mockResolvedValue(null);
-                mockPullRequestManagerService.getPullRequestDetails.mockResolvedValue({
-                    number: 42,
-                    repository: {},
-                });
-                mockPullRequestManagerService.getChangedFiles.mockResolvedValue([createMockChangedFile()]);
-                mockSuggestionService.validateImplementedSuggestions.mockResolvedValue([]);
-                mockSuggestionService.resolveImplementedSuggestionsOnPlatform.mockResolvedValue(undefined);
+                mockAutomationExecutionService.findLatestExecutionByFilters.mockResolvedValue(
+                    null,
+                );
+                mockPullRequestManagerService.getPullRequestDetails.mockResolvedValue(
+                    {
+                        number: 42,
+                        repository: {},
+                    },
+                );
+                mockPullRequestManagerService.getChangedFiles.mockResolvedValue(
+                    [createMockChangedFile()],
+                );
+                mockSuggestionService.validateImplementedSuggestions.mockResolvedValue(
+                    [],
+                );
+                mockSuggestionService.resolveImplementedSuggestionsOnPlatform.mockResolvedValue(
+                    undefined,
+                );
 
                 await processor.process('job-123');
 
                 // PARTIALLY_IMPLEMENTED should be included in validation (not filtered out)
-                expect(mockSuggestionService.validateImplementedSuggestions).toHaveBeenCalled();
-                const passedSuggestions = mockSuggestionService.validateImplementedSuggestions.mock.calls[0][2];
+                expect(
+                    mockSuggestionService.validateImplementedSuggestions,
+                ).toHaveBeenCalled();
+                const passedSuggestions =
+                    mockSuggestionService.validateImplementedSuggestions.mock
+                        .calls[0][2];
                 expect(passedSuggestions).toHaveLength(1);
                 expect(passedSuggestions[0].id).toBe('partial-suggestion');
             });
@@ -250,26 +321,43 @@ describe('ImplementationVerificationProcessor', () => {
                 mockJobRepository.findOne.mockResolvedValue(job);
                 mockPullRequestsService.findOne.mockResolvedValue(pr);
                 mockTeamAutomationService.find.mockResolvedValue([
-                    { uuid: 'automation-1', automation: { automationType: AutomationType.AUTOMATION_CODE_REVIEW } },
+                    {
+                        uuid: 'automation-1',
+                        automation: {
+                            automationType:
+                                AutomationType.AUTOMATION_CODE_REVIEW,
+                        },
+                    },
                 ]);
-                mockAutomationExecutionService.findLatestExecutionByFilters.mockResolvedValue({
-                    dataExecution: { lastAnalyzedCommit: 'prev-commit' },
-                });
-                mockPullRequestManagerService.getPullRequestDetails.mockResolvedValue({
-                    number: 42,
-                    repository: {},
-                });
-                mockPullRequestManagerService.getChangedFiles.mockResolvedValue([
-                    createMockChangedFile({ filename: 'src/other-file.ts' }), // Different file
-                ]);
+                mockAutomationExecutionService.findLatestExecutionByFilters.mockResolvedValue(
+                    {
+                        dataExecution: { lastAnalyzedCommit: 'prev-commit' },
+                    },
+                );
+                mockPullRequestManagerService.getPullRequestDetails.mockResolvedValue(
+                    {
+                        number: 42,
+                        repository: {},
+                    },
+                );
+                mockPullRequestManagerService.getChangedFiles.mockResolvedValue(
+                    [
+                        createMockChangedFile({
+                            filename: 'src/other-file.ts',
+                        }), // Different file
+                    ],
+                );
 
                 await processor.process('job-123');
 
-                expect(mockJobRepository.update).toHaveBeenCalledWith('job-123', {
-                    status: JobStatus.COMPLETED,
-                    completedAt: expect.any(Date),
-                    result: { reason: 'NO_RELEVANT_CHANGES' },
-                });
+                expect(mockJobRepository.update).toHaveBeenCalledWith(
+                    'job-123',
+                    {
+                        status: JobStatus.COMPLETED,
+                        completedAt: expect.any(Date),
+                        result: { reason: 'NO_RELEVANT_CHANGES' },
+                    },
+                );
             });
 
             it('should complete with NO_PATCH when changed files have no patch content', async () => {
@@ -279,24 +367,39 @@ describe('ImplementationVerificationProcessor', () => {
                 mockJobRepository.findOne.mockResolvedValue(job);
                 mockPullRequestsService.findOne.mockResolvedValue(pr);
                 mockTeamAutomationService.find.mockResolvedValue([
-                    { uuid: 'automation-1', automation: { automationType: AutomationType.AUTOMATION_CODE_REVIEW } },
+                    {
+                        uuid: 'automation-1',
+                        automation: {
+                            automationType:
+                                AutomationType.AUTOMATION_CODE_REVIEW,
+                        },
+                    },
                 ]);
-                mockAutomationExecutionService.findLatestExecutionByFilters.mockResolvedValue(null);
-                mockPullRequestManagerService.getPullRequestDetails.mockResolvedValue({
-                    number: 42,
-                    repository: {},
-                });
-                mockPullRequestManagerService.getChangedFiles.mockResolvedValue([
-                    createMockChangedFile({ patch: null }), // No patch
-                ]);
+                mockAutomationExecutionService.findLatestExecutionByFilters.mockResolvedValue(
+                    null,
+                );
+                mockPullRequestManagerService.getPullRequestDetails.mockResolvedValue(
+                    {
+                        number: 42,
+                        repository: {},
+                    },
+                );
+                mockPullRequestManagerService.getChangedFiles.mockResolvedValue(
+                    [
+                        createMockChangedFile({ patch: null }), // No patch
+                    ],
+                );
 
                 await processor.process('job-123');
 
-                expect(mockJobRepository.update).toHaveBeenCalledWith('job-123', {
-                    status: JobStatus.COMPLETED,
-                    completedAt: expect.any(Date),
-                    result: { reason: 'NO_PATCH' },
-                });
+                expect(mockJobRepository.update).toHaveBeenCalledWith(
+                    'job-123',
+                    {
+                        status: JobStatus.COMPLETED,
+                        completedAt: expect.any(Date),
+                        result: { reason: 'NO_PATCH' },
+                    },
+                );
             });
         });
 
@@ -309,25 +412,47 @@ describe('ImplementationVerificationProcessor', () => {
                 mockJobRepository.findOne.mockResolvedValue(job);
                 mockPullRequestsService.findOne.mockResolvedValue(pr);
                 mockTeamAutomationService.find.mockResolvedValue([
-                    { uuid: 'automation-1', automation: { automationType: AutomationType.AUTOMATION_CODE_REVIEW } },
+                    {
+                        uuid: 'automation-1',
+                        automation: {
+                            automationType:
+                                AutomationType.AUTOMATION_CODE_REVIEW,
+                        },
+                    },
                 ]);
-                mockAutomationExecutionService.findLatestExecutionByFilters.mockResolvedValue({
-                    dataExecution: { lastAnalyzedCommit: 'prev-commit' },
-                });
-                mockPullRequestManagerService.getPullRequestDetails.mockResolvedValue({
-                    number: 42,
-                    repository: {},
-                });
-                mockPullRequestManagerService.getChangedFiles.mockResolvedValue([changedFile]);
-                mockSuggestionService.validateImplementedSuggestions.mockResolvedValue([
-                    { id: 'suggestion-1', implementationStatus: ImplementationStatus.IMPLEMENTED },
-                ]);
-                mockSuggestionService.resolveImplementedSuggestionsOnPlatform.mockResolvedValue(undefined);
+                mockAutomationExecutionService.findLatestExecutionByFilters.mockResolvedValue(
+                    {
+                        dataExecution: { lastAnalyzedCommit: 'prev-commit' },
+                    },
+                );
+                mockPullRequestManagerService.getPullRequestDetails.mockResolvedValue(
+                    {
+                        number: 42,
+                        repository: {},
+                    },
+                );
+                mockPullRequestManagerService.getChangedFiles.mockResolvedValue(
+                    [changedFile],
+                );
+                mockSuggestionService.validateImplementedSuggestions.mockResolvedValue(
+                    [
+                        {
+                            id: 'suggestion-1',
+                            implementationStatus:
+                                ImplementationStatus.IMPLEMENTED,
+                        },
+                    ],
+                );
+                mockSuggestionService.resolveImplementedSuggestionsOnPlatform.mockResolvedValue(
+                    undefined,
+                );
 
                 await processor.process('job-123');
 
                 // Verify validateImplementedSuggestions was called with correct params
-                expect(mockSuggestionService.validateImplementedSuggestions).toHaveBeenCalledWith(
+                expect(
+                    mockSuggestionService.validateImplementedSuggestions,
+                ).toHaveBeenCalledWith(
                     job.payload.organizationAndTeamData,
                     expect.stringContaining('File: src/index.ts'), // codePatch
                     expect.arrayContaining([
@@ -340,71 +465,105 @@ describe('ImplementationVerificationProcessor', () => {
                 );
 
                 // Verify resolveImplementedSuggestionsOnPlatform was called
-                expect(mockSuggestionService.resolveImplementedSuggestionsOnPlatform).toHaveBeenCalledWith({
-                    organizationAndTeamData: job.payload.organizationAndTeamData,
+                expect(
+                    mockSuggestionService.resolveImplementedSuggestionsOnPlatform,
+                ).toHaveBeenCalledWith({
+                    organizationAndTeamData:
+                        job.payload.organizationAndTeamData,
                     repository: { id: 'repo-1', name: 'test-repo' },
                     prNumber: 42,
                     platformType: PlatformType.GITHUB,
                 });
 
                 // Verify job was marked as completed
-                expect(mockJobRepository.update).toHaveBeenCalledWith('job-123', {
-                    status: JobStatus.COMPLETED,
-                    completedAt: expect.any(Date),
-                    result: { checkedCount: 1 },
-                });
+                expect(mockJobRepository.update).toHaveBeenCalledWith(
+                    'job-123',
+                    {
+                        status: JobStatus.COMPLETED,
+                        completedAt: expect.any(Date),
+                        result: { checkedCount: 1 },
+                    },
+                );
             });
 
             it('should process validation results and always call resolveImplementedSuggestionsOnPlatform', async () => {
                 const job = createMockJob();
                 const pr = createMockPR({
-                    files: [{
-                        filename: 'src/index.ts',
-                        suggestions: [
-                            createMockSuggestion({ id: 'sug-1' }),
-                            createMockSuggestion({ id: 'sug-2' }),
-                            createMockSuggestion({ id: 'sug-3' }),
-                        ],
-                    }],
+                    files: [
+                        {
+                            filename: 'src/index.ts',
+                            suggestions: [
+                                createMockSuggestion({ id: 'sug-1' }),
+                                createMockSuggestion({ id: 'sug-2' }),
+                                createMockSuggestion({ id: 'sug-3' }),
+                            ],
+                        },
+                    ],
                 });
 
                 mockJobRepository.findOne.mockResolvedValue(job);
                 mockPullRequestsService.findOne.mockResolvedValue(pr);
                 mockTeamAutomationService.find.mockResolvedValue([]);
-                mockAutomationExecutionService.findLatestExecutionByFilters.mockResolvedValue(null);
-                mockPullRequestManagerService.getPullRequestDetails.mockResolvedValue({
-                    number: 42,
-                    repository: {},
-                });
-                mockPullRequestManagerService.getChangedFiles.mockResolvedValue([createMockChangedFile()]);
+                mockAutomationExecutionService.findLatestExecutionByFilters.mockResolvedValue(
+                    null,
+                );
+                mockPullRequestManagerService.getPullRequestDetails.mockResolvedValue(
+                    {
+                        number: 42,
+                        repository: {},
+                    },
+                );
+                mockPullRequestManagerService.getChangedFiles.mockResolvedValue(
+                    [createMockChangedFile()],
+                );
 
                 // LLM returns that 2 out of 3 suggestions were implemented
-                mockSuggestionService.validateImplementedSuggestions.mockResolvedValue([
-                    { id: 'sug-1', implementationStatus: ImplementationStatus.IMPLEMENTED },
-                    { id: 'sug-3', implementationStatus: ImplementationStatus.PARTIALLY_IMPLEMENTED },
-                ]);
-                mockSuggestionService.resolveImplementedSuggestionsOnPlatform.mockResolvedValue(undefined);
+                mockSuggestionService.validateImplementedSuggestions.mockResolvedValue(
+                    [
+                        {
+                            id: 'sug-1',
+                            implementationStatus:
+                                ImplementationStatus.IMPLEMENTED,
+                        },
+                        {
+                            id: 'sug-3',
+                            implementationStatus:
+                                ImplementationStatus.PARTIALLY_IMPLEMENTED,
+                        },
+                    ],
+                );
+                mockSuggestionService.resolveImplementedSuggestionsOnPlatform.mockResolvedValue(
+                    undefined,
+                );
 
                 await processor.process('job-123');
 
                 // Should call validateImplementedSuggestions with all 3 suggestions
-                const passedSuggestions = mockSuggestionService.validateImplementedSuggestions.mock.calls[0][2];
+                const passedSuggestions =
+                    mockSuggestionService.validateImplementedSuggestions.mock
+                        .calls[0][2];
                 expect(passedSuggestions).toHaveLength(3);
 
                 // Should call resolveImplementedSuggestionsOnPlatform to mark comments as resolved
-                expect(mockSuggestionService.resolveImplementedSuggestionsOnPlatform).toHaveBeenCalledWith({
-                    organizationAndTeamData: job.payload.organizationAndTeamData,
+                expect(
+                    mockSuggestionService.resolveImplementedSuggestionsOnPlatform,
+                ).toHaveBeenCalledWith({
+                    organizationAndTeamData:
+                        job.payload.organizationAndTeamData,
                     repository: { id: 'repo-1', name: 'test-repo' },
                     prNumber: 42,
                     platformType: PlatformType.GITHUB,
                 });
 
                 // Job should complete with count of checked suggestions (not implemented count)
-                expect(mockJobRepository.update).toHaveBeenCalledWith('job-123', {
-                    status: JobStatus.COMPLETED,
-                    completedAt: expect.any(Date),
-                    result: { checkedCount: 3 },
-                });
+                expect(mockJobRepository.update).toHaveBeenCalledWith(
+                    'job-123',
+                    {
+                        status: JobStatus.COMPLETED,
+                        completedAt: expect.any(Date),
+                        result: { checkedCount: 3 },
+                    },
+                );
             });
 
             it('should filter suggestions to only include those from changed files', async () => {
@@ -414,13 +573,19 @@ describe('ImplementationVerificationProcessor', () => {
                         {
                             filename: 'src/index.ts',
                             suggestions: [
-                                createMockSuggestion({ id: 'suggestion-1', relevantFile: 'src/index.ts' }),
+                                createMockSuggestion({
+                                    id: 'suggestion-1',
+                                    relevantFile: 'src/index.ts',
+                                }),
                             ],
                         },
                         {
                             filename: 'src/other.ts',
                             suggestions: [
-                                createMockSuggestion({ id: 'suggestion-2', relevantFile: 'src/other.ts' }),
+                                createMockSuggestion({
+                                    id: 'suggestion-2',
+                                    relevantFile: 'src/other.ts',
+                                }),
                             ],
                         },
                     ],
@@ -429,22 +594,32 @@ describe('ImplementationVerificationProcessor', () => {
                 mockJobRepository.findOne.mockResolvedValue(job);
                 mockPullRequestsService.findOne.mockResolvedValue(pr);
                 mockTeamAutomationService.find.mockResolvedValue([]);
-                mockAutomationExecutionService.findLatestExecutionByFilters.mockResolvedValue(null);
-                mockPullRequestManagerService.getPullRequestDetails.mockResolvedValue({
-                    number: 42,
-                    repository: {},
-                });
+                mockAutomationExecutionService.findLatestExecutionByFilters.mockResolvedValue(
+                    null,
+                );
+                mockPullRequestManagerService.getPullRequestDetails.mockResolvedValue(
+                    {
+                        number: 42,
+                        repository: {},
+                    },
+                );
                 // Only src/index.ts changed
-                mockPullRequestManagerService.getChangedFiles.mockResolvedValue([
-                    createMockChangedFile({ filename: 'src/index.ts' }),
-                ]);
-                mockSuggestionService.validateImplementedSuggestions.mockResolvedValue([]);
-                mockSuggestionService.resolveImplementedSuggestionsOnPlatform.mockResolvedValue(undefined);
+                mockPullRequestManagerService.getChangedFiles.mockResolvedValue(
+                    [createMockChangedFile({ filename: 'src/index.ts' })],
+                );
+                mockSuggestionService.validateImplementedSuggestions.mockResolvedValue(
+                    [],
+                );
+                mockSuggestionService.resolveImplementedSuggestionsOnPlatform.mockResolvedValue(
+                    undefined,
+                );
 
                 await processor.process('job-123');
 
                 // Should only pass suggestion-1 (from changed file)
-                expect(mockSuggestionService.validateImplementedSuggestions).toHaveBeenCalledWith(
+                expect(
+                    mockSuggestionService.validateImplementedSuggestions,
+                ).toHaveBeenCalledWith(
                     expect.anything(),
                     expect.anything(),
                     expect.arrayContaining([
@@ -454,8 +629,12 @@ describe('ImplementationVerificationProcessor', () => {
                 );
 
                 // Verify suggestion-2 was NOT passed
-                const passedSuggestions = mockSuggestionService.validateImplementedSuggestions.mock.calls[0][2];
-                expect(passedSuggestions.find(s => s.id === 'suggestion-2')).toBeUndefined();
+                const passedSuggestions =
+                    mockSuggestionService.validateImplementedSuggestions.mock
+                        .calls[0][2];
+                expect(
+                    passedSuggestions.find((s) => s.id === 'suggestion-2'),
+                ).toBeUndefined();
             });
 
             it('should construct codePatch correctly from multiple changed files', async () => {
@@ -464,11 +643,20 @@ describe('ImplementationVerificationProcessor', () => {
                     files: [
                         {
                             filename: 'src/index.ts',
-                            suggestions: [createMockSuggestion({ relevantFile: 'src/index.ts' })],
+                            suggestions: [
+                                createMockSuggestion({
+                                    relevantFile: 'src/index.ts',
+                                }),
+                            ],
                         },
                         {
                             filename: 'src/utils.ts',
-                            suggestions: [createMockSuggestion({ id: 'suggestion-2', relevantFile: 'src/utils.ts' })],
+                            suggestions: [
+                                createMockSuggestion({
+                                    id: 'suggestion-2',
+                                    relevantFile: 'src/utils.ts',
+                                }),
+                            ],
                         },
                     ],
                 });
@@ -476,21 +664,39 @@ describe('ImplementationVerificationProcessor', () => {
                 mockJobRepository.findOne.mockResolvedValue(job);
                 mockPullRequestsService.findOne.mockResolvedValue(pr);
                 mockTeamAutomationService.find.mockResolvedValue([]);
-                mockAutomationExecutionService.findLatestExecutionByFilters.mockResolvedValue(null);
-                mockPullRequestManagerService.getPullRequestDetails.mockResolvedValue({
-                    number: 42,
-                    repository: {},
-                });
-                mockPullRequestManagerService.getChangedFiles.mockResolvedValue([
-                    createMockChangedFile({ filename: 'src/index.ts', patch: 'patch1' }),
-                    createMockChangedFile({ filename: 'src/utils.ts', patch: 'patch2' }),
-                ]);
-                mockSuggestionService.validateImplementedSuggestions.mockResolvedValue([]);
-                mockSuggestionService.resolveImplementedSuggestionsOnPlatform.mockResolvedValue(undefined);
+                mockAutomationExecutionService.findLatestExecutionByFilters.mockResolvedValue(
+                    null,
+                );
+                mockPullRequestManagerService.getPullRequestDetails.mockResolvedValue(
+                    {
+                        number: 42,
+                        repository: {},
+                    },
+                );
+                mockPullRequestManagerService.getChangedFiles.mockResolvedValue(
+                    [
+                        createMockChangedFile({
+                            filename: 'src/index.ts',
+                            patch: 'patch1',
+                        }),
+                        createMockChangedFile({
+                            filename: 'src/utils.ts',
+                            patch: 'patch2',
+                        }),
+                    ],
+                );
+                mockSuggestionService.validateImplementedSuggestions.mockResolvedValue(
+                    [],
+                );
+                mockSuggestionService.resolveImplementedSuggestionsOnPlatform.mockResolvedValue(
+                    undefined,
+                );
 
                 await processor.process('job-123');
 
-                const codePatch = mockSuggestionService.validateImplementedSuggestions.mock.calls[0][1];
+                const codePatch =
+                    mockSuggestionService.validateImplementedSuggestions.mock
+                        .calls[0][1];
                 expect(codePatch).toContain('File: src/index.ts');
                 expect(codePatch).toContain('patch1');
                 expect(codePatch).toContain('File: src/utils.ts');
@@ -515,18 +721,29 @@ describe('ImplementationVerificationProcessor', () => {
                 mockJobRepository.findOne.mockResolvedValue(job);
                 mockPullRequestsService.findOne.mockResolvedValue(pr);
                 mockTeamAutomationService.find.mockResolvedValue([]);
-                mockAutomationExecutionService.findLatestExecutionByFilters.mockResolvedValue(null);
-                mockPullRequestManagerService.getChangedFiles.mockResolvedValue([createMockChangedFile()]);
-                mockSuggestionService.validateImplementedSuggestions.mockResolvedValue([]);
-                mockSuggestionService.resolveImplementedSuggestionsOnPlatform.mockResolvedValue(undefined);
+                mockAutomationExecutionService.findLatestExecutionByFilters.mockResolvedValue(
+                    null,
+                );
+                mockPullRequestManagerService.getChangedFiles.mockResolvedValue(
+                    [createMockChangedFile()],
+                );
+                mockSuggestionService.validateImplementedSuggestions.mockResolvedValue(
+                    [],
+                );
+                mockSuggestionService.resolveImplementedSuggestionsOnPlatform.mockResolvedValue(
+                    undefined,
+                );
 
                 await processor.process('job-123');
 
                 // Should NOT call getPullRequestDetails since we have pull_request in payload
-                expect(mockPullRequestManagerService.getPullRequestDetails).not.toHaveBeenCalled();
+                expect(
+                    mockPullRequestManagerService.getPullRequestDetails,
+                ).not.toHaveBeenCalled();
 
                 // Should pass project.id from payload's pull_request.repository to getChangedFiles
-                const getChangedFilesCall = mockPullRequestManagerService.getChangedFiles.mock.calls[0];
+                const getChangedFilesCall =
+                    mockPullRequestManagerService.getChangedFiles.mock.calls[0];
                 const repositoryArg = getChangedFilesCall[1];
                 const platformPrArg = getChangedFilesCall[2];
 
@@ -544,18 +761,30 @@ describe('ImplementationVerificationProcessor', () => {
                 mockJobRepository.findOne.mockResolvedValue(job);
                 mockPullRequestsService.findOne.mockResolvedValue(pr);
                 mockTeamAutomationService.find.mockResolvedValue([]);
-                mockAutomationExecutionService.findLatestExecutionByFilters.mockResolvedValue(null);
-                mockPullRequestManagerService.getPullRequestDetails.mockResolvedValue({
-                    number: 42,
-                    repository: {},
-                });
-                mockPullRequestManagerService.getChangedFiles.mockResolvedValue([createMockChangedFile()]);
-                mockSuggestionService.validateImplementedSuggestions.mockResolvedValue([]);
-                mockSuggestionService.resolveImplementedSuggestionsOnPlatform.mockResolvedValue(undefined);
+                mockAutomationExecutionService.findLatestExecutionByFilters.mockResolvedValue(
+                    null,
+                );
+                mockPullRequestManagerService.getPullRequestDetails.mockResolvedValue(
+                    {
+                        number: 42,
+                        repository: {},
+                    },
+                );
+                mockPullRequestManagerService.getChangedFiles.mockResolvedValue(
+                    [createMockChangedFile()],
+                );
+                mockSuggestionService.validateImplementedSuggestions.mockResolvedValue(
+                    [],
+                );
+                mockSuggestionService.resolveImplementedSuggestionsOnPlatform.mockResolvedValue(
+                    undefined,
+                );
 
                 await processor.process('job-123');
 
-                expect(mockPullRequestManagerService.getPullRequestDetails).toHaveBeenCalledWith(
+                expect(
+                    mockPullRequestManagerService.getPullRequestDetails,
+                ).toHaveBeenCalledWith(
                     job.payload.organizationAndTeamData,
                     { name: 'test-repo', id: 'repo-1' },
                     42,
@@ -581,21 +810,34 @@ describe('ImplementationVerificationProcessor', () => {
                 mockJobRepository.findOne.mockResolvedValue(job);
                 mockPullRequestsService.findOne.mockResolvedValue(pr);
                 mockTeamAutomationService.find.mockResolvedValue([]);
-                mockAutomationExecutionService.findLatestExecutionByFilters.mockResolvedValue(null);
-                mockPullRequestManagerService.getChangedFiles.mockResolvedValue([createMockChangedFile()]);
-                mockSuggestionService.validateImplementedSuggestions.mockResolvedValue([]);
-                mockSuggestionService.resolveImplementedSuggestionsOnPlatform.mockResolvedValue(undefined);
+                mockAutomationExecutionService.findLatestExecutionByFilters.mockResolvedValue(
+                    null,
+                );
+                mockPullRequestManagerService.getChangedFiles.mockResolvedValue(
+                    [createMockChangedFile()],
+                );
+                mockSuggestionService.validateImplementedSuggestions.mockResolvedValue(
+                    [],
+                );
+                mockSuggestionService.resolveImplementedSuggestionsOnPlatform.mockResolvedValue(
+                    undefined,
+                );
 
                 await processor.process('job-123');
 
                 // Should NOT call getPullRequestDetails since we have resource in payload
-                expect(mockPullRequestManagerService.getPullRequestDetails).not.toHaveBeenCalled();
+                expect(
+                    mockPullRequestManagerService.getPullRequestDetails,
+                ).not.toHaveBeenCalled();
 
                 // Should use resource data
-                const getChangedFilesCall = mockPullRequestManagerService.getChangedFiles.mock.calls[0];
+                const getChangedFilesCall =
+                    mockPullRequestManagerService.getChangedFiles.mock.calls[0];
                 const repositoryArg = getChangedFilesCall[1];
 
-                expect(repositoryArg.project).toEqual({ id: 'azure-project-id' });
+                expect(repositoryArg.project).toEqual({
+                    id: 'azure-project-id',
+                });
             });
         });
 
@@ -608,22 +850,35 @@ describe('ImplementationVerificationProcessor', () => {
                 mockJobRepository.findOne.mockResolvedValue(job);
                 mockPullRequestsService.findOne.mockResolvedValue(pr);
                 mockTeamAutomationService.find.mockResolvedValue([]);
-                mockAutomationExecutionService.findLatestExecutionByFilters.mockResolvedValue(null);
-                mockPullRequestManagerService.getPullRequestDetails.mockResolvedValue({
-                    number: 42,
-                    repository: {},
-                });
-                mockPullRequestManagerService.getChangedFiles.mockResolvedValue([createMockChangedFile()]);
-                mockSuggestionService.validateImplementedSuggestions.mockRejectedValue(testError);
+                mockAutomationExecutionService.findLatestExecutionByFilters.mockResolvedValue(
+                    null,
+                );
+                mockPullRequestManagerService.getPullRequestDetails.mockResolvedValue(
+                    {
+                        number: 42,
+                        repository: {},
+                    },
+                );
+                mockPullRequestManagerService.getChangedFiles.mockResolvedValue(
+                    [createMockChangedFile()],
+                );
+                mockSuggestionService.validateImplementedSuggestions.mockRejectedValue(
+                    testError,
+                );
 
-                await expect(processor.process('job-123')).rejects.toThrow('Test error during validation');
+                await expect(processor.process('job-123')).rejects.toThrow(
+                    'Test error during validation',
+                );
 
-                expect(mockJobRepository.update).toHaveBeenCalledWith('job-123', {
-                    status: JobStatus.FAILED,
-                    errorClassification: ErrorClassification.PERMANENT,
-                    lastError: 'Test error during validation',
-                    failedAt: expect.any(Date),
-                });
+                expect(mockJobRepository.update).toHaveBeenCalledWith(
+                    'job-123',
+                    {
+                        status: JobStatus.FAILED,
+                        errorClassification: ErrorClassification.PERMANENT,
+                        lastError: 'Test error during validation',
+                        failedAt: expect.any(Date),
+                    },
+                );
             });
 
             it('should handle errors from getPullRequestDetails', async () => {
@@ -633,19 +888,26 @@ describe('ImplementationVerificationProcessor', () => {
                 mockJobRepository.findOne.mockResolvedValue(job);
                 mockPullRequestsService.findOne.mockResolvedValue(pr);
                 mockTeamAutomationService.find.mockResolvedValue([]);
-                mockAutomationExecutionService.findLatestExecutionByFilters.mockResolvedValue(null);
+                mockAutomationExecutionService.findLatestExecutionByFilters.mockResolvedValue(
+                    null,
+                );
                 mockPullRequestManagerService.getPullRequestDetails.mockRejectedValue(
                     new Error('Platform API error'),
                 );
 
-                await expect(processor.process('job-123')).rejects.toThrow('Platform API error');
+                await expect(processor.process('job-123')).rejects.toThrow(
+                    'Platform API error',
+                );
 
-                expect(mockJobRepository.update).toHaveBeenCalledWith('job-123', {
-                    status: JobStatus.FAILED,
-                    errorClassification: ErrorClassification.PERMANENT,
-                    lastError: 'Platform API error',
-                    failedAt: expect.any(Date),
-                });
+                expect(mockJobRepository.update).toHaveBeenCalledWith(
+                    'job-123',
+                    {
+                        status: JobStatus.FAILED,
+                        errorClassification: ErrorClassification.PERMANENT,
+                        lastError: 'Platform API error',
+                        failedAt: expect.any(Date),
+                    },
+                );
             });
         });
 
@@ -668,36 +930,52 @@ describe('ImplementationVerificationProcessor', () => {
                 });
 
                 const pr = createMockPR({
-                    files: [{ filename: 'src/index.ts', suggestions: [suggestion] }],
+                    files: [
+                        { filename: 'src/index.ts', suggestions: [suggestion] },
+                    ],
                 });
 
                 mockJobRepository.findOne.mockResolvedValue(job);
                 mockPullRequestsService.findOne.mockResolvedValue(pr);
                 mockTeamAutomationService.find.mockResolvedValue([]);
-                mockAutomationExecutionService.findLatestExecutionByFilters.mockResolvedValue(null);
-                mockPullRequestManagerService.getPullRequestDetails.mockResolvedValue({
-                    number: 42,
-                    repository: {},
-                });
-                mockPullRequestManagerService.getChangedFiles.mockResolvedValue([createMockChangedFile()]);
-                mockSuggestionService.validateImplementedSuggestions.mockResolvedValue([]);
-                mockSuggestionService.resolveImplementedSuggestionsOnPlatform.mockResolvedValue(undefined);
+                mockAutomationExecutionService.findLatestExecutionByFilters.mockResolvedValue(
+                    null,
+                );
+                mockPullRequestManagerService.getPullRequestDetails.mockResolvedValue(
+                    {
+                        number: 42,
+                        repository: {},
+                    },
+                );
+                mockPullRequestManagerService.getChangedFiles.mockResolvedValue(
+                    [createMockChangedFile()],
+                );
+                mockSuggestionService.validateImplementedSuggestions.mockResolvedValue(
+                    [],
+                );
+                mockSuggestionService.resolveImplementedSuggestionsOnPlatform.mockResolvedValue(
+                    undefined,
+                );
 
                 await processor.process('job-123');
 
-                const passedSuggestions = mockSuggestionService.validateImplementedSuggestions.mock.calls[0][2];
+                const passedSuggestions =
+                    mockSuggestionService.validateImplementedSuggestions.mock
+                        .calls[0][2];
                 const passedSuggestion = passedSuggestions[0];
 
                 // Should include only these properties (what the LLM needs)
-                expect(Object.keys(passedSuggestion).sort()).toEqual([
-                    'existingCode',
-                    'id',
-                    'improvedCode',
-                    'label',
-                    'language',
-                    'relevantFile',
-                    'severity',
-                ].sort());
+                expect(Object.keys(passedSuggestion).sort()).toEqual(
+                    [
+                        'existingCode',
+                        'id',
+                        'improvedCode',
+                        'label',
+                        'language',
+                        'relevantFile',
+                        'severity',
+                    ].sort(),
+                );
 
                 // Verify values
                 expect(passedSuggestion).toEqual({
@@ -711,7 +989,9 @@ describe('ImplementationVerificationProcessor', () => {
                 });
 
                 // Explicitly verify extra props were stripped (defensive check)
-                expect(passedSuggestion).not.toHaveProperty('suggestionContent');
+                expect(passedSuggestion).not.toHaveProperty(
+                    'suggestionContent',
+                );
                 expect(passedSuggestion).not.toHaveProperty('comment');
                 expect(passedSuggestion).not.toHaveProperty('rankScore');
                 expect(passedSuggestion).not.toHaveProperty('priorityStatus');
@@ -726,11 +1006,14 @@ describe('ImplementationVerificationProcessor', () => {
 
                 await processor.process('job-123');
 
-                expect(mockJobRepository.update).toHaveBeenCalledWith('job-123', {
-                    status: JobStatus.COMPLETED,
-                    completedAt: expect.any(Date),
-                    result: { reason: 'NO_SUGGESTIONS' },
-                });
+                expect(mockJobRepository.update).toHaveBeenCalledWith(
+                    'job-123',
+                    {
+                        status: JobStatus.COMPLETED,
+                        completedAt: expect.any(Date),
+                        result: { reason: 'NO_SUGGESTIONS' },
+                    },
+                );
             });
 
             it('should handle file with suggestions array being null', async () => {
@@ -744,11 +1027,14 @@ describe('ImplementationVerificationProcessor', () => {
 
                 await processor.process('job-123');
 
-                expect(mockJobRepository.update).toHaveBeenCalledWith('job-123', {
-                    status: JobStatus.COMPLETED,
-                    completedAt: expect.any(Date),
-                    result: { reason: 'NO_SUGGESTIONS' },
-                });
+                expect(mockJobRepository.update).toHaveBeenCalledWith(
+                    'job-123',
+                    {
+                        status: JobStatus.COMPLETED,
+                        completedAt: expect.any(Date),
+                        result: { reason: 'NO_SUGGESTIONS' },
+                    },
+                );
             });
         });
 
@@ -761,23 +1047,41 @@ describe('ImplementationVerificationProcessor', () => {
                 mockJobRepository.findOne.mockResolvedValue(job);
                 mockPullRequestsService.findOne.mockResolvedValue(pr);
                 mockTeamAutomationService.find.mockResolvedValue([
-                    { uuid: 'automation-1', automation: { automationType: AutomationType.AUTOMATION_CODE_REVIEW } },
+                    {
+                        uuid: 'automation-1',
+                        automation: {
+                            automationType:
+                                AutomationType.AUTOMATION_CODE_REVIEW,
+                        },
+                    },
                 ]);
-                mockAutomationExecutionService.findLatestExecutionByFilters.mockResolvedValue({
-                    dataExecution: { lastAnalyzedCommit: lastCommit },
-                });
-                mockPullRequestManagerService.getPullRequestDetails.mockResolvedValue({
-                    number: 42,
-                    repository: {},
-                });
-                mockPullRequestManagerService.getChangedFiles.mockResolvedValue([createMockChangedFile()]);
-                mockSuggestionService.validateImplementedSuggestions.mockResolvedValue([]);
-                mockSuggestionService.resolveImplementedSuggestionsOnPlatform.mockResolvedValue(undefined);
+                mockAutomationExecutionService.findLatestExecutionByFilters.mockResolvedValue(
+                    {
+                        dataExecution: { lastAnalyzedCommit: lastCommit },
+                    },
+                );
+                mockPullRequestManagerService.getPullRequestDetails.mockResolvedValue(
+                    {
+                        number: 42,
+                        repository: {},
+                    },
+                );
+                mockPullRequestManagerService.getChangedFiles.mockResolvedValue(
+                    [createMockChangedFile()],
+                );
+                mockSuggestionService.validateImplementedSuggestions.mockResolvedValue(
+                    [],
+                );
+                mockSuggestionService.resolveImplementedSuggestionsOnPlatform.mockResolvedValue(
+                    undefined,
+                );
 
                 await processor.process('job-123');
 
                 // Verify getChangedFiles was called with lastAnalyzedCommit
-                expect(mockPullRequestManagerService.getChangedFiles).toHaveBeenCalledWith(
+                expect(
+                    mockPullRequestManagerService.getChangedFiles,
+                ).toHaveBeenCalledWith(
                     job.payload.organizationAndTeamData,
                     expect.any(Object),
                     expect.any(Object),
@@ -793,22 +1097,35 @@ describe('ImplementationVerificationProcessor', () => {
                 mockJobRepository.findOne.mockResolvedValue(job);
                 mockPullRequestsService.findOne.mockResolvedValue(pr);
                 mockTeamAutomationService.find.mockResolvedValue(null);
-                mockAutomationExecutionService.findLatestExecutionByFilters.mockResolvedValue(null);
-                mockPullRequestManagerService.getPullRequestDetails.mockResolvedValue({
-                    number: 42,
-                    repository: {},
-                });
-                mockPullRequestManagerService.getChangedFiles.mockResolvedValue([createMockChangedFile()]);
-                mockSuggestionService.validateImplementedSuggestions.mockResolvedValue([]);
-                mockSuggestionService.resolveImplementedSuggestionsOnPlatform.mockResolvedValue(undefined);
+                mockAutomationExecutionService.findLatestExecutionByFilters.mockResolvedValue(
+                    null,
+                );
+                mockPullRequestManagerService.getPullRequestDetails.mockResolvedValue(
+                    {
+                        number: 42,
+                        repository: {},
+                    },
+                );
+                mockPullRequestManagerService.getChangedFiles.mockResolvedValue(
+                    [createMockChangedFile()],
+                );
+                mockSuggestionService.validateImplementedSuggestions.mockResolvedValue(
+                    [],
+                );
+                mockSuggestionService.resolveImplementedSuggestionsOnPlatform.mockResolvedValue(
+                    undefined,
+                );
 
                 await processor.process('job-123');
 
-                expect(mockJobRepository.update).toHaveBeenCalledWith('job-123', {
-                    status: JobStatus.COMPLETED,
-                    completedAt: expect.any(Date),
-                    result: { checkedCount: 1 },
-                });
+                expect(mockJobRepository.update).toHaveBeenCalledWith(
+                    'job-123',
+                    {
+                        status: JobStatus.COMPLETED,
+                        completedAt: expect.any(Date),
+                        result: { checkedCount: 1 },
+                    },
+                );
             });
         });
     });

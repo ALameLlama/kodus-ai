@@ -10,9 +10,7 @@ import { MetricsCollectorService } from './metrics-collector.service';
 
 @Injectable()
 export class ReviewResponseMonitorService {
-    private readonly logger = createLogger(
-        ReviewResponseMonitorService.name,
-    );
+    private readonly logger = createLogger(ReviewResponseMonitorService.name);
 
     private readonly p95ThresholdMs: number;
     private readonly p95CriticalMs: number;
@@ -55,18 +53,27 @@ export class ReviewResponseMonitorService {
                 return;
             }
 
-            const values = results
-                .map((r) => r.value)
-                .sort((a, b) => a - b);
+            const values = results.map((r) => r.value).sort((a, b) => a - b);
 
             const p50 = this.percentile(values, 50);
             const p95 = this.percentile(values, 95);
-            const avg =
-                values.reduce((sum, v) => sum + v, 0) / values.length;
+            const avg = values.reduce((sum, v) => sum + v, 0) / values.length;
 
-            this.metricsCollector.recordGauge('review_response_p50_ms', p50, {});
-            this.metricsCollector.recordGauge('review_response_p95_ms', p95, {});
-            this.metricsCollector.recordGauge('review_response_avg_ms', avg, {});
+            this.metricsCollector.recordGauge(
+                'review_response_p50_ms',
+                p50,
+                {},
+            );
+            this.metricsCollector.recordGauge(
+                'review_response_p95_ms',
+                p95,
+                {},
+            );
+            this.metricsCollector.recordGauge(
+                'review_response_avg_ms',
+                avg,
+                {},
+            );
 
             if (p95 >= this.p95ThresholdMs) {
                 await this.incidentManager.failHeartbeat(
@@ -101,5 +108,4 @@ export class ReviewResponseMonitorService {
         if (ms < 60_000) return `${(ms / 1000).toFixed(1)}s`;
         return `${(ms / 60_000).toFixed(1)}min`;
     }
-
 }

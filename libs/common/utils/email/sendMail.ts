@@ -46,13 +46,15 @@ export class EmailService {
     }
 
     private getFromAddress(): string {
-        const fromEmail =
-            this.configService.get<string>('API_CUSTOMERIO_FROM_EMAIL');
+        const fromEmail = this.configService.get<string>(
+            'API_CUSTOMERIO_FROM_EMAIL',
+        );
         if (!fromEmail) {
             return `${DEFAULT_FROM_NAME} <${DEFAULT_FROM_EMAIL}>`;
         }
-        const fromName =
-            this.configService.get<string>('API_CUSTOMERIO_FROM_NAME');
+        const fromName = this.configService.get<string>(
+            'API_CUSTOMERIO_FROM_NAME',
+        );
         return fromName ? `${fromName} <${fromEmail}>` : fromEmail;
     }
 
@@ -81,7 +83,7 @@ export class EmailService {
 
         const response = await axios.post(`${baseUrl}/v1/send/email`, payload, {
             headers: {
-                Authorization: `Bearer ${apiToken}`,
+                'Authorization': `Bearer ${apiToken}`,
                 'Content-Type': 'application/json',
             },
         });
@@ -142,9 +144,7 @@ export class EmailService {
         logger?: SimpleLogger,
     ) {
         try {
-            const webUrl = this.getRequiredString(
-                'API_USER_INVITE_BASE_URL',
-            );
+            const webUrl = this.getRequiredString('API_USER_INVITE_BASE_URL');
 
             const transactionalMessageId =
                 CUSTOMERIO_FORGOT_PASSWORD_TRANSACTIONAL_ID;
@@ -253,9 +253,7 @@ export class EmailService {
         logger?: SimpleLogger,
     ) {
         try {
-            const webUrl = this.getRequiredString(
-                'API_USER_INVITE_BASE_URL',
-            );
+            const webUrl = this.getRequiredString('API_USER_INVITE_BASE_URL');
 
             const transactionalMessageId =
                 CUSTOMERIO_CONFIRMATION_TRANSACTIONAL_ID;

@@ -655,7 +655,10 @@ export class ProcessFilesReview extends BasePipelineStage<CodeReviewPipelineCont
         const severityLevelFilter =
             context?.codeReviewConfig?.suggestionControl?.severityLevelFilter;
 
-        if (severityLevelFilter && crossFileSuggestionsWithSeverity?.length > 0) {
+        if (
+            severityLevelFilter &&
+            crossFileSuggestionsWithSeverity?.length > 0
+        ) {
             const prioritizedCrossFile =
                 await this.suggestionService.filterSuggestionsBySeverityLevel(
                     crossFileSuggestionsWithSeverity,

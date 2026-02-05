@@ -27,10 +27,30 @@ import {
 } from '@nestjs/common';
 import { REQUEST } from '@nestjs/core';
 import {
+    ApiBearerAuth,
+    ApiOkResponse,
+    ApiOperation,
+    ApiTags,
+} from '@nestjs/swagger';
+import { ApiStandardResponses } from '../docs/api-standard-responses.decorator';
+import {
     TokenPricingQueryDto,
     TokenUsageQueryDto,
 } from '../dtos/token-usage.dto';
+import { ApiObjectResponseDto } from '../dtos/api-response.dto';
+import {
+    CostEstimateResponseDto,
+    DailyUsageByDeveloperResponseDto,
+    DailyUsageByPrResponseDto,
+    DailyUsageResponseDto,
+    UsageByDeveloperResponseDto,
+    UsageByPrResponseDto,
+    UsageSummaryResponseDto,
+} from '../dtos/token-usage-response.dto';
 
+@ApiTags('Token Usage')
+@ApiBearerAuth('jwt')
+@ApiStandardResponses()
 @Controller({ path: 'usage', scope: Scope.REQUEST })
 export class TokenUsageController {
     private readonly logger = createLogger(TokenUsageController.name);
@@ -48,6 +68,11 @@ export class TokenUsageController {
     ) {}
 
     @Get('tokens/summary')
+    @ApiOperation({
+        summary: 'Get token usage summary',
+        description: 'Return aggregated token usage for the selected period.',
+    })
+    @ApiOkResponse({ type: UsageSummaryResponseDto })
     async getSummary(
         @Query() query: TokenUsageQueryDto,
     ): Promise<UsageSummaryContract> {
@@ -74,6 +99,11 @@ export class TokenUsageController {
     }
 
     @Get('tokens/daily')
+    @ApiOperation({
+        summary: 'Get daily token usage',
+        description: 'Return daily token usage for the selected period.',
+    })
+    @ApiOkResponse({ type: DailyUsageResponseDto })
     async getDaily(
         @Query() query: TokenUsageQueryDto,
     ): Promise<DailyUsageResultContract[]> {
@@ -100,6 +130,11 @@ export class TokenUsageController {
     }
 
     @Get('tokens/by-pr')
+    @ApiOperation({
+        summary: 'Get token usage by PR',
+        description: 'Return token usage aggregated by pull request.',
+    })
+    @ApiOkResponse({ type: UsageByPrResponseDto })
     async getUsageByPr(
         @Query() query: TokenUsageQueryDto,
     ): Promise<UsageByPrResultContract[]> {
@@ -126,6 +161,11 @@ export class TokenUsageController {
     }
 
     @Get('tokens/daily-by-pr')
+    @ApiOperation({
+        summary: 'Get daily token usage by PR',
+        description: 'Return daily token usage aggregated by pull request.',
+    })
+    @ApiOkResponse({ type: DailyUsageByPrResponseDto })
     async getDailyUsageByPr(
         @Query() query: TokenUsageQueryDto,
     ): Promise<DailyUsageByPrResultContract[]> {
@@ -152,6 +192,11 @@ export class TokenUsageController {
     }
 
     @Get('tokens/by-developer')
+    @ApiOperation({
+        summary: 'Get token usage by developer',
+        description: 'Return token usage aggregated by developer.',
+    })
+    @ApiOkResponse({ type: UsageByDeveloperResponseDto })
     async getUsageByDeveloper(
         @Query() query: TokenUsageQueryDto,
     ): Promise<UsageByDeveloperResultContract[]> {
@@ -178,6 +223,11 @@ export class TokenUsageController {
     }
 
     @Get('tokens/daily-by-developer')
+    @ApiOperation({
+        summary: 'Get daily token usage by developer',
+        description: 'Return daily token usage aggregated by developer.',
+    })
+    @ApiOkResponse({ type: DailyUsageByDeveloperResponseDto })
     async getDailyByDeveloper(
         @Query() query: TokenUsageQueryDto,
     ): Promise<DailyUsageByDeveloperResultContract[]> {
@@ -204,6 +254,11 @@ export class TokenUsageController {
     }
 
     @Get('tokens/pricing')
+    @ApiOperation({
+        summary: 'Get token pricing',
+        description: 'Return token pricing for model/provider.',
+    })
+    @ApiOkResponse({ type: ApiObjectResponseDto })
     async getPricing(@Query() query: TokenPricingQueryDto) {
         try {
             const organizationId = this.request?.user?.organization?.uuid;
@@ -214,7 +269,10 @@ export class TokenUsageController {
                 );
             }
 
-            return await this.tokenPricingUseCase.execute(query.model, query.provider);
+            return await this.tokenPricingUseCase.execute(
+                query.model,
+                query.provider,
+            );
         } catch (error) {
             this.logger.error({
                 message: 'Error fetching token pricing',
@@ -227,6 +285,11 @@ export class TokenUsageController {
     }
 
     @Get('cost-estimate')
+    @ApiOperation({
+        summary: 'Get cost estimate',
+        description: 'Return estimated token costs for the organization.',
+    })
+    @ApiOkResponse({ type: CostEstimateResponseDto })
     async getCostEstimate(): Promise<CostEstimateContract> {
         const organizationId = this.request?.user?.organization?.uuid;
 

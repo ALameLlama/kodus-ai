@@ -3,6 +3,7 @@ import { Controller, Get, HttpStatus, Optional, Res } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { Response } from 'express';
 import { DataSource } from 'typeorm';
+import { Public } from '@libs/identity/infrastructure/adapters/services/auth/public.decorator';
 
 /**
  * WebhookHealthController - Simplified Health Check for Webhook Handler
@@ -12,6 +13,7 @@ import { DataSource } from 'typeorm';
  * - RabbitMQ connection (critical - needed to enqueue messages)
  * - PostgreSQL connection (critical - needed to save webhook logs)
  */
+@Public()
 @Controller('health')
 export class WebhookHealthController {
     constructor(

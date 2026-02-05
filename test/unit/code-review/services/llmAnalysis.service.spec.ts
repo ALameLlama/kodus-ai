@@ -49,8 +49,14 @@ describe('LLMAnalysisService', () => {
         const module: TestingModule = await Test.createTestingModule({
             providers: [
                 LLMAnalysisService,
-                { provide: PromptRunnerService, useValue: mockPromptRunnerService },
-                { provide: ObservabilityService, useValue: mockObservabilityService },
+                {
+                    provide: PromptRunnerService,
+                    useValue: mockPromptRunnerService,
+                },
+                {
+                    provide: ObservabilityService,
+                    useValue: mockObservabilityService,
+                },
             ],
         }).compile();
 
@@ -69,9 +75,9 @@ describe('LLMAnalysisService', () => {
                 reviewMode: ReviewModeResponse.LIGHT_MODE,
             };
 
-            expect(() => (service as any).preparePrefixChainForCache(context)).toThrow(
-                'Required context parameters are missing'
-            );
+            expect(() =>
+                (service as any).preparePrefixChainForCache(context),
+            ).toThrow('Required context parameters are missing');
         });
 
         it('should generate light mode context without fileContent', () => {
@@ -129,9 +135,7 @@ describe('LLMAnalysisService', () => {
         });
 
         it('should include suggestions in context', () => {
-            const suggestions = [
-                { id: 's1', suggestionContent: 'Use const' },
-            ];
+            const suggestions = [{ id: 's1', suggestionContent: 'Use const' }];
 
             const context = {
                 patchWithLinesStr: '@@ -1,1 +1,1 @@',
@@ -178,14 +182,19 @@ describe('LLMAnalysisService', () => {
                 },
             };
 
-            const result = await (service as any).prepareAnalysisContext(fileContext, context);
+            const result = await (service as any).prepareAnalysisContext(
+                fileContext,
+                context,
+            );
 
             expect(result.pullRequest.number).toBe(123);
             expect(result.patchWithLinesStr).toBe('@@ -1,1 +1,1 @@');
             expect(result.language).toBe('typescript');
             expect(result.filePath).toBe('test.ts');
             expect(result.hasRelevantContent).toBe(true);
-            expect(result.organizationAndTeamData).toEqual(mockOrganizationAndTeamData);
+            expect(result.organizationAndTeamData).toEqual(
+                mockOrganizationAndTeamData,
+            );
         });
 
         it('should handle missing optional fields', async () => {
@@ -201,7 +210,10 @@ describe('LLMAnalysisService', () => {
                 repository: {},
             };
 
-            const result = await (service as any).prepareAnalysisContext(fileContext, context);
+            const result = await (service as any).prepareAnalysisContext(
+                fileContext,
+                context,
+            );
 
             expect(result.filePath).toBe('test.ts');
             expect(result.fileContent).toBeUndefined();
@@ -293,9 +305,7 @@ describe('LLMAnalysisService', () => {
 
             mockPromptRunnerService.builder.mockReturnValue(mockBuilder);
 
-            const suggestions = [
-                { id: 's1', severity: 'unknown' },
-            ];
+            const suggestions = [{ id: 's1', severity: 'unknown' }];
 
             const result = await service.severityAnalysisAssignment(
                 mockOrganizationAndTeamData as any,
@@ -331,9 +341,7 @@ describe('LLMAnalysisService', () => {
                 setMaxReasoningTokens: jest.fn().mockReturnThis(),
                 execute: jest.fn().mockResolvedValue({
                     result: {
-                        codeSuggestions: [
-                            { id: 's1', action: 'keep' },
-                        ],
+                        codeSuggestions: [{ id: 's1', action: 'keep' }],
                     },
                 }),
             };
@@ -358,9 +366,7 @@ describe('LLMAnalysisService', () => {
         });
 
         it('should return original suggestions on error', async () => {
-            const suggestions = [
-                { id: 's1', suggestionContent: 'original' },
-            ];
+            const suggestions = [{ id: 's1', suggestionContent: 'original' }];
 
             const mockBuilder = {
                 setParser: jest.fn().mockReturnThis(),
@@ -446,7 +452,10 @@ function test() {
                 },
             };
 
-            const result = await (service as any).prepareAnalysisContext(fileContext, context);
+            const result = await (service as any).prepareAnalysisContext(
+                fileContext,
+                context,
+            );
 
             // Verify all expected fields are present
             expect(result.pullRequest.number).toBe(456);
@@ -463,7 +472,9 @@ function test() {
             expect(result.relevantContent).toBe('function test() { ... }');
             expect(result.hasRelevantContent).toBe(true);
             expect(result.prSummary).toBe('Add helper function');
-            expect(result.v2PromptOverrides.categoryInstructions).toBe('Focus on security');
+            expect(result.v2PromptOverrides.categoryInstructions).toBe(
+                'Focus on security',
+            );
             expect(result.externalPromptContext).toBeDefined();
         });
     });

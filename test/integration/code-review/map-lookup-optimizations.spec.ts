@@ -10,7 +10,10 @@ import { LLM_ANALYSIS_SERVICE_TOKEN } from '@/code-review/infrastructure/adapter
 import { PULL_REQUESTS_SERVICE_TOKEN } from '@/platformData/domain/pullRequests/contracts/pullRequests.service.contracts';
 import { COMMENT_MANAGER_SERVICE_TOKEN } from '@/code-review/domain/contracts/CommentManagerService.contract';
 import { CodeManagementService } from '@/platform/infrastructure/adapters/services/codeManagement.service';
-import { ClusteringType, CodeSuggestion } from '@/core/infrastructure/config/types/general/codeReview.type';
+import {
+    ClusteringType,
+    CodeSuggestion,
+} from '@/core/infrastructure/config/types/general/codeReview.type';
 import { PriorityStatus } from '@/platformData/domain/pullRequests/enums/priorityStatus.enum';
 
 describe('Map-based Lookup Optimizations - Integration Tests', () => {
@@ -48,10 +51,22 @@ describe('Map-based Lookup Optimizations - Integration Tests', () => {
         const module: TestingModule = await Test.createTestingModule({
             providers: [
                 SuggestionService,
-                { provide: LLM_ANALYSIS_SERVICE_TOKEN, useValue: mockAIAnalysisService },
-                { provide: PULL_REQUESTS_SERVICE_TOKEN, useValue: mockPullRequestService },
-                { provide: COMMENT_MANAGER_SERVICE_TOKEN, useValue: mockCommentManagerService },
-                { provide: CodeManagementService, useValue: mockCodeManagementService },
+                {
+                    provide: LLM_ANALYSIS_SERVICE_TOKEN,
+                    useValue: mockAIAnalysisService,
+                },
+                {
+                    provide: PULL_REQUESTS_SERVICE_TOKEN,
+                    useValue: mockPullRequestService,
+                },
+                {
+                    provide: COMMENT_MANAGER_SERVICE_TOKEN,
+                    useValue: mockCommentManagerService,
+                },
+                {
+                    provide: CodeManagementService,
+                    useValue: mockCodeManagementService,
+                },
             ],
         }).compile();
 
@@ -64,7 +79,11 @@ describe('Map-based Lookup Optimizations - Integration Tests', () => {
             it('should correctly match implemented suggestions with saved suggestions using Map', async () => {
                 const savedSuggestions = [
                     { id: 'sug-1', relevantFile: 'file1.ts', severity: 'high' },
-                    { id: 'sug-2', relevantFile: 'file2.ts', severity: 'medium' },
+                    {
+                        id: 'sug-2',
+                        relevantFile: 'file2.ts',
+                        severity: 'medium',
+                    },
                     { id: 'sug-3', relevantFile: 'file3.ts', severity: 'low' },
                 ];
 
@@ -73,27 +92,40 @@ describe('Map-based Lookup Optimizations - Integration Tests', () => {
                     { id: 'sug-3', implementationStatus: 'IMPLEMENTED' },
                 ];
 
-                mockAIAnalysisService.validateImplementedSuggestions.mockResolvedValue(implementedSuggestions);
+                mockAIAnalysisService.validateImplementedSuggestions.mockResolvedValue(
+                    implementedSuggestions,
+                );
                 mockPullRequestService.updateSuggestion.mockResolvedValue({});
 
-                const result = await suggestionService.validateImplementedSuggestions(
-                    mockOrganizationAndTeamData,
-                    'code patch',
-                    savedSuggestions as any,
-                    123,
-                );
+                const result =
+                    await suggestionService.validateImplementedSuggestions(
+                        mockOrganizationAndTeamData,
+                        'code patch',
+                        savedSuggestions as any,
+                        123,
+                    );
 
                 // Should have called updateSuggestion for each implemented suggestion found in saved
-                expect(mockPullRequestService.updateSuggestion).toHaveBeenCalledTimes(2);
+                expect(
+                    mockPullRequestService.updateSuggestion,
+                ).toHaveBeenCalledTimes(2);
 
                 // Verify correct IDs were updated
-                expect(mockPullRequestService.updateSuggestion).toHaveBeenCalledWith(
+                expect(
+                    mockPullRequestService.updateSuggestion,
+                ).toHaveBeenCalledWith(
                     'sug-1',
-                    expect.objectContaining({ implementationStatus: 'IMPLEMENTED' }),
+                    expect.objectContaining({
+                        implementationStatus: 'IMPLEMENTED',
+                    }),
                 );
-                expect(mockPullRequestService.updateSuggestion).toHaveBeenCalledWith(
+                expect(
+                    mockPullRequestService.updateSuggestion,
+                ).toHaveBeenCalledWith(
                     'sug-3',
-                    expect.objectContaining({ implementationStatus: 'IMPLEMENTED' }),
+                    expect.objectContaining({
+                        implementationStatus: 'IMPLEMENTED',
+                    }),
                 );
 
                 expect(result).toEqual(implementedSuggestions);
@@ -108,7 +140,9 @@ describe('Map-based Lookup Optimizations - Integration Tests', () => {
                     { id: 'sug-999', implementationStatus: 'IMPLEMENTED' }, // Not in saved
                 ];
 
-                mockAIAnalysisService.validateImplementedSuggestions.mockResolvedValue(implementedSuggestions);
+                mockAIAnalysisService.validateImplementedSuggestions.mockResolvedValue(
+                    implementedSuggestions,
+                );
 
                 await suggestionService.validateImplementedSuggestions(
                     mockOrganizationAndTeamData,
@@ -118,16 +152,21 @@ describe('Map-based Lookup Optimizations - Integration Tests', () => {
                 );
 
                 // Should not call updateSuggestion since ID not found
-                expect(mockPullRequestService.updateSuggestion).not.toHaveBeenCalled();
+                expect(
+                    mockPullRequestService.updateSuggestion,
+                ).not.toHaveBeenCalled();
             });
 
             it('should handle large datasets efficiently with Map lookup', async () => {
                 // Create large arrays to simulate real-world scenario
-                const savedSuggestions = Array.from({ length: 1000 }, (_, i) => ({
-                    id: `sug-${i}`,
-                    relevantFile: `file${i}.ts`,
-                    severity: 'medium',
-                }));
+                const savedSuggestions = Array.from(
+                    { length: 1000 },
+                    (_, i) => ({
+                        id: `sug-${i}`,
+                        relevantFile: `file${i}.ts`,
+                        severity: 'medium',
+                    }),
+                );
 
                 const implementedSuggestions = [
                     { id: 'sug-0', implementationStatus: 'IMPLEMENTED' },
@@ -135,7 +174,9 @@ describe('Map-based Lookup Optimizations - Integration Tests', () => {
                     { id: 'sug-999', implementationStatus: 'IMPLEMENTED' },
                 ];
 
-                mockAIAnalysisService.validateImplementedSuggestions.mockResolvedValue(implementedSuggestions);
+                mockAIAnalysisService.validateImplementedSuggestions.mockResolvedValue(
+                    implementedSuggestions,
+                );
                 mockPullRequestService.updateSuggestion.mockResolvedValue({});
 
                 const startTime = Date.now();
@@ -149,7 +190,9 @@ describe('Map-based Lookup Optimizations - Integration Tests', () => {
 
                 // Should complete quickly (Map is O(1) vs O(n) for find)
                 expect(endTime - startTime).toBeLessThan(100); // Should be under 100ms
-                expect(mockPullRequestService.updateSuggestion).toHaveBeenCalledTimes(3);
+                expect(
+                    mockPullRequestService.updateSuggestion,
+                ).toHaveBeenCalledTimes(3);
             });
         });
 
@@ -172,12 +215,13 @@ describe('Map-based Lookup Optimizations - Integration Tests', () => {
                     low: 1, // limit to 1 low suggestion
                 };
 
-                const result = await suggestionService.prioritizeSuggestionsBySeverityLimits(
-                    mockOrganizationAndTeamData as any,
-                    123,
-                    suggestions as any,
-                    severityLimits,
-                );
+                const result =
+                    await suggestionService.prioritizeSuggestionsBySeverityLimits(
+                        mockOrganizationAndTeamData as any,
+                        123,
+                        suggestions as any,
+                        severityLimits,
+                    );
 
                 // Should have 1 critical + 2 high + 1 medium + 1 low = 5 prioritized
                 const prioritized = result.filter(
@@ -186,11 +230,21 @@ describe('Map-based Lookup Optimizations - Integration Tests', () => {
                 expect(prioritized).toHaveLength(5);
 
                 // Verify correct severities are prioritized
-                const prioritizedSeverities = prioritized.map((s) => s.severity);
-                expect(prioritizedSeverities.filter((s) => s === 'critical')).toHaveLength(1);
-                expect(prioritizedSeverities.filter((s) => s === 'high')).toHaveLength(2);
-                expect(prioritizedSeverities.filter((s) => s === 'medium')).toHaveLength(1);
-                expect(prioritizedSeverities.filter((s) => s === 'low')).toHaveLength(1);
+                const prioritizedSeverities = prioritized.map(
+                    (s) => s.severity,
+                );
+                expect(
+                    prioritizedSeverities.filter((s) => s === 'critical'),
+                ).toHaveLength(1);
+                expect(
+                    prioritizedSeverities.filter((s) => s === 'high'),
+                ).toHaveLength(2);
+                expect(
+                    prioritizedSeverities.filter((s) => s === 'medium'),
+                ).toHaveLength(1);
+                expect(
+                    prioritizedSeverities.filter((s) => s === 'low'),
+                ).toHaveLength(1);
             });
 
             it('should handle suggestions with mixed case severities', async () => {
@@ -208,12 +262,13 @@ describe('Map-based Lookup Optimizations - Integration Tests', () => {
                     low: 1, // No low suggestions in input anyway
                 };
 
-                const result = await suggestionService.prioritizeSuggestionsBySeverityLimits(
-                    mockOrganizationAndTeamData as any,
-                    123,
-                    suggestions as any,
-                    severityLimits,
-                );
+                const result =
+                    await suggestionService.prioritizeSuggestionsBySeverityLimits(
+                        mockOrganizationAndTeamData as any,
+                        123,
+                        suggestions as any,
+                        severityLimits,
+                    );
 
                 const prioritized = result.filter(
                     (s) => s.priorityStatus === PriorityStatus.PRIORITIZED,
@@ -258,12 +313,13 @@ describe('Map-based Lookup Optimizations - Integration Tests', () => {
                 ];
 
                 // Use filterSuggestionsBySeverityLevel which internally processes clustering
-                const result = await suggestionService.filterSuggestionsBySeverityLevel(
-                    suggestions,
-                    'low', // All severities should pass
-                    mockOrganizationAndTeamData as any,
-                    123,
-                );
+                const result =
+                    await suggestionService.filterSuggestionsBySeverityLevel(
+                        suggestions,
+                        'low', // All severities should pass
+                        mockOrganizationAndTeamData as any,
+                        123,
+                    );
 
                 // All suggestions should be processed
                 expect(result.length).toBeGreaterThan(0);
@@ -305,12 +361,13 @@ describe('Map-based Lookup Optimizations - Integration Tests', () => {
                     },
                 ];
 
-                const result = await suggestionService.filterSuggestionsBySeverityLevel(
-                    suggestions,
-                    'low',
-                    mockOrganizationAndTeamData as any,
-                    123,
-                );
+                const result =
+                    await suggestionService.filterSuggestionsBySeverityLevel(
+                        suggestions,
+                        'low',
+                        mockOrganizationAndTeamData as any,
+                        123,
+                    );
 
                 expect(result).toHaveLength(4);
             });
@@ -390,11 +447,15 @@ describe('Map-based Lookup Optimizations - Integration Tests', () => {
 
             // Now apply the enrichment logic
             const result = suggestions.map((suggestion) => {
-                if (suggestion.clusteringInformation?.type !== ClusteringType.PARENT) {
+                if (
+                    suggestion.clusteringInformation?.type !==
+                    ClusteringType.PARENT
+                ) {
                     return suggestion;
                 }
 
-                const relatedSuggestions = relatedByParentId.get(suggestion.id) || [];
+                const relatedSuggestions =
+                    relatedByParentId.get(suggestion.id) || [];
                 const occurrences = [
                     {
                         file: suggestion.relevantFile,
@@ -455,8 +516,8 @@ describe('Map-based Lookup Optimizations - Integration Tests', () => {
                         id: `related-${cluster}-${related}`,
                         severity: 'high',
                         relevantFile: `file${cluster}-${related}.ts`,
-                        relevantLinesStart: (cluster * 100) + (related * 10),
-                        relevantLinesEnd: (cluster * 100) + (related * 10) + 5,
+                        relevantLinesStart: cluster * 100 + related * 10,
+                        relevantLinesEnd: cluster * 100 + related * 10 + 5,
                         clusteringInformation: {
                             type: ClusteringType.RELATED,
                             parentSuggestionId: `parent-${cluster}`,
@@ -483,13 +544,23 @@ describe('Map-based Lookup Optimizations - Integration Tests', () => {
             }
 
             const result = suggestions.map((suggestion) => {
-                if (suggestion.clusteringInformation?.type !== ClusteringType.PARENT) {
+                if (
+                    suggestion.clusteringInformation?.type !==
+                    ClusteringType.PARENT
+                ) {
                     return suggestion;
                 }
-                const relatedSuggestions = relatedByParentId.get(suggestion.id) || [];
+                const relatedSuggestions =
+                    relatedByParentId.get(suggestion.id) || [];
                 const occurrences = [
-                    { file: suggestion.relevantFile, lines: `${suggestion.relevantLinesStart}-${suggestion.relevantLinesEnd}` },
-                    ...relatedSuggestions.map((s) => ({ file: s.relevantFile, lines: `${s.relevantLinesStart}-${s.relevantLinesEnd}` })),
+                    {
+                        file: suggestion.relevantFile,
+                        lines: `${suggestion.relevantLinesStart}-${suggestion.relevantLinesEnd}`,
+                    },
+                    ...relatedSuggestions.map((s) => ({
+                        file: s.relevantFile,
+                        lines: `${s.relevantLinesStart}-${s.relevantLinesEnd}`,
+                    })),
                 ];
                 return {
                     ...suggestion,
@@ -505,10 +576,14 @@ describe('Map-based Lookup Optimizations - Integration Tests', () => {
             expect(relatedByParentId.size).toBe(100);
 
             // Verify all parents have enriched content
-            const parents = result.filter((s) => s.clusteringInformation?.type === ClusteringType.PARENT);
+            const parents = result.filter(
+                (s) => s.clusteringInformation?.type === ClusteringType.PARENT,
+            );
             expect(parents).toHaveLength(100);
             parents.forEach((parent) => {
-                expect(parent.suggestionContent).toContain('multiple locations');
+                expect(parent.suggestionContent).toContain(
+                    'multiple locations',
+                );
             });
         });
     });
@@ -521,7 +596,13 @@ describe('Map-based Lookup Optimizations - Integration Tests', () => {
                 value: `value-${i}`,
             }));
 
-            const lookupIds = ['item-0', 'item-5000', 'item-9999', 'item-2500', 'item-7500'];
+            const lookupIds = [
+                'item-0',
+                'item-5000',
+                'item-9999',
+                'item-2500',
+                'item-7500',
+            ];
 
             // Array.find approach (O(n) per lookup)
             const findStartTime = Date.now();
@@ -548,8 +629,12 @@ describe('Map-based Lookup Optimizations - Integration Tests', () => {
             expect(mapDuration).toBeLessThan(findDuration);
 
             // Log for visibility
-            console.log(`Array.find: ${findDuration}ms, Map.get: ${mapDuration}ms`);
-            console.log(`Map is ${(findDuration / mapDuration).toFixed(2)}x faster`);
+            console.log(
+                `Array.find: ${findDuration}ms, Map.get: ${mapDuration}ms`,
+            );
+            console.log(
+                `Map is ${(findDuration / mapDuration).toFixed(2)}x faster`,
+            );
         });
     });
 });

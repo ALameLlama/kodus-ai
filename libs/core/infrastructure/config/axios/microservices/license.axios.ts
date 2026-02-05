@@ -37,7 +37,10 @@ export class AxiosLicenseService {
     }
 
     // Methods for encapsulating axios calls
-    public async get<T = any>(url: string, config: AxiosRequestConfig = {}): Promise<T> {
+    public async get<T = any>(
+        url: string,
+        config: AxiosRequestConfig = {},
+    ): Promise<T> {
         try {
             const { data } = await this.axiosInstance.get<T>(url, config);
             return data;
@@ -53,7 +56,11 @@ export class AxiosLicenseService {
         config: AxiosRequestConfig = {},
     ): Promise<T> {
         try {
-            const { data } = await this.axiosInstance.post<T>(url, body, config);
+            const { data } = await this.axiosInstance.post<T>(
+                url,
+                body,
+                config,
+            );
             return data;
         } catch (error) {
             this.logError('POST', url, error);

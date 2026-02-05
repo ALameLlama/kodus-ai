@@ -9,36 +9,28 @@ import {
 } from './email-test.utils';
 
 describe('Transactional Email - Confirmation', () => {
-    it(
-        'sends confirmation email',
-        async () => {
-            if (
-                shouldSkipEmailTest([
-                    'API_USER_INVITE_BASE_URL',
-                ])
-            ) {
-                return;
-            }
+    it('sends confirmation email', async () => {
+        if (shouldSkipEmailTest(['API_USER_INVITE_BASE_URL'])) {
+            return;
+        }
 
-            const recipient = getTestRecipient();
-            const organizationName = getTestOrganizationName();
-            const teamName = getTestTeamName();
-            const token = 'test-confirm-email-token';
+        const recipient = getTestRecipient();
+        const organizationName = getTestOrganizationName();
+        const teamName = getTestTeamName();
+        const token = 'test-confirm-email-token';
 
-            const organizationAndTeamData: OrganizationAndTeamData = {
-                organizationName,
-                teamName,
-            };
+        const organizationAndTeamData: OrganizationAndTeamData = {
+            organizationName,
+            teamName,
+        };
 
-            const result = await sendConfirmationEmail(
-                token,
-                recipient.email,
-                organizationName,
-                organizationAndTeamData,
-            );
+        const result = await sendConfirmationEmail(
+            token,
+            recipient.email,
+            organizationName,
+            organizationAndTeamData,
+        );
 
-            expect(result).toBeDefined();
-        },
-        30000,
-    );
+        expect(result).toBeDefined();
+    }, 30000);
 });

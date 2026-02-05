@@ -32,7 +32,27 @@ import { AcceptUserInvitationDto } from '@libs/identity/dtos/accept-user-invitat
 import { JoinOrganizationDto } from '@libs/identity/dtos/join-organization.dto';
 import { UpdateAnotherUserDto } from '@libs/identity/dtos/update-another-user.dto';
 import { JoinOrganizationUseCase } from '@libs/organization/application/use-cases/onboarding/join-organization.use-case';
+import {
+    ApiBearerAuth,
+    ApiCreatedResponse,
+    ApiOkResponse,
+    ApiOperation,
+    ApiQuery,
+    ApiTags,
+} from '@nestjs/swagger';
+import { ApiStandardResponses } from '../docs/api-standard-responses.decorator';
+import { Public } from '@libs/identity/infrastructure/adapters/services/auth/public.decorator';
+import {
+    ApiBooleanResponseDto,
+    ApiObjectResponseDto,
+} from '../dtos/api-response.dto';
+import {
+    UserInfoResponseDto,
+    UserUpdateResponseDto,
+} from '../dtos/user-response.dto';
 
+@ApiTags('User')
+@ApiStandardResponses()
 @Controller('user')
 export class UsersController {
     constructor(
@@ -48,6 +68,13 @@ export class UsersController {
     ) {}
 
     @Get('/email')
+    @Public()
+    @ApiOperation({
+        summary: 'Check user email',
+        description: 'Return whether a user exists for the given email.',
+    })
+    @ApiQuery({ name: 'email', type: String, required: true })
+    @ApiOkResponse({ type: ApiBooleanResponseDto })
     public async getEmail(
         @Query('email')
         email: string,
@@ -56,6 +83,13 @@ export class UsersController {
     }
 
     @Get('/invite')
+    @Public()
+    @ApiOperation({
+        summary: 'Get invite data',
+        description: 'Return invitation data for a user id.',
+    })
+    @ApiQuery({ name: 'userId', type: String, required: true })
+    @ApiOkResponse({ type: ApiObjectResponseDto })
     public async getInviteDate(
         @Query('userId')
         userId: string,
@@ -64,11 +98,19 @@ export class UsersController {
     }
 
     @Post('/invite/complete-invitation')
+    @Public()
+    @ApiOperation({
+        summary: 'Complete invitation',
+        description:
+            'Activate a user invitation by setting password and profile.',
+    })
+    @ApiOkResponse({ type: ApiObjectResponseDto })
     public async completeInvitation(@Body() body: AcceptUserInvitationDto) {
         return await this.acceptUserInvitationUseCase.execute(body);
     }
 
     @Post('/join-organization')
+    @ApiBearerAuth('jwt')
     @UseGuards(PolicyGuard)
     @CheckPolicies(
         checkPermissions({
@@ -76,11 +118,17 @@ export class UsersController {
             resource: ResourceType.UserSettings,
         }),
     )
+    @ApiOperation({
+        summary: 'Join organization',
+        description: 'Attach a user to an organization.',
+    })
+    @ApiCreatedResponse({ type: ApiObjectResponseDto })
     public async joinOrganization(@Body() body: JoinOrganizationDto) {
         return await this.joinOrganizationUseCase.execute(body);
     }
 
     @Patch('/:targetUserId')
+    @ApiBearerAuth('jwt')
     @UseGuards(PolicyGuard)
     @CheckPolicies(
         checkPermissions({
@@ -88,6 +136,11 @@ export class UsersController {
             resource: ResourceType.UserSettings,
         }),
     )
+    @ApiOperation({
+        summary: 'Update another user',
+        description: 'Updates a user within the same organization.',
+    })
+    @ApiOkResponse({ type: UserUpdateResponseDto })
     public async updateAnother(
         @Body() body: UpdateAnotherUserDto,
         @Param('targetUserId') targetUserId: string,
@@ -116,6 +169,12 @@ export class UsersController {
     }
 
     @Get('/info')
+    @ApiBearerAuth('jwt')
+    @ApiOperation({
+        summary: 'Get current user info',
+        description: 'Return the authenticated user profile.',
+    })
+    @ApiOkResponse({ type: UserInfoResponseDto })
     public async show() {
         return await this.getUserUseCase.execute();
     }
