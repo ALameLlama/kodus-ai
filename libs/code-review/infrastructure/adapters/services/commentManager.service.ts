@@ -11,6 +11,7 @@ import { ISuggestionByPR } from '@libs/platformData/domain/pullRequests/interfac
 import { LanguageValue } from '@libs/core/domain/enums/language-parameter.enum';
 import { ParametersKey } from '@libs/core/domain/enums/parameters-key.enum';
 import { PlatformType } from '@libs/core/domain/enums/platform-type.enum';
+import { buildCommentFromSuggestion } from '@libs/common/utils/comment-builder.utils';
 import {
     BehaviourForExistingDescription,
     BehaviourForNewCommits,
@@ -19,6 +20,7 @@ import {
     CodeSuggestion,
     Comment,
     CommentResult,
+    FallbackSuggestionsBySeverity,
     FileChange,
     SummaryConfig,
 } from '@libs/core/infrastructure/config/types/general/codeReview.type';
@@ -45,6 +47,7 @@ import {
 import { prompt_repeated_suggestion_clustering_system } from '@libs/common/utils/langchainCommon/prompts/repeatedCodeReviewSuggestionClustering';
 import { createLogger } from '@kodus/flow';
 import { DeliveryStatus } from '@libs/platformData/domain/pullRequests/enums/deliveryStatus.enum';
+import { PriorityStatus } from '@libs/platformData/domain/pullRequests/enums/priorityStatus.enum';
 
 interface ClusteredSuggestion {
     id: string;
@@ -719,6 +722,7 @@ export class CommentManagerService implements ICommentManagerService {
         language: string,
         dryRun: CodeReviewPipelineContext['dryRun'],
         suggestionCopyPrompt?: boolean,
+        fallbackSuggestionsBySeverity?: FallbackSuggestionsBySeverity,
     ): Promise<{
         lastAnalyzedCommit: any;
         commits: any[];
@@ -815,11 +819,51 @@ export class CommentManagerService implements ICommentManagerService {
                         },
                     });
                 } catch (error) {
-                    commentResults.push({
-                        comment,
-                        deliveryStatus:
-                            error.errorType || DeliveryStatus.FAILED,
+                    // Try fallback suggestion of same severity
+                    const fallbackResult = await this.tryFallbackSuggestion({
+                        originalComment: comment,
+                        originalError: error,
+                        fallbackSuggestionsBySeverity,
+                        organizationAndTeamData,
+                        repository,
+                        commit: lastAnalyzedCommit,
+                        prNumber,
+                        language,
+                        dryRun,
+                        suggestionCopyPrompt,
                     });
+
+                    if (fallbackResult.success) {
+                        // Original suggestion was replaced
+                        commentResults.push({
+                            comment,
+                            deliveryStatus: DeliveryStatus.REPLACED,
+                        });
+
+                        // Fallback suggestion was sent successfully
+                        commentResults.push({
+                            comment: fallbackResult.fallbackComment,
+                            deliveryStatus: DeliveryStatus.SENT,
+                            codeReviewFeedbackData: {
+                                commentId: fallbackResult.createdComment?.id,
+                                pullRequestReviewId:
+                                    fallbackResult.createdComment
+                                        ?.pull_request_review_id ??
+                                    fallbackResult.createdComment
+                                        ?.pullRequestReviewId,
+                                suggestionId:
+                                    fallbackResult.fallbackComment.suggestion
+                                        .id,
+                            },
+                        });
+                    } else {
+                        // No fallback available or all fallbacks failed
+                        commentResults.push({
+                            comment,
+                            deliveryStatus:
+                                error.errorType || DeliveryStatus.FAILED,
+                        });
+                    }
                 }
             }
 
@@ -973,6 +1017,152 @@ export class CommentManagerService implements ICommentManagerService {
                 return { createdComment, attemptUsed: 3 };
             }
         }
+    }
+
+    /**
+     * Attempts to find and comment a fallback suggestion of the same severity
+     * when the original suggestion fails all retry attempts.
+     * Keeps trying until a fallback succeeds or no more fallbacks are available.
+     */
+    private async tryFallbackSuggestion(params: {
+        originalComment: Comment;
+        originalError: any;
+        fallbackSuggestionsBySeverity?: FallbackSuggestionsBySeverity;
+        organizationAndTeamData: OrganizationAndTeamData;
+        repository: { name: string; id: string; language: string };
+        commit: any;
+        prNumber: number;
+        language: string;
+        dryRun: CodeReviewPipelineContext['dryRun'];
+        suggestionCopyPrompt?: boolean;
+    }): Promise<{
+        success: boolean;
+        fallbackComment?: Comment;
+        createdComment?: any;
+    }> {
+        const {
+            originalComment,
+            fallbackSuggestionsBySeverity,
+            organizationAndTeamData,
+            repository,
+            commit,
+            prNumber,
+            language,
+            dryRun,
+            suggestionCopyPrompt,
+        } = params;
+
+        // If no fallback suggestions available, return failure
+        if (!fallbackSuggestionsBySeverity) {
+            return { success: false };
+        }
+
+        const originalSeverity =
+            (originalComment.suggestion?.severity?.toLowerCase() as keyof FallbackSuggestionsBySeverity) ||
+            'low';
+
+        const fallbackArray = fallbackSuggestionsBySeverity[originalSeverity];
+
+        // If no fallbacks for this severity, return failure
+        if (!fallbackArray || fallbackArray.length === 0) {
+            this.logger.log({
+                message: `No fallback suggestions available for severity ${originalSeverity}`,
+                context: CommentManagerService.name,
+                metadata: {
+                    prNumber,
+                    originalSuggestionId: originalComment.suggestion?.id,
+                    severity: originalSeverity,
+                },
+            });
+            return { success: false };
+        }
+
+        // Try each available fallback suggestion until one succeeds
+        for (const fallbackSuggestion of fallbackArray) {
+            // Skip if already repriorized (already attempted)
+            if (
+                fallbackSuggestion.priorityStatus === PriorityStatus.REPRIORIZED
+            ) {
+                continue;
+            }
+
+            // Mark as repriorized before attempting (mutate original object)
+            fallbackSuggestion.priorityStatus = PriorityStatus.REPRIORIZED;
+
+            this.logger.log({
+                message: `Attempting fallback suggestion for PR#${prNumber}`,
+                context: CommentManagerService.name,
+                metadata: {
+                    prNumber,
+                    originalSuggestionId: originalComment.suggestion?.id,
+                    fallbackSuggestionId: fallbackSuggestion.id,
+                    severity: originalSeverity,
+                },
+            });
+
+            // Build comment from fallback suggestion
+            const fallbackComment = buildCommentFromSuggestion(
+                fallbackSuggestion,
+                repository.language,
+            );
+
+            try {
+                const { createdComment } =
+                    await this.createReviewCommentWithRetry({
+                        organizationAndTeamData,
+                        repository,
+                        commit,
+                        prNumber,
+                        lineComment: fallbackComment,
+                        language,
+                        dryRun,
+                        suggestionCopyPrompt,
+                    });
+
+                this.logger.log({
+                    message: `Fallback suggestion commented successfully for PR#${prNumber}`,
+                    context: CommentManagerService.name,
+                    metadata: {
+                        prNumber,
+                        originalSuggestionId: originalComment.suggestion?.id,
+                        fallbackSuggestionId: fallbackSuggestion.id,
+                        severity: originalSeverity,
+                    },
+                });
+
+                return {
+                    success: true,
+                    fallbackComment,
+                    createdComment,
+                };
+            } catch (fallbackError) {
+                this.logger.warn({
+                    message: `Fallback suggestion also failed for PR#${prNumber}, trying next`,
+                    context: CommentManagerService.name,
+                    metadata: {
+                        prNumber,
+                        originalSuggestionId: originalComment.suggestion?.id,
+                        fallbackSuggestionId: fallbackSuggestion.id,
+                        severity: originalSeverity,
+                        errorType: fallbackError?.errorType,
+                    },
+                });
+                // Continue to next fallback
+            }
+        }
+
+        // All fallbacks exhausted
+        this.logger.log({
+            message: `All fallback suggestions exhausted for severity ${originalSeverity}`,
+            context: CommentManagerService.name,
+            metadata: {
+                prNumber,
+                originalSuggestionId: originalComment.suggestion?.id,
+                severity: originalSeverity,
+            },
+        });
+
+        return { success: false };
     }
 
     private async generatePullRequestFinishSummaryMarkdown(

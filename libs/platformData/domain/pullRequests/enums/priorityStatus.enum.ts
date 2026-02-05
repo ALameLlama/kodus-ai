@@ -1,6 +1,7 @@
 export enum PriorityStatus {
     PRIORITIZED = 'prioritized',
     PRIORITIZED_BY_CLUSTERING = 'prioritized-by-clustering',
+    REPRIORIZED = 'repriorized',
     DISCARDED_BY_SEVERITY = 'discarded-by-severity',
     DISCARDED_BY_QUANTITY = 'discarded-by-quantity',
     DISCARDED_BY_CLUSTERING = 'discarded-by-clustering',

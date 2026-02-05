@@ -9,6 +9,7 @@ import {
     CodeSuggestion,
     Comment,
     CommentResult,
+    FallbackSuggestionsBySeverity,
     FileChange,
     SummaryConfig,
 } from '@libs/core/infrastructure/config/types/general/codeReview.type';
@@ -82,6 +83,7 @@ export interface ICommentManagerService {
         language: string,
         dryRun: CodeReviewPipelineContext['dryRun'],
         suggestionCopyPrompt?: boolean,
+        fallbackSuggestionsBySeverity?: FallbackSuggestionsBySeverity,
     ): Promise<{
         lastAnalyzedCommit: any;
         commits: any[];
