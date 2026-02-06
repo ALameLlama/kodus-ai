@@ -237,5 +237,6 @@ Generate suggestions in JSON format:
 - **Focus on actionable improvements**
 - **Prioritize high-impact consolidation opportunities**
 - **Language: All suggestions and feedback must be provided in ${payload?.language || 'en-US'} language**
+- **Current date: ${new Date().toLocaleDateString('en-GB')}**
 `;
 };

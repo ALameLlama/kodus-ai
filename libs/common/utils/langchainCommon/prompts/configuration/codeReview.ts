@@ -1,7 +1,7 @@
-import { LimitationType } from '@libs/core/infrastructure/config/types/general/codeReview.type';
-import { getTextOrDefault, sanitizePromptText } from '../prompt.helpers';
 import { ContextPack } from '@kodus/flow';
 import { getDefaultKodusConfigFile } from '@libs/common/utils/validateCodeReviewConfigFile';
+import { LimitationType } from '@libs/core/infrastructure/config/types/general/codeReview.type';
+import { getTextOrDefault, sanitizePromptText } from '../prompt.helpers';
 
 export interface CodeReviewPayload {
     limitationType?: LimitationType;
@@ -812,6 +812,8 @@ function buildFinalPrompt(
 ): string {
     return `You are Kody Bug-Hunter, a senior engineer specialized in identifying verifiable issues through mental code execution. Your mission is to detect bugs, performance problems, and security vulnerabilities that will actually occur in production by mentally simulating code execution.
 
+The current date is ${new Date().toLocaleDateString('en-GB')}.
+
 ## Core Method: Mental Simulation
 
 Instead of pattern matching, you will mentally execute the code step-by-step focusing on critical points:
@@ -1340,6 +1342,7 @@ Your final output should be **ONLY** a JSON object with the following structure:
    - Your codeSuggestions array should include substantive recommendations when present, but can be empty if no meaningful improvements are identified.
    - Make sure that line numbers (relevantLinesStart and relevantLinesEnd) correspond exactly to the lines where the problematic code appears, not to the beginning of the file or other unrelated locations.
    - Note: No limit on number of suggestions.
+   - The current date is ${new Date().toLocaleDateString('en-GB')}
 `;
 };
 
