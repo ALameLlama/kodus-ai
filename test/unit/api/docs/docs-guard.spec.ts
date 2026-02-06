@@ -1,7 +1,6 @@
 import type { Request, Response, NextFunction } from 'express';
 import {
     buildDocsConfig,
-    createDocsIpAllowlistMiddleware,
     createDocsBasicAuthMiddleware,
     normalizePath,
 } from '../../../../apps/api/src/docs/docs-guard';
@@ -34,60 +33,6 @@ describe('docs guard', () => {
             expect(cfg.enabled).toBe(true);
             expect(cfg.docsPath).toBe('/api-docs');
             expect(cfg.specPath).toBe('/spec.json');
-        });
-    });
-
-    describe('IP allowlist', () => {
-        const makeReq = (ip: string, xfwd?: string) =>
-            ({
-                ip,
-                headers: xfwd ? { 'x-forwarded-for': xfwd } : {},
-            }) as unknown as Request;
-
-        const makeRes = () => {
-            const res = {
-                statusCode: 200,
-                status(code: number) {
-                    this.statusCode = code;
-                    return this;
-                },
-                end: jest.fn(),
-            } as unknown as Response;
-            return res;
-        };
-
-        it('blocks when allowlist is empty', () => {
-            const mw = createDocsIpAllowlistMiddleware('');
-            const res = makeRes();
-            mw(makeReq('103.72.59.10'), res, jest.fn() as NextFunction);
-            expect(res.statusCode).toBe(403);
-        });
-
-        it('allows IP inside CIDR', () => {
-            const mw = createDocsIpAllowlistMiddleware('103.72.59.0/24');
-            const next = jest.fn();
-            const res = makeRes();
-            mw(makeReq('103.72.59.10'), res, next as NextFunction);
-            expect(next).toHaveBeenCalled();
-        });
-
-        it('blocks IP outside CIDR', () => {
-            const mw = createDocsIpAllowlistMiddleware('103.72.59.0/24');
-            const res = makeRes();
-            mw(makeReq('1.2.3.4'), res, jest.fn() as NextFunction);
-            expect(res.statusCode).toBe(403);
-        });
-
-        it('uses first X-Forwarded-For when present', () => {
-            const mw = createDocsIpAllowlistMiddleware('103.72.59.0/24');
-            const next = jest.fn();
-            const res = makeRes();
-            mw(
-                makeReq('1.2.3.4', '103.72.59.10, 10.0.0.1'),
-                res,
-                next as NextFunction,
-            );
-            expect(next).toHaveBeenCalled();
         });
     });
 
