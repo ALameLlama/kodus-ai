@@ -1,4 +1,4 @@
-FROM rabbitmq:4.2.2-management
+FROM docker.io/library/rabbitmq:4.2.2-management
 
 # Install plugins that are not bundled in the official image.
 RUN set -eux; \
