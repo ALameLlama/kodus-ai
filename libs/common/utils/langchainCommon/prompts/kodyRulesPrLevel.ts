@@ -239,6 +239,7 @@ Return a JSON array containing only rules that have violations:
 - **Always include rule reference** - end suggestionContent with "Kody Rule violation: [rule-id]"
 - **Base suggestions on actual context** - use the provided code diffs and file information to generate specific guidance
 - **Language: All suggestions and feedback must be provided in ${payload?.language || 'en-US'} language**
+- **Current date: ${new Date().toLocaleDateString('en-GB')}**
 ---
 
 **Now analyze the provided PR and rules to identify cross-file rule violations.**`;
