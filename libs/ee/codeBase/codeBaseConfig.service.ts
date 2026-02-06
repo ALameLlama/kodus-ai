@@ -5,11 +5,11 @@ import { LanguageValue } from '@libs/core/domain/enums/language-parameter.enum';
 
 import { ICodeBaseConfigService } from '@libs/code-review/domain/contracts/CodeBaseConfigService.contract';
 import globalIgnorePathsJson from '@libs/common/utils/codeBase/ignorePaths/generated/paths.json';
+import { GlobalParametersKey } from '@libs/core/domain/enums/global-parameters-key.enum';
 import { IntegrationCategory } from '@libs/core/domain/enums/integration-category.enum';
 import { IntegrationConfigKey } from '@libs/core/domain/enums/Integration-config-key.enum';
 import { OrganizationParametersKey } from '@libs/core/domain/enums/organization-parameters-key.enum';
 import { ParametersKey } from '@libs/core/domain/enums/parameters-key.enum';
-import { GlobalParametersKey } from '@libs/core/domain/enums/global-parameters-key.enum';
 import {
     CodeReviewConfig,
     CodeReviewConfigWithoutLLMProvider,
@@ -31,6 +31,7 @@ import { decrypt } from '@libs/common/utils/crypto';
 import { ValidateCodeManagementIntegration } from '@libs/common/utils/decorators/validate-code-management-integration.decorator';
 import { deepMerge } from '@libs/common/utils/deep';
 import { getDefaultKodusConfigFile } from '@libs/common/utils/validateCodeReviewConfigFile';
+import { CacheService } from '@libs/core/cache/cache.service';
 import {
     IIntegrationConfigService,
     INTEGRATION_CONFIG_SERVICE_TOKEN,
@@ -44,6 +45,10 @@ import {
     KODY_RULES_SERVICE_TOKEN,
 } from '@libs/kodyRules/domain/contracts/kodyRules.service.contract';
 import {
+    GLOBAL_PARAMETERS_SERVICE_TOKEN,
+    IGlobalParametersService,
+} from '@libs/organization/domain/global-parameters/contracts/global-parameters.service.contract';
+import {
     IOrganizationParametersService,
     ORGANIZATION_PARAMETERS_SERVICE_TOKEN,
 } from '@libs/organization/domain/organizationParameters/contracts/organizationParameters.service.contract';
@@ -51,11 +56,6 @@ import {
     IParametersService,
     PARAMETERS_SERVICE_TOKEN,
 } from '@libs/organization/domain/parameters/contracts/parameters.service.contract';
-import {
-    IGlobalParametersService,
-    GLOBAL_PARAMETERS_SERVICE_TOKEN,
-} from '@libs/organization/domain/global-parameters/contracts/global-parameters.service.contract';
-import { CacheService } from '@libs/core/cache/cache.service';
 import { AuthMode } from '@libs/platform/domain/platformIntegrations/enums/codeManagement/authMode.enum';
 import { CodeManagementService } from '@libs/platform/infrastructure/adapters/services/codeManagement.service';
 import { KodyRulesValidationService } from '../kodyRules/service/kody-rules-validation.service';
@@ -543,6 +543,12 @@ export default class CodeBaseConfigService implements ICodeBaseConfigService {
         if (!overrideConfig) {
             return;
         }
+
+        const hasIntegration =
+            await this.codeManagementService.getTypeIntegration(
+                organizationAndTeamData,
+            );
+        if (!hasIntegration) return;
 
         const defaultBranchName =
             defaultBranch ||
