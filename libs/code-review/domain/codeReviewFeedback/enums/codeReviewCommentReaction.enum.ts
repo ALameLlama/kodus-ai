@@ -17,6 +17,8 @@ export enum GitlabReaction {
     LOCK = 'lock',
 }
 
+export type Reaction = GitHubReaction | GitlabReaction;
+
 export enum CountingType {
     CREATE = 'create',
     REVOKE = 'revoke',

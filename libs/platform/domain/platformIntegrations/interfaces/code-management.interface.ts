@@ -1,7 +1,4 @@
-import {
-    GitHubReaction,
-    GitlabReaction,
-} from '@libs/code-review/domain/codeReviewFeedback/enums/codeReviewCommentReaction.enum';
+import { Reaction } from '@libs/code-review/domain/codeReviewFeedback/enums/codeReviewCommentReaction.enum';
 import { PullRequestState } from '@libs/core/domain/enums/pullRequestState.enum';
 import { Repository } from '@libs/core/infrastructure/config/types/general/codeReview.type';
 import { Commit } from '@libs/core/infrastructure/config/types/general/commit.type';
@@ -256,7 +253,7 @@ export interface ICodeManagementService extends ICommonPlatformIntegrationServic
         organizationAndTeamData: OrganizationAndTeamData;
         repository: { id?: string; name?: string };
         prNumber: number;
-        reaction: GitHubReaction | GitlabReaction;
+        reaction: Reaction;
     }): Promise<void>;
 
     addReactionToComment?(params: {
@@ -264,14 +261,14 @@ export interface ICodeManagementService extends ICommonPlatformIntegrationServic
         repository: { id?: string; name?: string };
         prNumber: number;
         commentId: number;
-        reaction: GitHubReaction | GitlabReaction;
+        reaction: Reaction;
     }): Promise<void>;
 
     removeReactionsFromPR?(params: {
         organizationAndTeamData: OrganizationAndTeamData;
         repository: { id?: string; name?: string };
         prNumber: number;
-        reactions: (GitHubReaction | GitlabReaction)[];
+        reactions: Reaction[];
     }): Promise<void>;
 
     removeReactionsFromComment?(params: {
@@ -279,6 +276,6 @@ export interface ICodeManagementService extends ICommonPlatformIntegrationServic
         repository: { id?: string; name?: string };
         prNumber: number;
         commentId: number;
-        reactions: (GitHubReaction | GitlabReaction)[];
+        reactions: Reaction[];
     }): Promise<void>;
 }

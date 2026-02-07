@@ -15,7 +15,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { createLogger } from '@kodus/flow';
 import {
     GitHubReaction,
-    GitlabReaction,
+    Reaction,
 } from '@libs/code-review/domain/codeReviewFeedback/enums/codeReviewCommentReaction.enum';
 import { getCodeReviewBadge } from '@libs/common/utils/codeManagement/codeReviewBadge';
 import { getLabelShield } from '@libs/common/utils/codeManagement/labels';
@@ -3232,7 +3232,7 @@ This is an experimental feature that generates committable changes. Review the d
         organizationAndTeamData: OrganizationAndTeamData;
         repository: { id?: string; name?: string };
         prNumber: number;
-        reaction: GitHubReaction | GitlabReaction;
+        reaction: Reaction;
     }): Promise<void> {
         try {
             if (!params.repository.name) {
@@ -3277,7 +3277,7 @@ This is an experimental feature that generates committable changes. Review the d
         repository: { id?: string; name?: string };
         prNumber: number;
         commentId: number;
-        reaction: GitHubReaction | GitlabReaction;
+        reaction: Reaction;
     }): Promise<void> {
         try {
             if (!params.repository.name) {
@@ -3342,7 +3342,7 @@ This is an experimental feature that generates committable changes. Review the d
         organizationAndTeamData: OrganizationAndTeamData;
         repository: { id?: string; name?: string };
         prNumber: number;
-        reactions: (GitHubReaction | GitlabReaction)[];
+        reactions: Reaction[];
     }): Promise<void> {
         try {
             if (!params.repository.name) {
@@ -3404,7 +3404,7 @@ This is an experimental feature that generates committable changes. Review the d
         repository: { id?: string; name?: string };
         prNumber: number;
         commentId: number;
-        reactions: (GitHubReaction | GitlabReaction)[];
+        reactions: Reaction[];
     }): Promise<void> {
         try {
             if (!params.repository.name) {
