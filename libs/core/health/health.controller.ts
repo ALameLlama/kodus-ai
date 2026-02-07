@@ -2,7 +2,13 @@ import { Controller, Get, HttpStatus, Res } from '@nestjs/common';
 import { Response } from 'express';
 import { DatabaseHealthIndicator } from './database.health';
 import { ApplicationHealthIndicator } from './application.health';
+import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
+import {
+    HealthCheckResponseDto,
+    HealthSimpleResponseDto,
+} from './health-response.dto';
 
+@ApiTags('Health')
 @Controller('health')
 export class HealthController {
     constructor(
@@ -11,6 +17,12 @@ export class HealthController {
     ) {}
 
     @Get()
+    @ApiOperation({
+        summary: 'Full health check',
+        description:
+            'Public endpoint. Checks application and database health and returns overall status details for monitoring.',
+    })
+    @ApiOkResponse({ type: HealthCheckResponseDto })
     async check(@Res() res: Response) {
         try {
             // Verify application
@@ -52,11 +64,23 @@ export class HealthController {
     }
 
     @Get('ready')
+    @ApiOperation({
+        summary: 'Readiness check',
+        description:
+            'Public endpoint. Alias for the full health check used by readiness probes.',
+    })
+    @ApiOkResponse({ type: HealthCheckResponseDto })
     readyCheck(@Res() res: Response) {
         return this.check(res);
     }
 
     @Get('simple')
+    @ApiOperation({
+        summary: 'Simple health check',
+        description:
+            'Public endpoint. Lightweight response for quick liveness checks (no sensitive data).',
+    })
+    @ApiOkResponse({ type: HealthSimpleResponseDto })
     simpleCheck(@Res() res: Response) {
         return res.status(HttpStatus.OK).json({
             status: 'ok',
@@ -67,6 +91,12 @@ export class HealthController {
     }
 
     @Get('live')
+    @ApiOperation({
+        summary: 'Liveness check',
+        description:
+            'Public endpoint. Alias for the simple health check used by liveness probes.',
+    })
+    @ApiOkResponse({ type: HealthSimpleResponseDto })
     liveCheck(@Res() res: Response) {
         return this.simpleCheck(res);
     }

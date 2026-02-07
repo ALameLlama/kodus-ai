@@ -30,10 +30,27 @@ import {
     checkRepoPermissions,
 } from '@libs/identity/infrastructure/adapters/services/permissions/policy.handlers';
 import {
+    ApiBearerAuth,
+    ApiCreatedResponse,
+    ApiOkResponse,
+    ApiOperation,
+    ApiProduces,
+    ApiTags,
+} from '@nestjs/swagger';
+import {
     Action,
     ResourceType,
 } from '@libs/identity/domain/permissions/enums/permissions.enum';
+import { ApiStandardResponses } from '../docs/api-standard-responses.decorator';
+import {
+    ApiArrayResponseDto,
+    ApiObjectResponseDto,
+    ApiStringResponseDto,
+} from '../dtos/api-response.dto';
 
+@ApiTags('Dry Run')
+@ApiBearerAuth('jwt')
+@ApiStandardResponses()
 @Controller('dry-run')
 export class DryRunController implements OnApplicationShutdown {
     private readonly shutdown$ = new Subject<void>();
@@ -67,6 +84,11 @@ export class DryRunController implements OnApplicationShutdown {
             },
         }),
     )
+    @ApiOperation({
+        summary: 'Execute dry run',
+        description: 'Start a dry-run execution and return its correlation id.',
+    })
+    @ApiCreatedResponse({ type: ApiStringResponseDto })
     execute(
         @Body()
         body: ExecuteDryRunDto,
@@ -97,6 +119,11 @@ export class DryRunController implements OnApplicationShutdown {
             resource: ResourceType.CodeReviewSettings,
         }),
     )
+    @ApiOperation({
+        summary: 'Get dry run status',
+        description: 'Return current status for a dry-run execution.',
+    })
+    @ApiOkResponse({ type: ApiStringResponseDto })
     status(
         @Param('correlationId') correlationId: string,
         @Query('teamId') teamId: string,
@@ -124,6 +151,11 @@ export class DryRunController implements OnApplicationShutdown {
             resource: ResourceType.CodeReviewSettings,
         }),
     )
+    @ApiOperation({
+        summary: 'Stream dry run events',
+        description: 'Server-sent events with dry-run pipeline updates.',
+    })
+    @ApiProduces('text/event-stream')
     events(
         @Param('correlationId') correlationId: string,
         @Query('teamId') teamId: string,
@@ -158,6 +190,11 @@ export class DryRunController implements OnApplicationShutdown {
             resource: ResourceType.CodeReviewSettings,
         }),
     )
+    @ApiOperation({
+        summary: 'List dry runs',
+        description: 'Lists dry run executions for the given filters and team.',
+    })
+    @ApiOkResponse({ type: ApiArrayResponseDto })
     listDryRuns(
         @Query('teamId') teamId: string,
         @Query('repositoryId') repositoryId?: string,
@@ -197,6 +234,11 @@ export class DryRunController implements OnApplicationShutdown {
             resource: ResourceType.CodeReviewSettings,
         }),
     )
+    @ApiOperation({
+        summary: 'Get dry run details',
+        description: 'Return dry-run details by correlation id.',
+    })
+    @ApiOkResponse({ type: ApiObjectResponseDto })
     getDryRun(
         @Param('correlationId') correlationId: string,
         @Query('teamId') teamId: string,

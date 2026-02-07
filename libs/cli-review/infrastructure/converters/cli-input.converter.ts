@@ -41,7 +41,9 @@ export class CliInputConverter {
         const cleanedDiff = this.removeContextSections(unifiedDiff);
 
         // Split by file (diff --git markers)
-        const diffBlocks = cleanedDiff.split(/(?=diff --git)/g).filter((b) => b.trim());
+        const diffBlocks = cleanedDiff
+            .split(/(?=diff --git)/g)
+            .filter((b) => b.trim());
 
         for (const block of diffBlocks) {
             try {
@@ -54,7 +56,9 @@ export class CliInputConverter {
                 files.push({
                     filename,
                     patch: block,
-                    patchWithLinesStr: convertToHunksWithLinesNumbers(block, { filename }),
+                    patchWithLinesStr: convertToHunksWithLinesNumbers(block, {
+                        filename,
+                    }),
                     status,
                     additions,
                     deletions,
@@ -70,7 +74,10 @@ export class CliInputConverter {
                 this.logger.error({
                     message: 'Failed to parse diff block',
                     context: CliInputConverter.name,
-                    error: error instanceof Error ? error : new Error(String(error)),
+                    error:
+                        error instanceof Error
+                            ? error
+                            : new Error(String(error)),
                     metadata: {
                         blockSnippet: block.substring(0, 200),
                     },
@@ -202,9 +209,7 @@ export class CliInputConverter {
     /**
      * Detect file status from diff markers
      */
-    private detectFileStatus(
-        diffBlock: string,
-    ): FileChange['status'] {
+    private detectFileStatus(diffBlock: string): FileChange['status'] {
         if (diffBlock.includes('new file mode')) return 'added';
         if (diffBlock.includes('deleted file mode')) return 'removed';
         if (diffBlock.includes('rename from')) return 'renamed';
@@ -267,11 +272,13 @@ export class CliInputConverter {
             return `No issues found in ${filesAnalyzed} file(s)`;
         }
 
-        const criticalCount = issues.filter((i) => i.severity === 'critical')
-            .length;
+        const criticalCount = issues.filter(
+            (i) => i.severity === 'critical',
+        ).length;
         const errorCount = issues.filter((i) => i.severity === 'error').length;
-        const warningCount = issues.filter((i) => i.severity === 'warning')
-            .length;
+        const warningCount = issues.filter(
+            (i) => i.severity === 'warning',
+        ).length;
 
         const parts: string[] = [];
 
@@ -285,7 +292,8 @@ export class CliInputConverter {
             parts.push(`${warningCount} warning${warningCount > 1 ? 's' : ''}`);
         }
 
-        const severitySummary = parts.length > 0 ? ` (${parts.join(', ')})` : '';
+        const severitySummary =
+            parts.length > 0 ? ` (${parts.join(', ')})` : '';
 
         return `Found ${issues.length} issue${issues.length > 1 ? 's' : ''} in ${filesAnalyzed} file${filesAnalyzed > 1 ? 's' : ''}${severitySummary}`;
     }

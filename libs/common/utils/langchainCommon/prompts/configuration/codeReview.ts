@@ -1,7 +1,7 @@
-import { LimitationType } from '@libs/core/infrastructure/config/types/general/codeReview.type';
-import { getTextOrDefault, sanitizePromptText } from '../prompt.helpers';
 import { ContextPack } from '@kodus/flow';
 import { getDefaultKodusConfigFile } from '@libs/common/utils/validateCodeReviewConfigFile';
+import { LimitationType } from '@libs/core/infrastructure/config/types/general/codeReview.type';
+import { getTextOrDefault, sanitizePromptText } from '../prompt.helpers';
 
 export interface CodeReviewPayload {
     limitationType?: LimitationType;
@@ -168,7 +168,7 @@ function formatSyncErrors(errors: unknown[] | string | undefined): string {
             if (typeof error === 'object') {
                 const message =
                     typeof (error as Record<string, unknown>).message ===
-                        'string'
+                    'string'
                         ? ((error as Record<string, unknown>).message as string)
                         : 'Unknown reference error';
                 return `- ${message}`;
@@ -372,7 +372,7 @@ function extractLayerReferences(
                 entry &&
                 typeof entry === 'object' &&
                 typeof (entry as Record<string, unknown>).filePath ===
-                'string' &&
+                    'string' &&
                 typeof (entry as Record<string, unknown>).content === 'string',
         );
         if (hasFileContext) {
@@ -812,6 +812,8 @@ function buildFinalPrompt(
 ): string {
     return `You are Kody Bug-Hunter, a senior engineer specialized in identifying verifiable issues through mental code execution. Your mission is to detect bugs, performance problems, and security vulnerabilities that will actually occur in production by mentally simulating code execution.
 
+The current date is ${new Date().toLocaleDateString('en-GB')}.
+
 ## Core Method: Mental Simulation
 
 Instead of pattern matching, you will mentally execute the code step-by-step focusing on critical points:
@@ -902,6 +904,8 @@ ${lowText}
 13. **Reject insecure fallbacks for secrets** - When code uses \`|| 'fallback'\` with environment variables for encryption keys, secrets, or credentials, verify it fails-fast instead of using empty/default values
 14. **Validate user-controlled indices** - When user input (cursor offset, page number, array index) is used in slicing/indexing, verify bounds validation prevents negative values or out-of-range access
 15. **Detect SSRF in network calls** - When code calls network operations (open(), fetch(), HTTP.get(), requests.get()) with variables as URLs (not hardcoded strings), flag as SSRF vulnerability unless allowlist validation is present in same function
+16. **Execute "Brevity First"**: Eliminate all introductory pleasantries. Start descriptions with the noun of the error (e.g., "Memory leak," "Null pointer dereference," "Timing attack").
+17. **Use Active Voice**: "The function leaks memory" instead of "Memory is leaked by the function."
 
 ### MUST NOT DO:
 - **NO speculation whatsoever** - If you cannot trace the exact execution path that causes the issue, DO NOT report it
@@ -916,6 +920,8 @@ ${lowText}
 - **NO "in production this could..."** - Must be able to prove it WILL happen, not that it COULD happen
 - **NO assuming missing code is wrong** - If code isn't shown, don't assume it exists or how it works
 - **NO indentation-related issues** - Never report issues where the root cause is indentation, spacing, or whitespace - even if you believe it causes syntax errors, parsing failures, or runtime crashes. Indentation problems are NOT bugs.
+- **NO "Fluff"**: No "I suggest," "Please," "Maybe," or "I found."
+- **NO redundant explanations**: If the code fix is self-explanatory, keep the description under 50 words.
 - **ONLY report if you can provide**:
   1. Exact input values that trigger the issue
   2. Step-by-step execution trace showing the failure
@@ -950,7 +956,7 @@ ${lowText}
 - Report ONLY issues you can definitively prove will occur
 - Focus ONLY on bugs, performance, and security categories
 - Use PR summary as auxiliary context, not absolute truth
-- Be precise and concise in descriptions
+- Be surgically precise: Focus on the *mechanics* of the failure.
 - Always respond in ${languageNote} language
 - Return ONLY the JSON object, no additional text
 
@@ -1340,6 +1346,7 @@ Your final output should be **ONLY** a JSON object with the following structure:
    - Your codeSuggestions array should include substantive recommendations when present, but can be empty if no meaningful improvements are identified.
    - Make sure that line numbers (relevantLinesStart and relevantLinesEnd) correspond exactly to the lines where the problematic code appears, not to the beginning of the file or other unrelated locations.
    - Note: No limit on number of suggestions.
+   - The current date is ${new Date().toLocaleDateString('en-GB')}
 `;
 };
 

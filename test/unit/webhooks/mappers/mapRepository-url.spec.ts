@@ -127,15 +127,24 @@ describe('mapRepository - repository URL must be the web URL', () => {
                 resource: {
                     pullRequestId: 1,
                     title: 'Test PR',
-                    createdBy: { id: '1', uniqueName: 'user', displayName: 'User' },
+                    createdBy: {
+                        id: '1',
+                        uniqueName: 'user',
+                        displayName: 'User',
+                    },
                     sourceRefName: 'refs/heads/feature',
                     targetRefName: 'refs/heads/main',
                     repository: {
                         id: 'repo-guid',
                         name: 'my-repo',
                         url: 'https://dev.azure.com/org/project/_apis/git/repositories/repo-guid',
-                        remoteUrl: 'https://dev.azure.com/org/project/_git/my-repo',
-                        project: { id: 'proj-guid', name: 'project', url: 'https://dev.azure.com/org/project/_apis' },
+                        remoteUrl:
+                            'https://dev.azure.com/org/project/_git/my-repo',
+                        project: {
+                            id: 'proj-guid',
+                            name: 'project',
+                            url: 'https://dev.azure.com/org/project/_apis',
+                        },
                         defaultBranch: 'refs/heads/main',
                     },
                 },
@@ -143,7 +152,9 @@ describe('mapRepository - repository URL must be the web URL', () => {
 
             const result = mapper.mapRepository({ payload: payload as any });
 
-            expect(result.url).toBe('https://dev.azure.com/org/project/_git/my-repo');
+            expect(result.url).toBe(
+                'https://dev.azure.com/org/project/_git/my-repo',
+            );
             expect(result.url).not.toContain('_apis');
         });
 
@@ -153,14 +164,22 @@ describe('mapRepository - repository URL must be the web URL', () => {
                 resource: {
                     pullRequestId: 1,
                     title: 'Test PR',
-                    createdBy: { id: '1', uniqueName: 'user', displayName: 'User' },
+                    createdBy: {
+                        id: '1',
+                        uniqueName: 'user',
+                        displayName: 'User',
+                    },
                     sourceRefName: 'refs/heads/feature',
                     targetRefName: 'refs/heads/main',
                     repository: {
                         id: 'repo-guid',
                         name: 'my-repo',
                         url: 'https://dev.azure.com/org/project/_apis/git/repositories/repo-guid',
-                        project: { id: 'proj-guid', name: 'project', url: 'https://dev.azure.com/org/project/_apis' },
+                        project: {
+                            id: 'proj-guid',
+                            name: 'project',
+                            url: 'https://dev.azure.com/org/project/_apis',
+                        },
                         defaultBranch: 'refs/heads/main',
                     },
                 },
@@ -168,7 +187,9 @@ describe('mapRepository - repository URL must be the web URL', () => {
 
             const result = mapper.mapRepository({ payload: payload as any });
 
-            expect(result.url).toBe('https://dev.azure.com/org/project/_apis/git/repositories/repo-guid');
+            expect(result.url).toBe(
+                'https://dev.azure.com/org/project/_apis/git/repositories/repo-guid',
+            );
         });
     });
 
@@ -177,7 +198,11 @@ describe('mapRepository - repository URL must be the web URL', () => {
 
         it('should use links.html.href as the web URL', () => {
             const payload = {
-                actor: { display_name: 'User', uuid: 'user-uuid', type: 'user' as const },
+                actor: {
+                    display_name: 'User',
+                    uuid: 'user-uuid',
+                    type: 'user' as const,
+                },
                 pullrequest: {
                     id: 1,
                     title: 'Test PR',
@@ -190,9 +215,15 @@ describe('mapRepository - repository URL must be the web URL', () => {
                             full_name: 'workspace/repo',
                             uuid: 'repo-uuid',
                             links: {
-                                self: { href: 'https://api.bitbucket.org/2.0/repositories/workspace/repo' },
-                                html: { href: 'https://bitbucket.org/workspace/repo' },
-                                avatar: { href: 'https://bitbucket.org/workspace/repo/avatar' },
+                                self: {
+                                    href: 'https://api.bitbucket.org/2.0/repositories/workspace/repo',
+                                },
+                                html: {
+                                    href: 'https://bitbucket.org/workspace/repo',
+                                },
+                                avatar: {
+                                    href: 'https://bitbucket.org/workspace/repo/avatar',
+                                },
                             },
                         },
                     },
@@ -204,22 +235,36 @@ describe('mapRepository - repository URL must be the web URL', () => {
                             full_name: 'workspace/repo',
                             uuid: 'dest-repo-uuid',
                             links: {
-                                self: { href: 'https://api.bitbucket.org/2.0/repositories/workspace/repo' },
-                                html: { href: 'https://bitbucket.org/workspace/repo' },
-                                avatar: { href: 'https://bitbucket.org/workspace/repo/avatar' },
+                                self: {
+                                    href: 'https://api.bitbucket.org/2.0/repositories/workspace/repo',
+                                },
+                                html: {
+                                    href: 'https://bitbucket.org/workspace/repo',
+                                },
+                                avatar: {
+                                    href: 'https://bitbucket.org/workspace/repo/avatar',
+                                },
                             },
                         },
                     },
-                    author: { display_name: 'User', uuid: 'user-uuid', type: 'user' as const },
+                    author: {
+                        display_name: 'User',
+                        uuid: 'user-uuid',
+                        type: 'user' as const,
+                    },
                 },
                 repository: {
                     name: 'repo',
                     full_name: 'workspace/repo',
                     uuid: 'repo-uuid',
                     links: {
-                        self: { href: 'https://api.bitbucket.org/2.0/repositories/workspace/repo' },
+                        self: {
+                            href: 'https://api.bitbucket.org/2.0/repositories/workspace/repo',
+                        },
                         html: { href: 'https://bitbucket.org/workspace/repo' },
-                        avatar: { href: 'https://bitbucket.org/workspace/repo/avatar' },
+                        avatar: {
+                            href: 'https://bitbucket.org/workspace/repo/avatar',
+                        },
                     },
                 },
             };
@@ -232,7 +277,11 @@ describe('mapRepository - repository URL must be the web URL', () => {
 
         it('should return empty string if links.html.href is missing', () => {
             const payload = {
-                actor: { display_name: 'User', uuid: 'user-uuid', type: 'user' as const },
+                actor: {
+                    display_name: 'User',
+                    uuid: 'user-uuid',
+                    type: 'user' as const,
+                },
                 pullrequest: {
                     id: 1,
                     title: 'Test PR',
@@ -245,9 +294,15 @@ describe('mapRepository - repository URL must be the web URL', () => {
                             full_name: 'workspace/repo',
                             uuid: 'repo-uuid',
                             links: {
-                                self: { href: 'https://api.bitbucket.org/2.0/repositories/workspace/repo' },
-                                html: { href: 'https://bitbucket.org/workspace/repo' },
-                                avatar: { href: 'https://bitbucket.org/workspace/repo/avatar' },
+                                self: {
+                                    href: 'https://api.bitbucket.org/2.0/repositories/workspace/repo',
+                                },
+                                html: {
+                                    href: 'https://bitbucket.org/workspace/repo',
+                                },
+                                avatar: {
+                                    href: 'https://bitbucket.org/workspace/repo/avatar',
+                                },
                             },
                         },
                     },
@@ -260,7 +315,11 @@ describe('mapRepository - repository URL must be the web URL', () => {
                             uuid: 'dest-repo-uuid',
                         },
                     },
-                    author: { display_name: 'User', uuid: 'user-uuid', type: 'user' as const },
+                    author: {
+                        display_name: 'User',
+                        uuid: 'user-uuid',
+                        type: 'user' as const,
+                    },
                 },
                 repository: {
                     name: 'repo',

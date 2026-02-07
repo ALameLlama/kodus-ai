@@ -5,7 +5,22 @@ import { UserRequest } from '@libs/core/infrastructure/config/types/http/user-re
 import { SetRuleFeedbackDto } from '../dtos/set-rule-feedback.dto';
 import { SetRuleLikeUseCase } from '../../../../libs/kodyRules/application/use-cases/rule-like/set-rule-like.use-case';
 import { RemoveRuleLikeUseCase } from '../../../../libs/kodyRules/application/use-cases/rule-like/remove-rule-like.use-case';
+import {
+    ApiBearerAuth,
+    ApiBody,
+    ApiCreatedResponse,
+    ApiOkResponse,
+    ApiOperation,
+    ApiParam,
+    ApiTags,
+} from '@nestjs/swagger';
+import { ApiStandardResponses } from '../docs/api-standard-responses.decorator';
+import { ApiBooleanResponseDto } from '../dtos/api-response.dto';
+import { RuleLikeFeedbackResponseDto } from '../dtos/rule-like-response.dto';
 
+@ApiTags('Rule Likes')
+@ApiBearerAuth('jwt')
+@ApiStandardResponses()
 @Controller('rule-like')
 export class RuleLikeController {
     constructor(
@@ -17,6 +32,14 @@ export class RuleLikeController {
     ) {}
 
     @Post(':ruleId/feedback')
+    @ApiOperation({
+        summary: 'Submit rule feedback',
+        description:
+            'Creates or updates user feedback (positive/negative) for the specified rule.',
+    })
+    @ApiParam({ name: 'ruleId', required: true })
+    @ApiBody({ type: SetRuleFeedbackDto })
+    @ApiCreatedResponse({ type: RuleLikeFeedbackResponseDto })
     async setFeedback(
         @Param('ruleId') ruleId: string,
         @Body() body: SetRuleFeedbackDto,
@@ -33,6 +56,12 @@ export class RuleLikeController {
     }
 
     @Delete(':ruleId/feedback')
+    @ApiOperation({
+        summary: 'Remove rule feedback',
+        description: 'Removes user feedback for the specified rule.',
+    })
+    @ApiParam({ name: 'ruleId', required: true })
+    @ApiOkResponse({ type: ApiBooleanResponseDto })
     async removeFeedback(@Param('ruleId') ruleId: string) {
         if (!this.request.user?.uuid) {
             throw new Error('User not authenticated');

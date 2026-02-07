@@ -996,28 +996,30 @@ export class AzureReposService implements Omit<
 
             // Get the PR file list to filter out files that came from merge commits
             // Uses the last iteration's changes, which represents files relative to the target branch
-            const iterations =
-                await this.azureReposRequestHelper.getIterations({
+            const iterations = await this.azureReposRequestHelper.getIterations(
+                {
                     orgName,
                     token,
                     projectId,
                     repositoryId: repository.id,
                     prId: prNumber,
-                });
+                },
+            );
 
             const lastIteration = iterations?.[iterations.length - 1];
             let prFileNames: Set<string> | null = null;
 
             if (lastIteration) {
-                const prChanges =
-                    await this.azureReposRequestHelper.getChanges({
+                const prChanges = await this.azureReposRequestHelper.getChanges(
+                    {
                         orgName,
                         token,
                         projectId,
                         repositoryId: repository.id,
                         pullRequestId: prNumber,
                         iterationId: lastIteration.id,
-                    });
+                    },
+                );
 
                 prFileNames = new Set(
                     prChanges

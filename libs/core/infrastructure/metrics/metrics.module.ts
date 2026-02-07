@@ -14,9 +14,6 @@ import { MetricsCollectorService } from './metrics-collector.service';
         ]),
     ],
     providers: [MetricsCollectorService],
-    exports: [
-        MetricsCollectorService,
-        MongooseModule,
-    ],
+    exports: [MetricsCollectorService, MongooseModule],
 })
 export class MetricsModule {}

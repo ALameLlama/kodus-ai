@@ -321,9 +321,13 @@ export class OutboxRelayService
                                 )
                                 .catch((err) => {
                                     this.logger.error({
-                                        message: 'Failed to report outbox heartbeat failure',
+                                        message:
+                                            'Failed to report outbox heartbeat failure',
                                         context: OutboxRelayService.name,
-                                        error: err instanceof Error ? err : undefined,
+                                        error:
+                                            err instanceof Error
+                                                ? err
+                                                : undefined,
                                         metadata: { consumerId, reclaimed },
                                     });
                                 });
@@ -483,12 +487,14 @@ export class OutboxRelayService
                             try {
                                 await this.jobRepository.update(jobId, {
                                     status: JobStatus.FAILED,
-                                    errorClassification: ErrorClassification.PERMANENT,
+                                    errorClassification:
+                                        ErrorClassification.PERMANENT,
                                     lastError: `Outbox message failed after ${this.maxAttemptsOutbox} attempts: ${error.message}`,
                                 });
 
                                 this.logger.log({
-                                    message: 'Job marked as FAILED due to outbox publish failure',
+                                    message:
+                                        'Job marked as FAILED due to outbox publish failure',
                                     context: OutboxRelayService.name,
                                     metadata: {
                                         jobId,
@@ -498,7 +504,8 @@ export class OutboxRelayService
                                 });
                             } catch (updateError) {
                                 this.logger.error({
-                                    message: 'Failed to update job status to FAILED after outbox failure',
+                                    message:
+                                        'Failed to update job status to FAILED after outbox failure',
                                     context: OutboxRelayService.name,
                                     error: updateError,
                                     metadata: {
@@ -530,10 +537,15 @@ export class OutboxRelayService
                             )
                             .catch((err) => {
                                 this.logger.error({
-                                    message: 'Failed to report outbox heartbeat failure',
+                                    message:
+                                        'Failed to report outbox heartbeat failure',
                                     context: OutboxRelayService.name,
-                                    error: err instanceof Error ? err : undefined,
-                                    metadata: { messageId: message.uuid, jobId },
+                                    error:
+                                        err instanceof Error ? err : undefined,
+                                    metadata: {
+                                        messageId: message.uuid,
+                                        jobId,
+                                    },
                                 });
                             });
                     } else {

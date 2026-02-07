@@ -37,7 +37,9 @@ export class TeamCliKeyDatabaseRepository implements ITeamCliKeyRepository {
         }
     }
 
-    async findOne(filter: Partial<ITeamCliKey>): Promise<TeamCliKeyEntity | undefined> {
+    async findOne(
+        filter: Partial<ITeamCliKey>,
+    ): Promise<TeamCliKeyEntity | undefined> {
         try {
             const { team, createdBy, ...otherAttributes } = filter;
 
@@ -50,7 +52,9 @@ export class TeamCliKeyDatabaseRepository implements ITeamCliKeyRepository {
                 relations: ['team', 'team.organization', 'createdBy'],
             });
 
-            return key ? mapSimpleModelToEntity(key, TeamCliKeyEntity) : undefined;
+            return key
+                ? mapSimpleModelToEntity(key, TeamCliKeyEntity)
+                : undefined;
         } catch (error) {
             throw new Error('Error finding team CLI key');
         }
@@ -64,7 +68,9 @@ export class TeamCliKeyDatabaseRepository implements ITeamCliKeyRepository {
         return this.find({ team: { uuid: teamId } as any });
     }
 
-    async create(data: Partial<ITeamCliKey>): Promise<TeamCliKeyEntity | undefined> {
+    async create(
+        data: Partial<ITeamCliKey>,
+    ): Promise<TeamCliKeyEntity | undefined> {
         try {
             const key = this.teamCliKeyRepository.create({
                 name: data.name,
@@ -72,7 +78,9 @@ export class TeamCliKeyDatabaseRepository implements ITeamCliKeyRepository {
                 keyPrefix: data.keyPrefix,
                 active: data.active ?? true,
                 team: data.team ? ({ uuid: data.team.uuid } as any) : undefined,
-                createdBy: data.createdBy ? ({ uuid: data.createdBy.uuid } as any) : undefined,
+                createdBy: data.createdBy
+                    ? ({ uuid: data.createdBy.uuid } as any)
+                    : undefined,
             });
 
             const savedKey = await this.teamCliKeyRepository.save(key);

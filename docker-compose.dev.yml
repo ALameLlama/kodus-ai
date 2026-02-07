@@ -130,6 +130,47 @@ services:
     #----------------------------------------------------------------
     # Databases & Infrastructure
     #----------------------------------------------------------------
+    rabbitmq:
+        profiles:
+            - local-db
+            - infra
+        build:
+            context: ./docker/rabbitMQ
+            dockerfile: Dockerfile
+        container_name: rabbitmq
+        hostname: ${RABBITMQ_HOSTNAME:-rabbitmq-local}
+        ports:
+            - '5672:5672'
+            - '15672:15672'
+            - '15692:15692'
+        volumes:
+            - rabbitmq-data:/var/lib/rabbitmq
+        restart: unless-stopped
+        networks:
+            kodus-backend-services:
+                aliases:
+                    - rabbitmq-local
+                    - rabbitmq
+            shared-network:
+                aliases:
+                    - rabbitmq-local
+                    - rabbitmq
+        healthcheck:
+            test: ['CMD', 'rabbitmq-diagnostics', '-q', 'check_running']
+            interval: 30s
+            timeout: 10s
+            retries: 5
+        ulimits:
+            nofile:
+                soft: 65536
+                hard: 65536
+        environment:
+            RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER:-dev}
+            RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS:-devpass}
+            RABBITMQ_HOSTNAME: ${RABBITMQ_HOSTNAME:-rabbitmq}
+            RABBITMQ_SERVER_ADDITIONAL_ERL_ARGS: "-rabbit heartbeat 60"
+        command: /usr/local/bin/init-definitions.sh
+
     db_postgres:
         profiles:
             - local-db
@@ -193,6 +234,7 @@ volumes:
     pgdata:
     mongodbdata:
     pyroscope-data:
+    rabbitmq-data:
 
 networks:
     kodus-backend-services:

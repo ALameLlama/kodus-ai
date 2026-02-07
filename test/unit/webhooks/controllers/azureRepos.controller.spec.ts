@@ -265,7 +265,9 @@ describe('AzureReposController', () => {
             expect(mockResponse.status).toHaveBeenCalledWith(
                 HttpStatus.BAD_REQUEST,
             );
-            expect(mockResponse.send).toHaveBeenCalledWith('Unrecognized event');
+            expect(mockResponse.send).toHaveBeenCalledWith(
+                'Unrecognized event',
+            );
             expect(enqueueWebhookUseCase.execute).not.toHaveBeenCalled();
         });
     });

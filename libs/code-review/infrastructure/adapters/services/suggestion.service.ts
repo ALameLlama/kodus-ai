@@ -188,29 +188,32 @@ export class SuggestionService implements ISuggestionService {
     }
 
     /**
-     * Filters suggestions to only include those that are relevant to changed lines in the diff
+     * Filters suggestions to only include those that are relevant to changed lines in the diff.
+     * A suggestion is kept if there's ANY overlap between its line range and the diff's visible lines.
+     *
+     * Uses the standard interval overlap formula:
+     * Two ranges [A.start, A.end] and [B.start, B.end] overlap if:
+     * A.start <= B.end AND B.start <= A.end
      */
     public filterSuggestionsCodeDiff(
         patchWithLinesStr: string,
         codeSuggestions: Partial<CodeSuggestion>[],
     ) {
-        const modifiedRanges = extractLinesFromDiffHunk(patchWithLinesStr);
+        const visibleRanges = extractLinesFromDiffHunk(patchWithLinesStr);
 
         return codeSuggestions?.filter((suggestion) => {
-            return modifiedRanges.some(
+            const suggestionStart = suggestion?.relevantLinesStart;
+            const suggestionEnd = suggestion?.relevantLinesEnd;
+
+            // Skip suggestions with invalid line ranges
+            if (suggestionStart == null || suggestionEnd == null) {
+                return false;
+            }
+
+            // Check if suggestion overlaps with any visible range in the diff
+            return visibleRanges.some(
                 (range) =>
-                    // The suggestion is completely within the range
-                    (suggestion?.relevantLinesStart >= range.start &&
-                        suggestion?.relevantLinesStart <= range.end) ||
-                    // The start of the suggestion is within the range
-                    (suggestion?.relevantLinesStart >= range.start &&
-                        suggestion?.relevantLinesStart <= range.end) ||
-                    // The end of the suggestion is within the range
-                    (suggestion?.relevantLinesEnd >= range.start &&
-                        suggestion?.relevantLinesEnd <= range.end) ||
-                    // The range is completely within the suggestion
-                    (suggestion?.relevantLinesStart <= range.start &&
-                        suggestion?.relevantLinesEnd >= range.end),
+                    suggestionStart <= range.end && suggestionEnd >= range.start,
             );
         });
     }
@@ -1272,22 +1275,31 @@ export class SuggestionService implements ISuggestionService {
                         sortedPrioritizedSuggestions,
                     );
 
-                sortedPrioritizedSuggestions = sortedPrioritizedSuggestions.map(
-                    (suggestion) => {
-                        if (
-                            suggestion.clusteringInformation?.type ===
-                            ClusteringType.RELATED
-                        ) {
-                            return {
-                                ...suggestion,
-                                priorityStatus:
-                                    PriorityStatus.DISCARDED_BY_CLUSTERING,
-                                deliveryStatus: DeliveryStatus.NOT_SENT,
-                            };
-                        }
-                        return suggestion;
-                    },
+                // Separate the RELATED suggestions (discarded by clustering) from the prioritized suggestions
+                const relatedSuggestions = sortedPrioritizedSuggestions.filter(
+                    (suggestion) =>
+                        suggestion.clusteringInformation?.type ===
+                        ClusteringType.RELATED,
                 );
+
+                // Remove the RELATED suggestions from the prioritized suggestions array
+                sortedPrioritizedSuggestions =
+                    sortedPrioritizedSuggestions.filter(
+                        (suggestion) =>
+                            suggestion.clusteringInformation?.type !==
+                            ClusteringType.RELATED,
+                    );
+
+                // Mark the RELATED suggestions as discarded and add to the discarded suggestions array
+                const discardedRelatedSuggestions = relatedSuggestions.map(
+                    (suggestion) => ({
+                        ...suggestion,
+                        priorityStatus: PriorityStatus.DISCARDED_BY_CLUSTERING,
+                        deliveryStatus: DeliveryStatus.NOT_SENT,
+                    }),
+                );
+
+                allDiscardedSuggestions.push(...discardedRelatedSuggestions);
             }
 
             return { sortedPrioritizedSuggestions, allDiscardedSuggestions };
@@ -1611,6 +1623,66 @@ export class SuggestionService implements ISuggestionService {
             });
             return sortedPrioritizedSuggestions;
         }
+    }
+
+    /**
+     * Extracts repriorized suggestions from comment results and removes them from discarded suggestions.
+     * This prevents duplicate saves when a fallback suggestion replaces a failed prioritized suggestion.
+     *
+     * When a prioritized suggestion fails all retry attempts, it gets replaced by a fallback suggestion
+     * from the discarded pool. The fallback suggestion is marked as REPRIORIZED and SENT.
+     * This method extracts those repriorized suggestions and filters them out of the discarded array
+     * to avoid saving them twice (once as sent, once as discarded).
+     *
+     * @public
+     */
+    public extractRepriorizedSuggestions(
+        commentResults: CommentResult[],
+        discardedSuggestions: Partial<CodeSuggestion>[],
+    ): {
+        repriorizedSuggestions: Partial<CodeSuggestion>[];
+        filteredDiscardedSuggestions: Partial<CodeSuggestion>[];
+    } {
+        // Find all repriorized suggestions from comment results
+        const repriorizedSuggestions: Partial<CodeSuggestion>[] = [];
+
+        for (const result of commentResults) {
+            const suggestion = result?.comment?.suggestion;
+            if (
+                suggestion?.priorityStatus === PriorityStatus.REPRIORIZED &&
+                result?.deliveryStatus === DeliveryStatus.SENT
+            ) {
+                repriorizedSuggestions.push({
+                    ...suggestion,
+                    deliveryStatus: DeliveryStatus.SENT,
+                    implementationStatus: ImplementationStatus.NOT_IMPLEMENTED,
+                    comment: result?.codeReviewFeedbackData
+                        ? {
+                              ...(suggestion?.comment || {}),
+                              id: result.codeReviewFeedbackData.commentId,
+                              pullRequestReviewId:
+                                  result.codeReviewFeedbackData
+                                      .pullRequestReviewId,
+                          }
+                        : suggestion?.comment,
+                });
+            }
+        }
+
+        // Build a Set of repriorized suggestion IDs for efficient lookup
+        const repriorizedIds = new Set(
+            repriorizedSuggestions.map((s) => s.id).filter(Boolean),
+        );
+
+        // Filter out repriorized suggestions from discarded suggestions
+        const filteredDiscardedSuggestions = discardedSuggestions.filter(
+            (suggestion) => !repriorizedIds.has(suggestion.id),
+        );
+
+        return {
+            repriorizedSuggestions,
+            filteredDiscardedSuggestions,
+        };
     }
 
     /**

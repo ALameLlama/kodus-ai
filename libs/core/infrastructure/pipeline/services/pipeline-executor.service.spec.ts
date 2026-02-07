@@ -1,8 +1,8 @@
-import { PipelineExecutor } from './pipeline-executor.service';
-import { IPipelineObserver } from '../interfaces/pipeline-observer.interface';
-import { PipelineContext } from '../interfaces/pipeline-context.interface';
-import { PipelineStage } from '../interfaces/pipeline.interface';
 import { AutomationStatus } from '@libs/automation/domain/automation/enum/automation-status';
+import { PipelineContext } from '../interfaces/pipeline-context.interface';
+import { IPipelineObserver } from '../interfaces/pipeline-observer.interface';
+import { PipelineStage } from '../interfaces/pipeline.interface';
+import { PipelineExecutor } from './pipeline-executor.service';
 
 describe('PipelineExecutor', () => {
     let executor: PipelineExecutor<PipelineContext>;
@@ -16,6 +16,8 @@ describe('PipelineExecutor', () => {
             onStageFinish: jest.fn().mockResolvedValue(undefined),
             onStageError: jest.fn().mockResolvedValue(undefined),
             onStageSkipped: jest.fn().mockResolvedValue(undefined),
+            onPipelineFinish: jest.fn().mockResolvedValue(undefined),
+            onPipelineStart: jest.fn().mockResolvedValue(undefined),
         };
         mockStage = {
             stageName: 'TestStage',
@@ -43,9 +45,11 @@ describe('PipelineExecutor', () => {
             'TestStage',
             expect.anything(),
             expect.anything(),
+            expect.anything(),
         );
         expect(mockObserver.onStageFinish).toHaveBeenCalledWith(
             'TestStage',
+            expect.anything(),
             expect.anything(),
             expect.anything(),
         );
@@ -72,6 +76,7 @@ describe('PipelineExecutor', () => {
         expect(mockObserver.onStageError).toHaveBeenCalledWith(
             'TestStage',
             error,
+            expect.anything(),
             expect.anything(),
             expect.anything(),
         );

@@ -1,17 +1,20 @@
 import 'source-map-support/register';
 import { environment } from '@libs/ee/configs/environment';
+import { initPyroscope } from '@libs/core/infrastructure/config/profiling/pyroscope';
 
 // Initialize profiling early (before NestJS bootstrap)
-// initPyroscope({ appName: 'kodus-api' });
+initPyroscope({ appName: 'kodus-api' });
 
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import * as bodyParser from 'body-parser';
 import * as compression from 'compression';
 import { useContainer } from 'class-validator';
 import expressRateLimit from 'express-rate-limit';
+import type { Request, Response } from 'express';
 import helmet from 'helmet';
 import * as volleyball from 'volleyball';
 
@@ -20,6 +23,8 @@ import { ObservabilityService } from '@libs/core/log/observability.service';
 
 import { ApiModule } from './api.module';
 import { LoggerWrapperService } from '@libs/core/log/loggerWrapper.service';
+import { buildDocsConfig, createDocsBasicAuthMiddleware } from './docs/docs-guard';
+import { ApiErrorDto } from './dtos/api-error.dto';
 
 declare const module: any;
 
@@ -123,6 +128,102 @@ async function bootstrap() {
         const apiPort = process.env.API_PORT
             ? parseInt(process.env.API_PORT, 10)
             : port;
+
+        const docsConfig = buildDocsConfig(process.env);
+        if (docsConfig.enabled) {
+            const docsJsonPath = `${docsConfig.docsPath}-json`;
+            app.use(
+                [docsConfig.docsPath, docsConfig.specPath, docsJsonPath],
+                createDocsBasicAuthMiddleware(
+                    docsConfig.basicUser,
+                    docsConfig.basicPass,
+                ),
+            );
+
+            const swaggerBuilder = new DocumentBuilder()
+                .setTitle('Kodus API')
+                .setDescription('Public API for the Kodus platform.')
+                .setVersion('1.0')
+                .addBearerAuth(
+                    {
+                        type: 'http',
+                        scheme: 'bearer',
+                        bearerFormat: 'JWT',
+                    },
+                    'jwt',
+                );
+
+            const servers =
+                docsConfig.servers.length > 0
+                    ? docsConfig.servers
+                    : [
+                          {
+                              url: `http://${
+                                  host === '0.0.0.0' ? 'localhost' : host
+                              }:${apiPort}`,
+                              description: 'Local',
+                          },
+                      ];
+
+            servers.forEach((server) => {
+                swaggerBuilder.addServer(server.url, server.description);
+            });
+
+            [
+                'Agent',
+                'Auth',
+                'CLI Review',
+                'Code Base',
+                'Code Management',
+                'Code Review Logs',
+                'Dry Run',
+                'Health',
+                'Integration',
+                'Integration Config',
+                'Internal Metrics',
+                'Issues',
+                'Kody Rules',
+                'MCP',
+                'Organization',
+                'Organization Parameters',
+                'Parameters',
+                'Permissions',
+                'Pull Request Messages',
+                'Pull Requests',
+                'Rule Likes',
+                'Segment',
+                'SSO Config',
+                'Team',
+                'Team CLI Key',
+                'Team Members',
+                'Token Usage',
+                'User',
+                'Webhook Health',
+                'Workflow Queue',
+            ].forEach((tag) => swaggerBuilder.addTag(tag));
+
+            const document = SwaggerModule.createDocument(
+                app,
+                swaggerBuilder.build(),
+                {
+                    extraModels: [ApiErrorDto],
+                },
+            );
+
+            SwaggerModule.setup(docsConfig.docsPath, app, document, {
+                swaggerOptions: {
+                    supportedSubmitMethods: [],
+                    tagsSorter: 'alpha',
+                    operationsSorter: 'alpha',
+                },
+            });
+
+            const httpAdapter = app.getHttpAdapter().getInstance();
+            httpAdapter.get(
+                docsConfig.specPath,
+                (_req: Request, res: Response) => res.json(document),
+            );
+        }
 
         console.log(
             `[API] - Running in ${environment.API_CLOUD_MODE ? 'CLOUD' : 'SELF-HOSTED'} mode`,

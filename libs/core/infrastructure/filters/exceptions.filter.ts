@@ -26,7 +26,10 @@ export class ExceptionsFilter implements ExceptionFilter {
         private readonly configService: ConfigService,
         @Optional() private readonly metricsCollector?: MetricsCollectorService,
     ) {
-        this.componentType = this.configService.get<string>('COMPONENT_TYPE', 'unknown');
+        this.componentType = this.configService.get<string>(
+            'COMPONENT_TYPE',
+            'unknown',
+        );
     }
 
     catch(exception: unknown, context: ExecutionContext): void {

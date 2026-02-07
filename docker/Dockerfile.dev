@@ -25,4 +25,3 @@ COPY --chmod=0755 docker/dev-entrypoint.sh /usr/local/bin/dev-entrypoint
 
 ENTRYPOINT ["/usr/local/bin/dev-entrypoint"]
 CMD ["yarn", "start:dev"]
-

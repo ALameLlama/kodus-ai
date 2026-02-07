@@ -1358,7 +1358,7 @@ export function createMongoDBExporterFromStorage(
         batchSize: storageConfig.batchSize || 100,
         flushIntervalMs: storageConfig.flushIntervalMs || 5000,
         maxRetries: 3,
-        ttlDays: storageConfig.ttlDays ?? 30,
+        ttlDays: storageConfig.ttlDays ?? 0,
         enableObservability: storageConfig.enableObservability ?? true,
         secondaryIndexes: storageConfig.secondaryIndexes,
         bucketKeys: storageConfig.bucketKeys,

@@ -6,11 +6,13 @@ import { COMMENT_MANAGER_SERVICE_TOKEN } from '@/code-review/domain/contracts/Co
 import { CodeManagementService } from '@/platform/infrastructure/adapters/services/codeManagement.service';
 import { PriorityStatus } from '@/platformData/domain/pullRequests/enums/priorityStatus.enum';
 import { DeliveryStatus } from '@/platformData/domain/pullRequests/enums/deliveryStatus.enum';
+import { ImplementationStatus } from '@/platformData/domain/pullRequests/enums/implementationStatus.enum';
 import {
     LimitationType,
     GroupingModeSuggestions,
     ClusteringType,
     CodeSuggestion,
+    CommentResult,
 } from '@/core/infrastructure/config/types/general/codeReview.type';
 import { SeverityLevel } from '@/common/utils/enums/severityLevel.enum';
 
@@ -47,10 +49,22 @@ describe('SuggestionService', () => {
         const module: TestingModule = await Test.createTestingModule({
             providers: [
                 SuggestionService,
-                { provide: LLM_ANALYSIS_SERVICE_TOKEN, useValue: mockAIAnalysisService },
-                { provide: PULL_REQUESTS_SERVICE_TOKEN, useValue: mockPullRequestService },
-                { provide: COMMENT_MANAGER_SERVICE_TOKEN, useValue: mockCommentManagerService },
-                { provide: CodeManagementService, useValue: mockCodeManagementService },
+                {
+                    provide: LLM_ANALYSIS_SERVICE_TOKEN,
+                    useValue: mockAIAnalysisService,
+                },
+                {
+                    provide: PULL_REQUESTS_SERVICE_TOKEN,
+                    useValue: mockPullRequestService,
+                },
+                {
+                    provide: COMMENT_MANAGER_SERVICE_TOKEN,
+                    useValue: mockCommentManagerService,
+                },
+                {
+                    provide: CodeManagementService,
+                    useValue: mockCodeManagementService,
+                },
             ],
         }).compile();
 
@@ -61,7 +75,9 @@ describe('SuggestionService', () => {
     describe('normalizeLabel', () => {
         it('should convert label to lowercase and replace spaces with underscores', () => {
             expect(service.normalizeLabel('Kody Rules')).toBe('kody_rules');
-            expect(service.normalizeLabel('Breaking Changes')).toBe('breaking_changes');
+            expect(service.normalizeLabel('Breaking Changes')).toBe(
+                'breaking_changes',
+            );
             expect(service.normalizeLabel('SECURITY')).toBe('security');
         });
 
@@ -95,8 +111,13 @@ describe('SuggestionService', () => {
                 123,
             );
 
-            const prioritized = result.filter(s => s.priorityStatus === PriorityStatus.PRIORITIZED);
-            const discarded = result.filter(s => s.priorityStatus === PriorityStatus.DISCARDED_BY_SEVERITY);
+            const prioritized = result.filter(
+                (s) => s.priorityStatus === PriorityStatus.PRIORITIZED,
+            );
+            const discarded = result.filter(
+                (s) =>
+                    s.priorityStatus === PriorityStatus.DISCARDED_BY_SEVERITY,
+            );
 
             expect(prioritized).toHaveLength(1);
             expect(discarded).toHaveLength(3);
@@ -111,10 +132,12 @@ describe('SuggestionService', () => {
                 123,
             );
 
-            const prioritized = result.filter(s => s.priorityStatus === PriorityStatus.PRIORITIZED);
+            const prioritized = result.filter(
+                (s) => s.priorityStatus === PriorityStatus.PRIORITIZED,
+            );
             expect(prioritized).toHaveLength(2);
-            expect(prioritized.map(s => s.id)).toContain('1');
-            expect(prioritized.map(s => s.id)).toContain('2');
+            expect(prioritized.map((s) => s.id)).toContain('1');
+            expect(prioritized.map((s) => s.id)).toContain('2');
         });
 
         it('should filter suggestions by medium level (critical + high + medium)', async () => {
@@ -125,7 +148,9 @@ describe('SuggestionService', () => {
                 123,
             );
 
-            const prioritized = result.filter(s => s.priorityStatus === PriorityStatus.PRIORITIZED);
+            const prioritized = result.filter(
+                (s) => s.priorityStatus === PriorityStatus.PRIORITIZED,
+            );
             expect(prioritized).toHaveLength(3);
         });
 
@@ -137,7 +162,9 @@ describe('SuggestionService', () => {
                 123,
             );
 
-            const prioritized = result.filter(s => s.priorityStatus === PriorityStatus.PRIORITIZED);
+            const prioritized = result.filter(
+                (s) => s.priorityStatus === PriorityStatus.PRIORITIZED,
+            );
             expect(prioritized).toHaveLength(4);
         });
 
@@ -154,7 +181,9 @@ describe('SuggestionService', () => {
                 123,
             );
 
-            const prioritized = result.filter(s => s.priorityStatus === PriorityStatus.PRIORITIZED);
+            const prioritized = result.filter(
+                (s) => s.priorityStatus === PriorityStatus.PRIORITIZED,
+            );
             expect(prioritized).toHaveLength(2);
         });
 
@@ -171,10 +200,30 @@ describe('SuggestionService', () => {
 
         it('should discard cross-file suggestions with medium/low severity when filter is high', async () => {
             const crossFileSuggestions = [
-                { id: '1', severity: 'critical', label: 'cross_file', type: 'cross_file' },
-                { id: '2', severity: 'high', label: 'cross_file', type: 'cross_file' },
-                { id: '3', severity: 'medium', label: 'cross_file', type: 'cross_file' },
-                { id: '4', severity: 'low', label: 'cross_file', type: 'cross_file' },
+                {
+                    id: '1',
+                    severity: 'critical',
+                    label: 'cross_file',
+                    type: 'cross_file',
+                },
+                {
+                    id: '2',
+                    severity: 'high',
+                    label: 'cross_file',
+                    type: 'cross_file',
+                },
+                {
+                    id: '3',
+                    severity: 'medium',
+                    label: 'cross_file',
+                    type: 'cross_file',
+                },
+                {
+                    id: '4',
+                    severity: 'low',
+                    label: 'cross_file',
+                    type: 'cross_file',
+                },
             ];
 
             const result = await service.filterSuggestionsBySeverityLevel(
@@ -184,15 +233,20 @@ describe('SuggestionService', () => {
                 123,
             );
 
-            const prioritized = result.filter(s => s.priorityStatus === PriorityStatus.PRIORITIZED);
-            const discarded = result.filter(s => s.priorityStatus === PriorityStatus.DISCARDED_BY_SEVERITY);
+            const prioritized = result.filter(
+                (s) => s.priorityStatus === PriorityStatus.PRIORITIZED,
+            );
+            const discarded = result.filter(
+                (s) =>
+                    s.priorityStatus === PriorityStatus.DISCARDED_BY_SEVERITY,
+            );
 
             expect(prioritized).toHaveLength(2);
-            expect(prioritized.map(s => s.id)).toContain('1');
-            expect(prioritized.map(s => s.id)).toContain('2');
+            expect(prioritized.map((s) => s.id)).toContain('1');
+            expect(prioritized.map((s) => s.id)).toContain('2');
             expect(discarded).toHaveLength(2);
-            expect(discarded.map(s => s.id)).toContain('3');
-            expect(discarded.map(s => s.id)).toContain('4');
+            expect(discarded.map((s) => s.id)).toContain('3');
+            expect(discarded.map((s) => s.id)).toContain('4');
         });
     });
 
@@ -250,7 +304,7 @@ describe('SuggestionService', () => {
             // The actual behavior is that undefined rankScores result in NaN comparisons
             // which means the original order is preserved for those items
             // So we just verify the one with rankScore 100 is included
-            expect(result.find(s => s.id === '2')).toBeDefined();
+            expect(result.find((s) => s.id === '2')).toBeDefined();
             expect(result).toHaveLength(2);
         });
 
@@ -268,31 +322,36 @@ describe('SuggestionService', () => {
     describe('calculateSuggestionRankScore', () => {
         it('should calculate correct score for kody_rules + critical', async () => {
             const suggestion = { label: 'kody_rules', severity: 'critical' };
-            const score = await service.calculateSuggestionRankScore(suggestion);
+            const score =
+                await service.calculateSuggestionRankScore(suggestion);
             expect(score).toBe(150); // 100 (kody_rules) + 50 (critical)
         });
 
         it('should calculate correct score for security + high', async () => {
             const suggestion = { label: 'security', severity: 'high' };
-            const score = await service.calculateSuggestionRankScore(suggestion);
+            const score =
+                await service.calculateSuggestionRankScore(suggestion);
             expect(score).toBe(80); // 50 (security) + 30 (high)
         });
 
         it('should calculate correct score for code_style + low', async () => {
             const suggestion = { label: 'code_style', severity: 'low' };
-            const score = await service.calculateSuggestionRankScore(suggestion);
+            const score =
+                await service.calculateSuggestionRankScore(suggestion);
             expect(score).toBe(20); // 10 (code_style) + 10 (low)
         });
 
         it('should handle unknown labels with zero weight', async () => {
             const suggestion = { label: 'unknown_label', severity: 'medium' };
-            const score = await service.calculateSuggestionRankScore(suggestion);
+            const score =
+                await service.calculateSuggestionRankScore(suggestion);
             expect(score).toBe(20); // 0 (unknown) + 20 (medium)
         });
 
         it('should handle missing severity', async () => {
             const suggestion = { label: 'security' };
-            const score = await service.calculateSuggestionRankScore(suggestion);
+            const score =
+                await service.calculateSuggestionRankScore(suggestion);
             expect(score).toBe(50); // 50 (security) + 0 (no severity)
         });
     });
@@ -305,9 +364,7 @@ describe('SuggestionService', () => {
                 { id: '3', label: 'code_style' },
             ];
 
-            const filteredSuggestions = [
-                { id: '1', label: 'security' },
-            ];
+            const filteredSuggestions = [{ id: '1', label: 'security' }];
 
             const result = service.getDiscardedSuggestions(
                 allSuggestions,
@@ -316,20 +373,18 @@ describe('SuggestionService', () => {
             );
 
             expect(result).toHaveLength(2);
-            expect(result.map(s => s.id)).toContain('2');
-            expect(result.map(s => s.id)).toContain('3');
-            expect(result[0].priorityStatus).toBe(PriorityStatus.DISCARDED_BY_QUANTITY);
+            expect(result.map((s) => s.id)).toContain('2');
+            expect(result.map((s) => s.id)).toContain('3');
+            expect(result[0].priorityStatus).toBe(
+                PriorityStatus.DISCARDED_BY_QUANTITY,
+            );
             expect(result[0].deliveryStatus).toBe(DeliveryStatus.NOT_SENT);
         });
 
         it('should return empty array when all suggestions are kept', () => {
-            const allSuggestions = [
-                { id: '1', label: 'security' },
-            ];
+            const allSuggestions = [{ id: '1', label: 'security' }];
 
-            const filteredSuggestions = [
-                { id: '1', label: 'security' },
-            ];
+            const filteredSuggestions = [{ id: '1', label: 'security' }];
 
             const result = service.getDiscardedSuggestions(
                 allSuggestions,
@@ -383,7 +438,7 @@ __new hunk__
             const suggestions = [
                 { id: '1', relevantLinesStart: 10, relevantLinesEnd: 12 }, // within range 10-14
                 { id: '2', relevantLinesStart: 50, relevantLinesEnd: 55 }, // outside range
-                { id: '3', relevantLinesStart: 8, relevantLinesEnd: 11 },  // partially within
+                { id: '3', relevantLinesStart: 8, relevantLinesEnd: 11 }, // partially within
             ];
 
             const result = service.filterSuggestionsCodeDiff(
@@ -393,9 +448,9 @@ __new hunk__
 
             // Suggestions 1 and 3 overlap with the modified range (10-14)
             expect(result.length).toBe(2);
-            expect(result.find(s => s.id === '1')).toBeDefined();
-            expect(result.find(s => s.id === '3')).toBeDefined();
-            expect(result.find(s => s.id === '2')).toBeUndefined();
+            expect(result.find((s) => s.id === '1')).toBeDefined();
+            expect(result.find((s) => s.id === '3')).toBeDefined();
+            expect(result.find((s) => s.id === '2')).toBeUndefined();
         });
 
         it('should return empty array for no matching suggestions', () => {
@@ -431,7 +486,11 @@ __new hunk__
             const suggestions = [
                 { id: '1', relevantFile: 'b.ts', severity: SeverityLevel.LOW },
                 { id: '2', relevantFile: 'a.ts', severity: SeverityLevel.HIGH },
-                { id: '3', relevantFile: 'a.ts', severity: SeverityLevel.CRITICAL },
+                {
+                    id: '3',
+                    relevantFile: 'a.ts',
+                    severity: SeverityLevel.CRITICAL,
+                },
             ] as CodeSuggestion[];
 
             const result = service.sortSuggestionsByFilePathAndSeverity(
@@ -445,16 +504,31 @@ __new hunk__
             expect(result[2].relevantFile).toBe('b.ts');
 
             // Within same file, higher severity first
-            const aFiles = result.filter(s => s.relevantFile === 'a.ts');
+            const aFiles = result.filter((s) => s.relevantFile === 'a.ts');
             expect(aFiles[0].severity).toBe(SeverityLevel.CRITICAL);
             expect(aFiles[1].severity).toBe(SeverityLevel.HIGH);
         });
 
         it('should put parent suggestions first when grouping mode is FULL', () => {
             const suggestions = [
-                { id: '1', relevantFile: 'a.ts', severity: SeverityLevel.LOW, clusteringInformation: null },
-                { id: '2', relevantFile: 'b.ts', severity: SeverityLevel.CRITICAL, clusteringInformation: { type: ClusteringType.PARENT } },
-                { id: '3', relevantFile: 'c.ts', severity: SeverityLevel.HIGH, clusteringInformation: { type: ClusteringType.PARENT } },
+                {
+                    id: '1',
+                    relevantFile: 'a.ts',
+                    severity: SeverityLevel.LOW,
+                    clusteringInformation: null,
+                },
+                {
+                    id: '2',
+                    relevantFile: 'b.ts',
+                    severity: SeverityLevel.CRITICAL,
+                    clusteringInformation: { type: ClusteringType.PARENT },
+                },
+                {
+                    id: '3',
+                    relevantFile: 'c.ts',
+                    severity: SeverityLevel.HIGH,
+                    clusteringInformation: { type: ClusteringType.PARENT },
+                },
             ] as CodeSuggestion[];
 
             const result = service.sortSuggestionsByFilePathAndSeverity(
@@ -463,7 +537,9 @@ __new hunk__
             );
 
             // Parent suggestions should be first, sorted by severity
-            expect(result[0].clusteringInformation?.type).toBe(ClusteringType.PARENT);
+            expect(result[0].clusteringInformation?.type).toBe(
+                ClusteringType.PARENT,
+            );
             expect(result[0].severity).toBe(SeverityLevel.CRITICAL);
         });
     });
@@ -555,8 +631,12 @@ __new hunk__
             );
 
             // Should have 2 from a.ts and 1 from b.ts
-            const aFileSuggestions = result.filter(s => s.relevantFile === 'a.ts');
-            const bFileSuggestions = result.filter(s => s.relevantFile === 'b.ts');
+            const aFileSuggestions = result.filter(
+                (s) => s.relevantFile === 'a.ts',
+            );
+            const bFileSuggestions = result.filter(
+                (s) => s.relevantFile === 'b.ts',
+            );
 
             expect(aFileSuggestions).toHaveLength(2);
             expect(bFileSuggestions).toHaveLength(1);
@@ -664,10 +744,18 @@ __new hunk__
             );
 
             // Should have 1 of each severity
-            const criticals = result.filter(s => s.severity?.toLowerCase() === 'critical');
-            const highs = result.filter(s => s.severity?.toLowerCase() === 'high');
-            const mediums = result.filter(s => s.severity?.toLowerCase() === 'medium');
-            const lows = result.filter(s => s.severity?.toLowerCase() === 'low');
+            const criticals = result.filter(
+                (s) => s.severity?.toLowerCase() === 'critical',
+            );
+            const highs = result.filter(
+                (s) => s.severity?.toLowerCase() === 'high',
+            );
+            const mediums = result.filter(
+                (s) => s.severity?.toLowerCase() === 'medium',
+            );
+            const lows = result.filter(
+                (s) => s.severity?.toLowerCase() === 'low',
+            );
 
             expect(criticals).toHaveLength(1);
             expect(highs).toHaveLength(1);
@@ -747,18 +835,39 @@ __new hunk__
             );
 
             expect(result.codeSuggestions).toHaveLength(2);
-            expect(result.codeSuggestions.map(s => s.label)).toContain('security');
-            expect(result.codeSuggestions.map(s => s.label)).toContain('code_style');
-            expect(result.codeSuggestions.map(s => s.label)).not.toContain('performance_and_optimization');
+            expect(result.codeSuggestions.map((s) => s.label)).toContain(
+                'security',
+            );
+            expect(result.codeSuggestions.map((s) => s.label)).toContain(
+                'code_style',
+            );
+            expect(result.codeSuggestions.map((s) => s.label)).not.toContain(
+                'performance_and_optimization',
+            );
         });
     });
 
     describe('prioritizeByQuantity - Integration', () => {
         it('should use FILE limitation type correctly', async () => {
             const suggestions = [
-                { id: '1', relevantFile: 'a.ts', rankScore: 100, severity: 'high' },
-                { id: '2', relevantFile: 'a.ts', rankScore: 50, severity: 'medium' },
-                { id: '3', relevantFile: 'b.ts', rankScore: 75, severity: 'high' },
+                {
+                    id: '1',
+                    relevantFile: 'a.ts',
+                    rankScore: 100,
+                    severity: 'high',
+                },
+                {
+                    id: '2',
+                    relevantFile: 'a.ts',
+                    rankScore: 50,
+                    severity: 'medium',
+                },
+                {
+                    id: '3',
+                    relevantFile: 'b.ts',
+                    rankScore: 75,
+                    severity: 'high',
+                },
             ];
 
             const result = await service.prioritizeByQuantity(
@@ -771,8 +880,12 @@ __new hunk__
             );
 
             // Should have 1 from each file
-            const aFileSuggestions = result.filter(s => s.relevantFile === 'a.ts');
-            const bFileSuggestions = result.filter(s => s.relevantFile === 'b.ts');
+            const aFileSuggestions = result.filter(
+                (s) => s.relevantFile === 'a.ts',
+            );
+            const bFileSuggestions = result.filter(
+                (s) => s.relevantFile === 'b.ts',
+            );
 
             expect(aFileSuggestions).toHaveLength(1);
             expect(bFileSuggestions).toHaveLength(1);
@@ -825,6 +938,189 @@ __new hunk__
             );
 
             expect(result).toHaveLength(2);
+        });
+    });
+
+    describe('extractRepriorizedSuggestions', () => {
+        it('should extract repriorized suggestions from comment results', () => {
+            const suggestion1 = { id: 's1', priorityStatus: PriorityStatus.REPRIORIZED, label: 'security' };
+            const suggestion2 = { id: 's2', priorityStatus: PriorityStatus.PRIORITIZED, label: 'code_style' };
+
+            const commentResults: CommentResult[] = [
+                {
+                    comment: { suggestion: suggestion1 } as any,
+                    deliveryStatus: DeliveryStatus.SENT,
+                    codeReviewFeedbackData: { commentId: 123, pullRequestReviewId: 456, suggestionId: 's1' },
+                },
+                {
+                    comment: { suggestion: suggestion2 } as any,
+                    deliveryStatus: DeliveryStatus.SENT,
+                    codeReviewFeedbackData: { commentId: 789, pullRequestReviewId: 456, suggestionId: 's2' },
+                },
+            ];
+
+            const discardedSuggestions = [
+                { id: 's1', priorityStatus: PriorityStatus.DISCARDED_BY_QUANTITY, label: 'security' },
+                { id: 's3', priorityStatus: PriorityStatus.DISCARDED_BY_SEVERITY, label: 'maintainability' },
+            ];
+
+            const result = service.extractRepriorizedSuggestions(commentResults, discardedSuggestions);
+
+            expect(result.repriorizedSuggestions).toHaveLength(1);
+            expect(result.repriorizedSuggestions[0].id).toBe('s1');
+            expect(result.repriorizedSuggestions[0].deliveryStatus).toBe(DeliveryStatus.SENT);
+            expect(result.repriorizedSuggestions[0].implementationStatus).toBe(ImplementationStatus.NOT_IMPLEMENTED);
+            expect(result.repriorizedSuggestions[0].comment).toEqual({
+                id: 123,
+                pullRequestReviewId: 456,
+            });
+
+            expect(result.filteredDiscardedSuggestions).toHaveLength(1);
+            expect(result.filteredDiscardedSuggestions[0].id).toBe('s3');
+        });
+
+        it('should return empty repriorized array when no repriorized suggestions exist', () => {
+            const suggestion1 = { id: 's1', priorityStatus: PriorityStatus.PRIORITIZED };
+
+            const commentResults: CommentResult[] = [
+                {
+                    comment: { suggestion: suggestion1 } as any,
+                    deliveryStatus: DeliveryStatus.SENT,
+                    codeReviewFeedbackData: { commentId: 123, pullRequestReviewId: 456, suggestionId: 's1' },
+                },
+            ];
+
+            const discardedSuggestions = [
+                { id: 's2', priorityStatus: PriorityStatus.DISCARDED_BY_QUANTITY },
+            ];
+
+            const result = service.extractRepriorizedSuggestions(commentResults, discardedSuggestions);
+
+            expect(result.repriorizedSuggestions).toHaveLength(0);
+            expect(result.filteredDiscardedSuggestions).toHaveLength(1);
+        });
+
+        it('should not extract repriorized suggestions that failed to send', () => {
+            const suggestion1 = { id: 's1', priorityStatus: PriorityStatus.REPRIORIZED };
+
+            const commentResults: CommentResult[] = [
+                {
+                    comment: { suggestion: suggestion1 } as any,
+                    deliveryStatus: DeliveryStatus.FAILED,
+                },
+            ];
+
+            const discardedSuggestions = [
+                { id: 's1', priorityStatus: PriorityStatus.DISCARDED_BY_QUANTITY },
+            ];
+
+            const result = service.extractRepriorizedSuggestions(commentResults, discardedSuggestions);
+
+            expect(result.repriorizedSuggestions).toHaveLength(0);
+            expect(result.filteredDiscardedSuggestions).toHaveLength(1);
+        });
+
+        it('should handle empty comment results', () => {
+            const discardedSuggestions = [
+                { id: 's1', priorityStatus: PriorityStatus.DISCARDED_BY_QUANTITY },
+            ];
+
+            const result = service.extractRepriorizedSuggestions([], discardedSuggestions);
+
+            expect(result.repriorizedSuggestions).toHaveLength(0);
+            expect(result.filteredDiscardedSuggestions).toHaveLength(1);
+        });
+
+        it('should handle empty discarded suggestions', () => {
+            const suggestion1 = { id: 's1', priorityStatus: PriorityStatus.REPRIORIZED };
+
+            const commentResults: CommentResult[] = [
+                {
+                    comment: { suggestion: suggestion1 } as any,
+                    deliveryStatus: DeliveryStatus.SENT,
+                    codeReviewFeedbackData: { commentId: 123, pullRequestReviewId: 456, suggestionId: 's1' },
+                },
+            ];
+
+            const result = service.extractRepriorizedSuggestions(commentResults, []);
+
+            expect(result.repriorizedSuggestions).toHaveLength(1);
+            expect(result.filteredDiscardedSuggestions).toHaveLength(0);
+        });
+
+        it('should preserve existing comment data when extracting repriorized suggestions', () => {
+            const suggestion1 = {
+                id: 's1',
+                priorityStatus: PriorityStatus.REPRIORIZED,
+                comment: { existingField: 'value' },
+            };
+
+            const commentResults: CommentResult[] = [
+                {
+                    comment: { suggestion: suggestion1 } as any,
+                    deliveryStatus: DeliveryStatus.SENT,
+                    codeReviewFeedbackData: { commentId: 123, pullRequestReviewId: 456, suggestionId: 's1' },
+                },
+            ];
+
+            const result = service.extractRepriorizedSuggestions(commentResults, []);
+
+            expect(result.repriorizedSuggestions[0].comment).toEqual({
+                existingField: 'value',
+                id: 123,
+                pullRequestReviewId: 456,
+            });
+        });
+
+        it('should handle repriorized suggestion without codeReviewFeedbackData', () => {
+            const suggestion1 = {
+                id: 's1',
+                priorityStatus: PriorityStatus.REPRIORIZED,
+                comment: { originalId: 999 },
+            };
+
+            const commentResults: CommentResult[] = [
+                {
+                    comment: { suggestion: suggestion1 } as any,
+                    deliveryStatus: DeliveryStatus.SENT,
+                    // No codeReviewFeedbackData
+                },
+            ];
+
+            const result = service.extractRepriorizedSuggestions(commentResults, []);
+
+            expect(result.repriorizedSuggestions).toHaveLength(1);
+            expect(result.repriorizedSuggestions[0].comment).toEqual({ originalId: 999 });
+        });
+
+        it('should filter out multiple repriorized suggestions from discarded', () => {
+            const suggestion1 = { id: 's1', priorityStatus: PriorityStatus.REPRIORIZED };
+            const suggestion2 = { id: 's2', priorityStatus: PriorityStatus.REPRIORIZED };
+
+            const commentResults: CommentResult[] = [
+                {
+                    comment: { suggestion: suggestion1 } as any,
+                    deliveryStatus: DeliveryStatus.SENT,
+                    codeReviewFeedbackData: { commentId: 1, pullRequestReviewId: 1, suggestionId: 's1' },
+                },
+                {
+                    comment: { suggestion: suggestion2 } as any,
+                    deliveryStatus: DeliveryStatus.SENT,
+                    codeReviewFeedbackData: { commentId: 2, pullRequestReviewId: 1, suggestionId: 's2' },
+                },
+            ];
+
+            const discardedSuggestions = [
+                { id: 's1', priorityStatus: PriorityStatus.DISCARDED_BY_QUANTITY },
+                { id: 's2', priorityStatus: PriorityStatus.DISCARDED_BY_QUANTITY },
+                { id: 's3', priorityStatus: PriorityStatus.DISCARDED_BY_SEVERITY },
+            ];
+
+            const result = service.extractRepriorizedSuggestions(commentResults, discardedSuggestions);
+
+            expect(result.repriorizedSuggestions).toHaveLength(2);
+            expect(result.filteredDiscardedSuggestions).toHaveLength(1);
+            expect(result.filteredDiscardedSuggestions[0].id).toBe('s3');
         });
     });
 });

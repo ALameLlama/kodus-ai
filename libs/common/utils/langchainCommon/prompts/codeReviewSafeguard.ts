@@ -24,23 +24,23 @@ export const prompt_codeReviewSafeguard_system = (params: {
    - **REASON**: "Syntax errors in config files are prevented by IDE validation before commit."
 
 2. **Undefined Symbols with Custom Imports - CHECKLIST**:
-   
+
    **Step 1**: Does suggestion say something is "undefined" or "not defined"?
    - If NO → Skip this rule
    - If YES → Go to Step 2
-   
+
    **Step 2**: Check file imports. Does the file import ANYTHING beyond these?
    - Go: \`fmt\`, \`os\`, \`strings\`, \`encoding/*\`, \`path/*\`, \`net/http\`
    - C#: Only \`System.*\` namespaces
    - Python: Only \`json\`, \`os\`, \`sys\`, \`re\`, \`datetime\`, \`math\`
    - JavaScript: No imports or only browser APIs
-   
+
    **Step 3**: If file has OTHER imports (custom packages, third-party libraries, domain-based imports):
    - Action: **DISCARD**
    - Reason: "Cannot verify symbol existence - file imports external dependencies not available in review context."
-   
+
    **Key principle**: If the import is NOT from the language's standard library → DISCARD undefined symbol claims
-   
+
    **Pattern recognition**:
    - Domain-based imports (github.com/*, gitlab.com/*, company.com/*)
    - Organization/company namespaces
@@ -48,22 +48,22 @@ export const prompt_codeReviewSafeguard_system = (params: {
    - Relative imports (./, ../)
 
 3. **Speculative Null/Undefined Checks**:
-   
+
    **Step 1**: Does suggestion add optional chaining (\`?.\`) or null checks without evidence?
    - Look for additions like: \`object?.method()\`, \`if (x)\`, \`x ?? fallback\`
-   
+
    **Step 2**: Check if the suggestion claims the variable "can be null/undefined/falsy"
    - If YES → Go to Step 3
-   
+
    **Step 3**: Verify the claim against FileContentContext:
    - Is there evidence the variable can actually be null/undefined?
    - Does the function/utility return type indicate nullable?
    - Is there existing null handling elsewhere in the code?
-   
+
    **Step 4**: If NO evidence found:
    - Action: **DISCARD**
    - Reason: "Speculative null check without evidence. No indication in code that variable can be null/undefined."
-   
+
    **Key principle**: Don't add defensive code based on "what if" scenarios without evidence in the actual codebase.
 
 4. **Database Schema Assumptions**:
@@ -207,7 +207,7 @@ For each suggestion, meticulously verify:
 - **discard**:
 Definition: The suggestion is flawed, irrelevant, assumes information we do not have access to, introduces problems that cannot be easily solved, or **its benefits cannot be reliably verified based on the given context.**
 
-**Use when**: 
+**Use when**:
 - The suggestion doesn't apply to the PR, introduces significant issues, offers no meaningful or verifiable benefit, or **requires assumptions beyond the provided \`FileContentContext\`, \`CodeDiffContext\`, and \`SuggestionsContext\` to be validated.**
   - Important: If the suggestion does not explain that something needs to be implemented, fixed, or improved in the code **in a way that can be verified against the provided context**, it should be discarded.
 
@@ -253,6 +253,7 @@ DISCUSSION
 - Explicit Role Flow (Alice → Bob → Charles → Diana): Forces a step-by-step check for compilation, logic, style, and final decision.
 - Syntax & Compilation Priority: Immediately flags removal or alteration of necessary code pieces.
 - Stylistic vs. Real Improvements: Clearly instructs to discard purely stylistic suggestions with no real benefits.
+- The current date is ${new Date().toLocaleDateString('en-GB')}.
 
 Start analysis`;
 };

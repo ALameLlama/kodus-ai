@@ -5,11 +5,11 @@ import { LanguageValue } from '@libs/core/domain/enums/language-parameter.enum';
 
 import { ICodeBaseConfigService } from '@libs/code-review/domain/contracts/CodeBaseConfigService.contract';
 import globalIgnorePathsJson from '@libs/common/utils/codeBase/ignorePaths/generated/paths.json';
+import { GlobalParametersKey } from '@libs/core/domain/enums/global-parameters-key.enum';
 import { IntegrationCategory } from '@libs/core/domain/enums/integration-category.enum';
 import { IntegrationConfigKey } from '@libs/core/domain/enums/Integration-config-key.enum';
 import { OrganizationParametersKey } from '@libs/core/domain/enums/organization-parameters-key.enum';
 import { ParametersKey } from '@libs/core/domain/enums/parameters-key.enum';
-import { GlobalParametersKey } from '@libs/core/domain/enums/global-parameters-key.enum';
 import {
     CodeReviewConfig,
     CodeReviewConfigWithoutLLMProvider,
@@ -31,6 +31,7 @@ import { decrypt } from '@libs/common/utils/crypto';
 import { ValidateCodeManagementIntegration } from '@libs/common/utils/decorators/validate-code-management-integration.decorator';
 import { deepMerge } from '@libs/common/utils/deep';
 import { getDefaultKodusConfigFile } from '@libs/common/utils/validateCodeReviewConfigFile';
+import { CacheService } from '@libs/core/cache/cache.service';
 import {
     IIntegrationConfigService,
     INTEGRATION_CONFIG_SERVICE_TOKEN,
@@ -44,6 +45,10 @@ import {
     KODY_RULES_SERVICE_TOKEN,
 } from '@libs/kodyRules/domain/contracts/kodyRules.service.contract';
 import {
+    GLOBAL_PARAMETERS_SERVICE_TOKEN,
+    IGlobalParametersService,
+} from '@libs/organization/domain/global-parameters/contracts/global-parameters.service.contract';
+import {
     IOrganizationParametersService,
     ORGANIZATION_PARAMETERS_SERVICE_TOKEN,
 } from '@libs/organization/domain/organizationParameters/contracts/organizationParameters.service.contract';
@@ -51,11 +56,6 @@ import {
     IParametersService,
     PARAMETERS_SERVICE_TOKEN,
 } from '@libs/organization/domain/parameters/contracts/parameters.service.contract';
-import {
-    IGlobalParametersService,
-    GLOBAL_PARAMETERS_SERVICE_TOKEN,
-} from '@libs/organization/domain/global-parameters/contracts/global-parameters.service.contract';
-import { CacheService } from '@libs/core/cache/cache.service';
 import { AuthMode } from '@libs/platform/domain/platformIntegrations/enums/codeManagement/authMode.enum';
 import { CodeManagementService } from '@libs/platform/infrastructure/adapters/services/codeManagement.service';
 import { KodyRulesValidationService } from '../kodyRules/service/kody-rules-validation.service';
@@ -134,7 +134,9 @@ export default class CodeBaseConfigService implements ICodeBaseConfigService {
                 mergedConfigs.directoryId,
             );
 
-            const globalIgnorePaths = await this.getGlobalIgnorePaths(organizationAndTeamData);
+            const globalIgnorePaths = await this.getGlobalIgnorePaths(
+                organizationAndTeamData,
+            );
 
             const fullConfig = {
                 ...mergedConfigs,
@@ -145,7 +147,8 @@ export default class CodeBaseConfigService implements ICodeBaseConfigService {
                 kodyRules,
                 reviewModeConfig,
                 kodyFineTuningConfig,
-                ignorePaths: mergedConfigs.ignorePaths.concat(globalIgnorePaths),
+                ignorePaths:
+                    mergedConfigs.ignorePaths.concat(globalIgnorePaths),
                 // v2-only prompt overrides (categories and severity guidance). Read from repo/global parameters.
                 v2PromptOverrides: this.sanitizeV2PromptOverrides(
                     mergedConfigs.v2PromptOverrides,
@@ -541,6 +544,12 @@ export default class CodeBaseConfigService implements ICodeBaseConfigService {
             return;
         }
 
+        const hasIntegration =
+            await this.codeManagementService.getTypeIntegration(
+                organizationAndTeamData,
+            );
+        if (!hasIntegration) return;
+
         const defaultBranchName =
             defaultBranch ||
             (await this.getDefaultBranch(organizationAndTeamData, repository));
@@ -658,22 +667,28 @@ export default class CodeBaseConfigService implements ICodeBaseConfigService {
         };
     }
 
-    private async getGlobalIgnorePaths(organizationAndTeamData: OrganizationAndTeamData): Promise<string[]> {
+    private async getGlobalIgnorePaths(
+        organizationAndTeamData: OrganizationAndTeamData,
+    ): Promise<string[]> {
         try {
             // Try to get from cache first
-            const cachedData =
-                await this.cacheService.getFromCache<{ paths: string[]; updatedAt: string }>(
-                    GLOBAL_IGNORE_PATHS_CACHE_KEY,
-                );
+            const cachedData = await this.cacheService.getFromCache<{
+                paths: string[];
+                updatedAt: string;
+            }>(GLOBAL_IGNORE_PATHS_CACHE_KEY);
 
             if (cachedData) {
                 // Light query: fetch only updatedAt to check if cache is stale
-                const dbUpdatedAt = await this.globalParametersService.findUpdatedAtByKey(
-                    GlobalParametersKey.IGNORE_PATHS_GLOBAL,
-                );
+                const dbUpdatedAt =
+                    await this.globalParametersService.findUpdatedAtByKey(
+                        GlobalParametersKey.IGNORE_PATHS_GLOBAL,
+                    );
 
                 // If no record in DB or cache is still valid, use cached data
-                if (!dbUpdatedAt || new Date(cachedData.updatedAt) >= new Date(dbUpdatedAt)) {
+                if (
+                    !dbUpdatedAt ||
+                    new Date(cachedData.updatedAt) >= new Date(dbUpdatedAt)
+                ) {
                     this.logger.log({
                         message: 'Global ignore paths loaded from cache',
                         context: CodeBaseConfigService.name,
@@ -684,9 +699,10 @@ export default class CodeBaseConfigService implements ICodeBaseConfigService {
             }
 
             // Fetch full record from database
-            const globalParameters = await this.globalParametersService.findByKey(
-                GlobalParametersKey.IGNORE_PATHS_GLOBAL,
-            );
+            const globalParameters =
+                await this.globalParametersService.findByKey(
+                    GlobalParametersKey.IGNORE_PATHS_GLOBAL,
+                );
 
             if (globalParameters?.configValue?.paths) {
                 const paths = globalParameters.configValue.paths as string[];
@@ -696,13 +712,16 @@ export default class CodeBaseConfigService implements ICodeBaseConfigService {
                     GLOBAL_IGNORE_PATHS_CACHE_KEY,
                     {
                         paths,
-                        updatedAt: globalParameters.updatedAt?.toISOString() ?? new Date().toISOString(),
+                        updatedAt:
+                            globalParameters.updatedAt?.toISOString() ??
+                            new Date().toISOString(),
                     },
                     GLOBAL_IGNORE_PATHS_CACHE_TTL,
                 );
 
                 this.logger.log({
-                    message: 'Global ignore paths loaded from global parameters',
+                    message:
+                        'Global ignore paths loaded from global parameters',
                     context: CodeBaseConfigService.name,
                     metadata: { organizationAndTeamData },
                 });
@@ -720,7 +739,8 @@ export default class CodeBaseConfigService implements ICodeBaseConfigService {
             return globalIgnorePathsJson?.paths ?? [];
         } catch (error) {
             this.logger.error({
-                message: 'Error getting global ignore paths, using file fallback',
+                message:
+                    'Error getting global ignore paths, using file fallback',
                 context: CodeBaseConfigService.name,
                 error,
                 metadata: { organizationAndTeamData },
@@ -728,7 +748,7 @@ export default class CodeBaseConfigService implements ICodeBaseConfigService {
 
             return globalIgnorePathsJson?.paths ?? [];
         }
-    } 
+    }
     private resolveConfigByDirectories(
         organizationAndTeamData: OrganizationAndTeamData,
         repoConfig: RepositoryCodeReviewConfig,

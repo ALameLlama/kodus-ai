@@ -12,6 +12,7 @@ import {
 @Injectable()
 export class MessageBrokerService implements IMessageBrokerService {
     private readonly logger = createLogger(MessageBrokerService.name);
+
     constructor(@Optional() private readonly amqpConnection: AmqpConnection) {
         if (!amqpConnection) {
             this.logger.warn({

@@ -249,6 +249,18 @@ export interface ISuggestionService {
     ): Promise<Partial<CodeSuggestion>[]>;
 
     /**
+     * Extracts repriorized suggestions from comment results and removes them from discarded suggestions.
+     * This prevents duplicate saves when a fallback suggestion replaces a failed prioritized suggestion.
+     */
+    extractRepriorizedSuggestions(
+        commentResults: CommentResult[],
+        discardedSuggestions: Partial<CodeSuggestion>[],
+    ): {
+        repriorizedSuggestions: Partial<CodeSuggestion>[];
+        filteredDiscardedSuggestions: Partial<CodeSuggestion>[];
+    };
+
+    /**
      * Transforms comment results to PR level suggestions
      */
     transformCommentResultsToPrLevelSuggestions(

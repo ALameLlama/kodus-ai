@@ -326,9 +326,7 @@ Task: Fulfill this request using available tools based on the provided code chan
         }
 
         const text =
-            typeof response === 'string'
-                ? response
-                : JSON.stringify(response);
+            typeof response === 'string' ? response : JSON.stringify(response);
 
         try {
             const parsed: any = EnhancedJSONParser.parse(text);

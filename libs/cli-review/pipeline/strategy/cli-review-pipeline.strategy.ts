@@ -17,9 +17,7 @@ import { FormatCliOutputStage } from '../stages/format-cli-output.stage';
  * Config is already resolved in the use case before pipeline execution
  */
 @Injectable()
-export class CliReviewPipelineStrategy
-    implements IPipelineStrategy<CliReviewPipelineContext>
-{
+export class CliReviewPipelineStrategy implements IPipelineStrategy<CliReviewPipelineContext> {
     constructor(
         // Reused stages from code-review pipeline
         private readonly processFilesReview: ProcessFilesReview,

@@ -9,4 +9,6 @@ export interface IWorkflowJobRepository {
     }): Promise<number>;
 }
 
-export const WORKFLOW_JOB_REPOSITORY_TOKEN = Symbol.for('WorkflowJobRepository');
+export const WORKFLOW_JOB_REPOSITORY_TOKEN = Symbol.for(
+    'WorkflowJobRepository',
+);

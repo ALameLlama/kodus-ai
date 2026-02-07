@@ -9,12 +9,15 @@ import {
     CodeSuggestion,
     Comment,
     CommentResult,
+    FallbackSuggestionsBySeverity,
     FileChange,
     SummaryConfig,
 } from '@libs/core/infrastructure/config/types/general/codeReview.type';
 import { OrganizationAndTeamData } from '@libs/core/infrastructure/config/types/general/organizationAndTeamData';
 
-export const COMMENT_MANAGER_SERVICE_TOKEN = Symbol.for('CommentManagerService');
+export const COMMENT_MANAGER_SERVICE_TOKEN = Symbol.for(
+    'CommentManagerService',
+);
 
 export interface ICommentManagerService {
     createInitialComment(
@@ -82,6 +85,7 @@ export interface ICommentManagerService {
         language: string,
         dryRun: CodeReviewPipelineContext['dryRun'],
         suggestionCopyPrompt?: boolean,
+        fallbackSuggestionsBySeverity?: FallbackSuggestionsBySeverity,
     ): Promise<{
         lastAnalyzedCommit: any;
         commits: any[];

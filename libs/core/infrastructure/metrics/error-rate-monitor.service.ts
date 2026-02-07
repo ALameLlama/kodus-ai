@@ -40,9 +40,7 @@ export class ErrorRateMonitorService {
     @Cron(CronExpression.EVERY_MINUTE)
     async checkErrorRate(): Promise<void> {
         try {
-            const since = new Date(
-                Date.now() - this.windowMinutes * 60 * 1000,
-            );
+            const since = new Date(Date.now() - this.windowMinutes * 60 * 1000);
 
             const [errorCounts, requestCounts] = await Promise.all([
                 this.metricsModel.countDocuments({
@@ -93,5 +91,4 @@ export class ErrorRateMonitorService {
             });
         }
     }
-
 }

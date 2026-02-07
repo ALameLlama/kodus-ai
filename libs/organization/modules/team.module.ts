@@ -26,7 +26,11 @@ import { TEAM_CLI_KEY_REPOSITORY_TOKEN } from '../domain/team-cli-key/contracts/
 
 @Module({
     imports: [
-        TypeOrmModule.forFeature([TeamModel, TeamCliKeyModel, IntegrationModel]),
+        TypeOrmModule.forFeature([
+            TeamModel,
+            TeamCliKeyModel,
+            IntegrationModel,
+        ]),
         forwardRef(() => ProfileConfigModule),
         forwardRef(() => UserModule),
         forwardRef(() => IntegrationModule),

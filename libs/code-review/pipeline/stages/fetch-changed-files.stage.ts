@@ -1,26 +1,26 @@
 import { Inject, Injectable } from '@nestjs/common';
 
-import { BasePipelineStage } from '@libs/core/infrastructure/pipeline/abstracts/base-stage.abstract';
-import { IStageValidationResult } from '@libs/core/infrastructure/pipeline/interfaces/stage-result.interface';
-import {
-    IPullRequestManagerService,
-    PULL_REQUEST_MANAGER_SERVICE_TOKEN,
-} from '@libs/code-review/domain/contracts/PullRequestManagerService.contract';
 import { createLogger } from '@kodus/flow';
 import {
     AutomationMessage,
     AutomationStatus,
 } from '@libs/automation/domain/automation/enum/automation-status';
-import { StageVisibility } from '@libs/core/infrastructure/pipeline/enums/stage-visibility.enum';
-import { FileChange } from '@libs/core/infrastructure/config/types/general/codeReview.type';
+import {
+    IPullRequestManagerService,
+    PULL_REQUEST_MANAGER_SERVICE_TOKEN,
+} from '@libs/code-review/domain/contracts/PullRequestManagerService.contract';
+import { isFileMatchingGlob } from '@libs/common/utils/glob-utils';
 import {
     convertToHunksWithLinesNumbers,
     handlePatchDeletions,
 } from '@libs/common/utils/patch';
-import { isFileMatchingGlob } from '@libs/common/utils/glob-utils';
-import { CodeReviewPipelineContext } from '../context/code-review-pipeline.context';
+import { FileChange } from '@libs/core/infrastructure/config/types/general/codeReview.type';
+import { BasePipelineStage } from '@libs/core/infrastructure/pipeline/abstracts/base-stage.abstract';
 import { PipelineReasons } from '@libs/core/infrastructure/pipeline/constants/pipeline-reasons.const';
+import { StageVisibility } from '@libs/core/infrastructure/pipeline/enums/stage-visibility.enum';
+import { IStageValidationResult } from '@libs/core/infrastructure/pipeline/interfaces/stage-result.interface';
 import { StageMessageHelper } from '@libs/core/infrastructure/pipeline/utils/stage-message.helper';
+import { CodeReviewPipelineContext } from '../context/code-review-pipeline.context';
 
 @Injectable()
 export class FetchChangedFilesStage extends BasePipelineStage<CodeReviewPipelineContext> {
@@ -55,7 +55,6 @@ export class FetchChangedFilesStage extends BasePipelineStage<CodeReviewPipeline
                 draft.statusInfo = {
                     status: AutomationStatus.SKIPPED,
                     message: AutomationMessage.NO_CONFIG_IN_CONTEXT,
-                    jumpToStage: 'FinalizeGithubCheckStage',
                 };
             });
         }
@@ -118,7 +117,6 @@ export class FetchChangedFilesStage extends BasePipelineStage<CodeReviewPipeline
                 draft.statusInfo = {
                     status: AutomationStatus.SKIPPED,
                     message: message,
-                    jumpToStage: 'FinalizeGithubCheckStage',
                 };
                 draft.ignoredFiles = ignoredList?.map((f) => f.filename) || [];
             });

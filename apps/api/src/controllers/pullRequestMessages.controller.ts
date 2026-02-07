@@ -25,7 +25,22 @@ import {
     checkRepoPermissions,
 } from '@libs/identity/infrastructure/adapters/services/permissions/policy.handlers';
 import { IPullRequestMessages } from '@libs/code-review/domain/pullRequestMessages/interfaces/pullRequestMessages.interface';
+import {
+    ApiBearerAuth,
+    ApiBody,
+    ApiNoContentResponse,
+    ApiOkResponse,
+    ApiOperation,
+    ApiQuery,
+    ApiTags,
+} from '@nestjs/swagger';
+import { ApiStandardResponses } from '../docs/api-standard-responses.decorator';
+import { PullRequestMessagesUpsertDto } from '../dtos/pull-request-messages-upsert.dto';
+import { PullRequestMessagesResponseDto } from '../dtos/pull-request-messages-response.dto';
 
+@ApiTags('Pull Request Messages')
+@ApiBearerAuth('jwt')
+@ApiStandardResponses()
 @Controller('pull-request-messages')
 export class PullRequestMessagesController {
     constructor(
@@ -37,6 +52,13 @@ export class PullRequestMessagesController {
     ) {}
 
     @Post('/')
+    @ApiOperation({
+        summary: 'Create or update PR messages',
+        description:
+            'Creates or updates the review message configuration for a repository or directory.',
+    })
+    @ApiBody({ type: PullRequestMessagesUpsertDto })
+    @ApiNoContentResponse({ description: 'Configuration updated' })
     @UseGuards(PolicyGuard)
     @CheckPolicies(
         checkPermissions({
@@ -54,6 +76,14 @@ export class PullRequestMessagesController {
     }
 
     @Get('/find-by-repository-or-directory')
+    @ApiOperation({
+        summary: 'Get PR messages by repository or directory',
+        description:
+            'Returns the resolved message configuration for the specified repository or directory.',
+    })
+    @ApiQuery({ name: 'repositoryId', required: true })
+    @ApiQuery({ name: 'directoryId', required: false })
+    @ApiOkResponse({ type: PullRequestMessagesResponseDto })
     @UseGuards(PolicyGuard)
     @CheckPolicies(
         checkRepoPermissions({

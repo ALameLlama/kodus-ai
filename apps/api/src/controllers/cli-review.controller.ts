@@ -19,14 +19,35 @@ import {
     UnauthorizedException,
 } from '@nestjs/common';
 import {
+    ApiBadRequestResponse,
+    ApiHeader,
+    ApiOkResponse,
+    ApiOperation,
+    ApiTags,
+    ApiTooManyRequestsResponse,
+    ApiUnauthorizedResponse,
+} from '@nestjs/swagger';
+import { Public } from '@libs/identity/infrastructure/adapters/services/auth/public.decorator';
+import { ApiStandardResponses } from '../docs/api-standard-responses.decorator';
+import { ApiErrorDto } from '../dtos/api-error.dto';
+import {
     CliReviewRequestDto,
     TrialCliReviewRequestDto,
 } from '../dtos/cli-review.dto';
+import {
+    CliReviewRateLimitErrorDto,
+    CliReviewResponseDto,
+    CliValidateKeyResponseDto,
+    TrialCliReviewResponseDto,
+} from '../dtos/cli-review.response.dto';
 
 /**
  * Controller for CLI code review endpoints
  * Provides both authenticated and trial review capabilities
  */
+@ApiTags('CLI Review')
+@ApiStandardResponses()
+@Public()
 @Controller('cli')
 export class CliReviewController {
     constructor(
@@ -41,6 +62,21 @@ export class CliReviewController {
      * Validate a Team CLI key (health check for CLI)
      */
     @Get('validate-key')
+    @ApiOperation({
+        summary: 'Validate team CLI key',
+        description:
+            'Validates a Team CLI key sent via `x-team-key` or `Authorization: Bearer <team-key>`.',
+    })
+    @ApiHeader({
+        name: 'x-team-key',
+        required: false,
+        description: 'Team CLI key (alternative to Authorization: Bearer)',
+    })
+    @ApiOkResponse({ type: CliValidateKeyResponseDto })
+    @ApiUnauthorizedResponse({
+        description: 'Invalid or missing team CLI key',
+        type: CliValidateKeyResponseDto,
+    })
     async validateKey(
         @Headers('x-team-key') teamKey: string,
         @Headers('authorization') authHeader: string,
@@ -54,6 +90,21 @@ export class CliReviewController {
      * POST alias for clients that send POST
      */
     @Post('validate-key')
+    @ApiOperation({
+        summary: 'Validate team CLI key (POST)',
+        description:
+            'POST alias for validate-key. Accepts `x-team-key` or `Authorization: Bearer <team-key>`.',
+    })
+    @ApiHeader({
+        name: 'x-team-key',
+        required: false,
+        description: 'Team CLI key (alternative to Authorization: Bearer)',
+    })
+    @ApiOkResponse({ type: CliValidateKeyResponseDto })
+    @ApiUnauthorizedResponse({
+        description: 'Invalid or missing team CLI key',
+        type: CliValidateKeyResponseDto,
+    })
     async validateKeyPost(
         @Headers('x-team-key') teamKey: string,
         @Headers('authorization') authHeader: string,
@@ -147,6 +198,21 @@ export class CliReviewController {
      * No user authentication required - uses team key instead
      */
     @Post('review')
+    @ApiOperation({
+        summary: 'Run CLI code review',
+        description:
+            'Runs a code review using a Team CLI key passed via `x-team-key` or `Authorization: Bearer <team-key>`.',
+    })
+    @ApiHeader({
+        name: 'x-team-key',
+        required: false,
+        description: 'Team CLI key (alternative to Authorization: Bearer)',
+    })
+    @ApiOkResponse({ type: CliReviewResponseDto })
+    @ApiTooManyRequestsResponse({
+        description: 'Rate limit exceeded',
+        type: CliReviewRateLimitErrorDto,
+    })
     async review(
         @Body() body: CliReviewRequestDto,
         @Headers('x-team-key') teamKey?: string,
@@ -232,6 +298,20 @@ export class CliReviewController {
      * Rate limited by device fingerprint
      */
     @Post('trial/review')
+    @ApiOperation({
+        summary: 'Run trial CLI code review',
+        description:
+            'Runs a trial code review (no auth). Requires `fingerprint` and is rate-limited by device.',
+    })
+    @ApiOkResponse({ type: TrialCliReviewResponseDto })
+    @ApiBadRequestResponse({
+        description: 'Missing device fingerprint',
+        type: ApiErrorDto,
+    })
+    @ApiTooManyRequestsResponse({
+        description: 'Rate limit exceeded',
+        type: CliReviewRateLimitErrorDto,
+    })
     async trialReview(@Body() body: TrialCliReviewRequestDto) {
         if (!body.fingerprint) {
             throw new HttpException(

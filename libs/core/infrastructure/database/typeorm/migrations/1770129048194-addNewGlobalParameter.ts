@@ -1,7 +1,7 @@
-import { MigrationInterface, QueryRunner } from "typeorm";
+import { MigrationInterface, QueryRunner } from 'typeorm';
 
 export class AddNewGlobalParameter1770129048194 implements MigrationInterface {
-    name = 'AddNewGlobalParameter1770129048194'
+    name = 'AddNewGlobalParameter1770129048194';
 
     public async up(queryRunner: QueryRunner): Promise<void> {
         await queryRunner.query(`
@@ -49,5 +49,4 @@ export class AddNewGlobalParameter1770129048194 implements MigrationInterface {
             CREATE INDEX IF NOT EXISTS "IDX_integration_configs_value_gin" ON "integration_configs" ("configValue")
         `);
     }
-
 }

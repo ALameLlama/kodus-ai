@@ -20,14 +20,30 @@ import { checkRole } from '@libs/identity/infrastructure/adapters/services/permi
 import { Role } from '@libs/identity/domain/permissions/enums/permissions.enum';
 import { UserRequest } from '@libs/core/infrastructure/config/types/http/user-request.type';
 import {
+    ApiBearerAuth,
+    ApiCreatedResponse,
+    ApiOkResponse,
+    ApiOperation,
+    ApiTags,
+} from '@nestjs/swagger';
+import {
     ITeamCliKeyService,
     TEAM_CLI_KEY_SERVICE_TOKEN,
 } from '@libs/organization/domain/team-cli-key/contracts/team-cli-key.service.contract';
+import { ApiStandardResponses } from '../docs/api-standard-responses.decorator';
+import {
+    TeamCliKeyCreatedResponseDto,
+    TeamCliKeyDeleteResponseDto,
+    TeamCliKeyListResponseDto,
+} from '../dtos/team-cli-key-response.dto';
 
 /**
  * Controller for Team CLI Key management
  * Allows team managers to generate, list, and revoke CLI keys for their team
  */
+@ApiTags('Team CLI Key')
+@ApiBearerAuth('jwt')
+@ApiStandardResponses()
 @Controller('teams/:teamId/cli-keys')
 @UseGuards(PolicyGuard)
 export class TeamCliKeyController {
@@ -47,6 +63,11 @@ export class TeamCliKeyController {
             role: Role.OWNER,
         }),
     )
+    @ApiOperation({
+        summary: 'Create team CLI key',
+        description: 'Generate a new CLI key for the specified team.',
+    })
+    @ApiCreatedResponse({ type: TeamCliKeyCreatedResponseDto })
     async generateKey(
         @Param('teamId') teamId: string,
         @Body() body: { name: string },
@@ -88,6 +109,11 @@ export class TeamCliKeyController {
             role: Role.OWNER,
         }),
     )
+    @ApiOperation({
+        summary: 'List team CLI keys',
+        description: 'Return all CLI keys for the specified team.',
+    })
+    @ApiOkResponse({ type: TeamCliKeyListResponseDto })
     async listKeys(@Param('teamId') teamId: string) {
         const keys = await this.teamCliKeyService.findByTeamId(teamId);
 
@@ -115,6 +141,11 @@ export class TeamCliKeyController {
             role: Role.OWNER,
         }),
     )
+    @ApiOperation({
+        summary: 'Revoke team CLI key',
+        description: 'Revoke a CLI key by id for the specified team.',
+    })
+    @ApiOkResponse({ type: TeamCliKeyDeleteResponseDto })
     async revokeKey(
         @Param('teamId') teamId: string,
         @Param('keyId') keyId: string,

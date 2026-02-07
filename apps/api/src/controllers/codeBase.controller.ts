@@ -1,16 +1,7 @@
-
-import {
-    Controller,
-    Inject,
-} from '@nestjs/common';
+import { Controller, Inject } from '@nestjs/common';
 import { REQUEST } from '@nestjs/core';
-
-
-
-
-
-
-
+import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
+import { ApiStandardResponses } from '../docs/api-standard-responses.decorator';
 
 function replacer(key: any, value: any) {
     if (value instanceof Map) {
@@ -19,6 +10,9 @@ function replacer(key: any, value: any) {
     return value;
 }
 
+@ApiTags('Code Base')
+@ApiBearerAuth('jwt')
+@ApiStandardResponses()
 @Controller('code-base')
 export class CodeBaseController {
     constructor(

@@ -68,12 +68,30 @@ describe('ProcessFilesReview', () => {
         const module: TestingModule = await Test.createTestingModule({
             providers: [
                 ProcessFilesReview,
-                { provide: SUGGESTION_SERVICE_TOKEN, useValue: mockSuggestionService },
-                { provide: PULL_REQUESTS_SERVICE_TOKEN, useValue: mockPullRequestService },
-                { provide: FILE_REVIEW_CONTEXT_PREPARATION_TOKEN, useValue: mockFileReviewContextPreparation },
-                { provide: KODY_FINE_TUNING_CONTEXT_PREPARATION_TOKEN, useValue: mockKodyFineTuningContextPreparation },
-                { provide: KODY_AST_ANALYZE_CONTEXT_PREPARATION_TOKEN, useValue: mockKodyAstAnalyzeContextPreparation },
-                { provide: CodeAnalysisOrchestrator, useValue: mockCodeAnalysisOrchestrator },
+                {
+                    provide: SUGGESTION_SERVICE_TOKEN,
+                    useValue: mockSuggestionService,
+                },
+                {
+                    provide: PULL_REQUESTS_SERVICE_TOKEN,
+                    useValue: mockPullRequestService,
+                },
+                {
+                    provide: FILE_REVIEW_CONTEXT_PREPARATION_TOKEN,
+                    useValue: mockFileReviewContextPreparation,
+                },
+                {
+                    provide: KODY_FINE_TUNING_CONTEXT_PREPARATION_TOKEN,
+                    useValue: mockKodyFineTuningContextPreparation,
+                },
+                {
+                    provide: KODY_AST_ANALYZE_CONTEXT_PREPARATION_TOKEN,
+                    useValue: mockKodyAstAnalyzeContextPreparation,
+                },
+                {
+                    provide: CodeAnalysisOrchestrator,
+                    useValue: mockCodeAnalysisOrchestrator,
+                },
             ],
         }).compile();
 
@@ -104,7 +122,8 @@ describe('ProcessFilesReview', () => {
                     reviewOptions: {},
                     suggestionControl: {
                         maxSuggestions: 10,
-                        severityLevelFilter: overrides.severityLevelFilter as any,
+                        severityLevelFilter:
+                            overrides.severityLevelFilter as any,
                     },
                 } as any,
                 fileChangeContext: {
@@ -149,17 +168,23 @@ describe('ProcessFilesReview', () => {
          */
         function setupMocks(crossFileSuggestions: CodeSuggestion[]) {
             // initialFilterSuggestions: return all suggestions as filtered (no discards)
-            mockSuggestionService.filterCodeSuggestionsByReviewOptions.mockReturnValue({
-                codeSuggestions: crossFileSuggestions,
-            });
-            mockSuggestionService.filterSuggestionsCodeDiff.mockReturnValue(crossFileSuggestions);
+            mockSuggestionService.filterCodeSuggestionsByReviewOptions.mockReturnValue(
+                {
+                    codeSuggestions: crossFileSuggestions,
+                },
+            );
+            mockSuggestionService.filterSuggestionsCodeDiff.mockReturnValue(
+                crossFileSuggestions,
+            );
             mockSuggestionService.getDiscardedSuggestions.mockReturnValue([]);
 
             // kodyFineTuning: keep all suggestions
-            mockKodyFineTuningContextPreparation.prepareKodyFineTuningContext.mockResolvedValue({
-                keepedSuggestions: crossFileSuggestions,
-                discardedSuggestions: [],
-            });
+            mockKodyFineTuningContextPreparation.prepareKodyFineTuningContext.mockResolvedValue(
+                {
+                    keepedSuggestions: crossFileSuggestions,
+                    discardedSuggestions: [],
+                },
+            );
 
             // safeguard: return empty (only applied to non-cross-file)
             mockSuggestionService.filterSuggestionsSafeGuard.mockResolvedValue({
@@ -173,17 +198,23 @@ describe('ProcessFilesReview', () => {
             );
 
             // kodyRules: no suggestions
-            mockCodeAnalysisOrchestrator.executeKodyRulesAnalysis.mockResolvedValue({
-                codeSuggestions: [],
-            });
+            mockCodeAnalysisOrchestrator.executeKodyRulesAnalysis.mockResolvedValue(
+                {
+                    codeSuggestions: [],
+                },
+            );
 
             // kodyAST: no suggestions
-            mockKodyAstAnalyzeContextPreparation.prepareKodyASTAnalyzeContext.mockResolvedValue({
-                codeSuggestions: [],
-            });
+            mockKodyAstAnalyzeContextPreparation.prepareKodyASTAnalyzeContext.mockResolvedValue(
+                {
+                    codeSuggestions: [],
+                },
+            );
 
             // rankScore
-            mockSuggestionService.calculateSuggestionRankScore.mockResolvedValue(50);
+            mockSuggestionService.calculateSuggestionRankScore.mockResolvedValue(
+                50,
+            );
         }
 
         it('should DISCARD cross-file suggestions with medium/low severity when severityLevelFilter is "high"', async () => {
@@ -203,7 +234,9 @@ describe('ProcessFilesReview', () => {
                     return Promise.resolve(
                         suggestions.map((s) => ({
                             ...s,
-                            priorityStatus: acceptedSeverities.includes(s.severity?.toLowerCase())
+                            priorityStatus: acceptedSeverities.includes(
+                                s.severity?.toLowerCase(),
+                            )
                                 ? PriorityStatus.PRIORITIZED
                                 : PriorityStatus.DISCARDED_BY_SEVERITY,
                             deliveryStatus: DeliveryStatus.NOT_SENT,
@@ -222,14 +255,19 @@ describe('ProcessFilesReview', () => {
             };
 
             // Call private method
-            const result = await (stage as any).processAnalysisResult(emptyAIResult, context);
+            const result = await (stage as any).processAnalysisResult(
+                emptyAIResult,
+                context,
+            );
 
             // filterSuggestionsBySeverityLevel MUST have been called with cross-file suggestions
-            expect(mockSuggestionService.filterSuggestionsBySeverityLevel).toHaveBeenCalledWith(
+            expect(
+                mockSuggestionService.filterSuggestionsBySeverityLevel,
+            ).toHaveBeenCalledWith(
                 crossFileSuggestions, // the cross-file suggestions
-                'high',              // the severity level filter
+                'high', // the severity level filter
                 mockOrganizationAndTeamData,
-                42,                  // PR number
+                42, // PR number
             );
 
             // Only critical and high should be in the valid output
@@ -240,7 +278,9 @@ describe('ProcessFilesReview', () => {
             expect(validIds).not.toContain('cf-4'); // low - EXCLUDED
 
             // Discarded should include the medium/low cross-file suggestions
-            const discardedIds = result.discardedSuggestionsBySafeGuard.map((s) => s.id);
+            const discardedIds = result.discardedSuggestionsBySafeGuard.map(
+                (s) => s.id,
+            );
             expect(discardedIds).toContain('cf-3');
             expect(discardedIds).toContain('cf-4');
         });
@@ -263,10 +303,15 @@ describe('ProcessFilesReview', () => {
                 codeSuggestions: [],
             };
 
-            const result = await (stage as any).processAnalysisResult(emptyAIResult, context);
+            const result = await (stage as any).processAnalysisResult(
+                emptyAIResult,
+                context,
+            );
 
             // filterSuggestionsBySeverityLevel should NOT be called
-            expect(mockSuggestionService.filterSuggestionsBySeverityLevel).not.toHaveBeenCalled();
+            expect(
+                mockSuggestionService.filterSuggestionsBySeverityLevel,
+            ).not.toHaveBeenCalled();
 
             // All cross-file suggestions should be in valid output
             const validIds = result.validSuggestionsToAnalyze.map((s) => s.id);
@@ -291,7 +336,9 @@ describe('ProcessFilesReview', () => {
                     return Promise.resolve(
                         suggestions.map((s) => ({
                             ...s,
-                            priorityStatus: acceptedSeverities.includes(s.severity?.toLowerCase())
+                            priorityStatus: acceptedSeverities.includes(
+                                s.severity?.toLowerCase(),
+                            )
                                 ? PriorityStatus.PRIORITIZED
                                 : PriorityStatus.DISCARDED_BY_SEVERITY,
                             deliveryStatus: DeliveryStatus.NOT_SENT,
@@ -316,14 +363,16 @@ describe('ProcessFilesReview', () => {
             expect(validIds).toContain('cf-3'); // medium
             expect(validIds).not.toContain('cf-4'); // low - EXCLUDED
 
-            const discardedIds = result.discardedSuggestionsBySafeGuard.map((s) => s.id);
+            const discardedIds = result.discardedSuggestionsBySafeGuard.map(
+                (s) => s.id,
+            );
             expect(discardedIds).toContain('cf-4');
         });
 
         it('should not filter cross-file suggestions that do not match the current file', async () => {
             const crossFileSuggestions = [
-                buildCrossFileSuggestion('cf-1', 'medium', 'src/app.ts'),        // matches file
-                buildCrossFileSuggestion('cf-2', 'medium', 'src/other-file.ts'),  // different file
+                buildCrossFileSuggestion('cf-1', 'medium', 'src/app.ts'), // matches file
+                buildCrossFileSuggestion('cf-2', 'medium', 'src/other-file.ts'), // different file
             ];
 
             // Only cf-1 matches the file being analyzed (src/app.ts).
@@ -337,7 +386,8 @@ describe('ProcessFilesReview', () => {
                     return Promise.resolve(
                         suggestions.map((s) => ({
                             ...s,
-                            priorityStatus: PriorityStatus.DISCARDED_BY_SEVERITY,
+                            priorityStatus:
+                                PriorityStatus.DISCARDED_BY_SEVERITY,
                             deliveryStatus: DeliveryStatus.NOT_SENT,
                         })),
                     );
@@ -355,8 +405,12 @@ describe('ProcessFilesReview', () => {
             );
 
             // filterSuggestionsBySeverityLevel should only receive the file-matching suggestion
-            expect(mockSuggestionService.filterSuggestionsBySeverityLevel).toHaveBeenCalledTimes(1);
-            const calledWith = mockSuggestionService.filterSuggestionsBySeverityLevel.mock.calls[0][0];
+            expect(
+                mockSuggestionService.filterSuggestionsBySeverityLevel,
+            ).toHaveBeenCalledTimes(1);
+            const calledWith =
+                mockSuggestionService.filterSuggestionsBySeverityLevel.mock
+                    .calls[0][0];
             expect(calledWith).toHaveLength(1);
             expect(calledWith[0].id).toBe('cf-1');
 

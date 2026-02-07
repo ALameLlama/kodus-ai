@@ -27,7 +27,21 @@ import {
     UseGuards,
 } from '@nestjs/common';
 import { REQUEST } from '@nestjs/core';
+import {
+    ApiBearerAuth,
+    ApiCreatedResponse,
+    ApiNotFoundResponse,
+    ApiOkResponse,
+    ApiOperation,
+    ApiQuery,
+    ApiTags,
+} from '@nestjs/swagger';
+import { ApiStandardResponses } from '../docs/api-standard-responses.decorator';
+import { ApiObjectResponseDto } from '../dtos/api-response.dto';
 
+@ApiTags('SSO Config')
+@ApiBearerAuth('jwt')
+@ApiStandardResponses()
 @Controller('sso-config')
 export class SSOConfigController {
     constructor(
@@ -48,6 +62,11 @@ export class SSOConfigController {
             resource: ResourceType.OrganizationSettings,
         }),
     )
+    @ApiOperation({
+        summary: 'Create or update SSO config',
+        description: 'Create or update SSO configuration for the organization.',
+    })
+    @ApiCreatedResponse({ type: ApiObjectResponseDto })
     async createOrUpdate(
         @Body()
         body: {
@@ -71,6 +90,13 @@ export class SSOConfigController {
     }
 
     @Get()
+    @ApiQuery({
+        name: 'protocol',
+        enum: SSOProtocol,
+        type: String,
+        required: false,
+    })
+    @ApiQuery({ name: 'active', type: Boolean, required: false })
     @UseGuards(PolicyGuard)
     @CheckPolicies(
         checkPermissions({
@@ -78,6 +104,12 @@ export class SSOConfigController {
             resource: ResourceType.OrganizationSettings,
         }),
     )
+    @ApiOperation({
+        summary: 'Get SSO config',
+        description: 'Return SSO configuration for the organization.',
+    })
+    @ApiOkResponse({ type: ApiObjectResponseDto })
+    @ApiNotFoundResponse({ description: 'SSO config not found' })
     async getSSOConfigs(
         @Query('protocol') protocol?: SSOProtocol,
         @Query('active') active?: boolean,

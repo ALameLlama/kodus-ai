@@ -38,14 +38,19 @@ describe('GitHub getChangedFilesSinceLastCommit', () => {
                 lastAnalyzedCommit: { sha: string };
             };
         };
-        compareCommits: (base: string, head: string) => Promise<Array<{
-            filename: string;
-            status: string;
-            additions: number;
-            deletions: number;
-            changes: number;
-            patch: string;
-        }>>;
+        compareCommits: (
+            base: string,
+            head: string,
+        ) => Promise<
+            Array<{
+                filename: string;
+                status: string;
+                additions: number;
+                deletions: number;
+                changes: number;
+                patch: string;
+            }>
+        >;
     }) {
         const { commits, lastCommit, compareCommits } = params;
 
@@ -83,9 +88,18 @@ describe('GitHub getChangedFilesSinceLastCommit', () => {
             // Scenario: PR has 3 commits, commit1 was already reviewed
             // Only changes from commit2 and commit3 should be returned
             const commits = [
-                { sha: 'commit1-sha', commit: { author: { date: '2024-01-02T00:00:00Z' } } },
-                { sha: 'commit2-sha', commit: { author: { date: '2024-01-03T00:00:00Z' } } },
-                { sha: 'commit3-sha', commit: { author: { date: '2024-01-04T00:00:00Z' } } },
+                {
+                    sha: 'commit1-sha',
+                    commit: { author: { date: '2024-01-02T00:00:00Z' } },
+                },
+                {
+                    sha: 'commit2-sha',
+                    commit: { author: { date: '2024-01-03T00:00:00Z' } },
+                },
+                {
+                    sha: 'commit3-sha',
+                    commit: { author: { date: '2024-01-04T00:00:00Z' } },
+                },
             ];
 
             const lastCommit = {
@@ -126,9 +140,18 @@ describe('GitHub getChangedFilesSinceLastCommit', () => {
         it('should pick the most recent commit as head (sorted by date)', async () => {
             // Commits may not be in chronological order from the API
             const commits = [
-                { sha: 'commit-c', commit: { author: { date: '2024-01-04T00:00:00Z' } } },
-                { sha: 'commit-a', commit: { author: { date: '2024-01-02T00:00:00Z' } } },
-                { sha: 'commit-b', commit: { author: { date: '2024-01-03T00:00:00Z' } } },
+                {
+                    sha: 'commit-c',
+                    commit: { author: { date: '2024-01-04T00:00:00Z' } },
+                },
+                {
+                    sha: 'commit-a',
+                    commit: { author: { date: '2024-01-02T00:00:00Z' } },
+                },
+                {
+                    sha: 'commit-b',
+                    commit: { author: { date: '2024-01-03T00:00:00Z' } },
+                },
             ];
 
             const lastCommit = {
@@ -141,7 +164,14 @@ describe('GitHub getChangedFilesSinceLastCommit', () => {
                 expect(base).toBe('commit-a');
                 expect(head).toBe('commit-c'); // Most recent by date
                 return [
-                    { filename: 'file.ts', status: 'modified', additions: 1, deletions: 1, changes: 2, patch: '+test' },
+                    {
+                        filename: 'file.ts',
+                        status: 'modified',
+                        additions: 1,
+                        deletions: 1,
+                        changes: 2,
+                        patch: '+test',
+                    },
                 ];
             };
 
@@ -156,7 +186,10 @@ describe('GitHub getChangedFilesSinceLastCommit', () => {
 
         it('should return empty array when baseSha equals headSha', async () => {
             const commits = [
-                { sha: 'same-sha', commit: { author: { date: '2024-01-02T00:00:00Z' } } },
+                {
+                    sha: 'same-sha',
+                    commit: { author: { date: '2024-01-02T00:00:00Z' } },
+                },
             ];
 
             const lastCommit = {
@@ -200,8 +233,14 @@ describe('GitHub getChangedFilesSinceLastCommit', () => {
 
         it('should return multiple files from compare result', async () => {
             const commits = [
-                { sha: 'old-sha', commit: { author: { date: '2024-01-01T00:00:00Z' } } },
-                { sha: 'new-sha', commit: { author: { date: '2024-01-02T00:00:00Z' } } },
+                {
+                    sha: 'old-sha',
+                    commit: { author: { date: '2024-01-01T00:00:00Z' } },
+                },
+                {
+                    sha: 'new-sha',
+                    commit: { author: { date: '2024-01-02T00:00:00Z' } },
+                },
             ];
 
             const lastCommit = {
@@ -211,9 +250,30 @@ describe('GitHub getChangedFilesSinceLastCommit', () => {
             };
 
             const compareCommits = async () => [
-                { filename: 'file1.ts', status: 'modified', additions: 5, deletions: 3, changes: 8, patch: '+file1 changes' },
-                { filename: 'file2.ts', status: 'added', additions: 10, deletions: 0, changes: 10, patch: '+file2 new' },
-                { filename: 'file3.ts', status: 'removed', additions: 0, deletions: 8, changes: 8, patch: '-file3 removed' },
+                {
+                    filename: 'file1.ts',
+                    status: 'modified',
+                    additions: 5,
+                    deletions: 3,
+                    changes: 8,
+                    patch: '+file1 changes',
+                },
+                {
+                    filename: 'file2.ts',
+                    status: 'added',
+                    additions: 10,
+                    deletions: 0,
+                    changes: 10,
+                    patch: '+file2 new',
+                },
+                {
+                    filename: 'file3.ts',
+                    status: 'removed',
+                    additions: 0,
+                    deletions: 8,
+                    changes: 8,
+                    patch: '-file3 removed',
+                },
             ];
 
             const result = await simulateGetChangedFilesSinceLastCommit({
@@ -235,8 +295,14 @@ describe('GitHub getChangedFilesSinceLastCommit', () => {
             // This is the key scenario: commit 1 changed lines 25-35, commit 2 changed lines 50-53
             // The compare should show ONLY the diff for commit 2 (lines 50-53)
             const commits = [
-                { sha: 'commit1-sha', commit: { author: { date: '2024-01-02T00:00:00Z' } } },
-                { sha: 'commit2-sha', commit: { author: { date: '2024-01-03T00:00:00Z' } } },
+                {
+                    sha: 'commit1-sha',
+                    commit: { author: { date: '2024-01-02T00:00:00Z' } },
+                },
+                {
+                    sha: 'commit2-sha',
+                    commit: { author: { date: '2024-01-03T00:00:00Z' } },
+                },
             ];
 
             const lastCommit = {
@@ -272,8 +338,14 @@ describe('GitHub getChangedFilesSinceLastCommit', () => {
 
         it('should handle compare with no files changed', async () => {
             const commits = [
-                { sha: 'old-sha', commit: { author: { date: '2024-01-01T00:00:00Z' } } },
-                { sha: 'new-sha', commit: { author: { date: '2024-01-02T00:00:00Z' } } },
+                {
+                    sha: 'old-sha',
+                    commit: { author: { date: '2024-01-01T00:00:00Z' } },
+                },
+                {
+                    sha: 'new-sha',
+                    commit: { author: { date: '2024-01-02T00:00:00Z' } },
+                },
             ];
 
             const lastCommit = {
