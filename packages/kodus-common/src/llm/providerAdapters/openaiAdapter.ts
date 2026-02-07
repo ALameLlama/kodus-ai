@@ -19,6 +19,9 @@ export class OpenAIAdapter implements ProviderAdapter {
                 ? resolved.resolvedReasoningLevel
                 : undefined;
 
+        // Check if reasoning should be explicitly disabled (e.g., for GLM models via OpenRouter)
+        const disableReasoning = options?.disableReasoning === true;
+
         const payload: ConstructorParameters<typeof ChatOpenAI>[0] = {
             model,
             apiKey,
@@ -28,12 +31,17 @@ export class OpenAIAdapter implements ProviderAdapter {
             ...(resolved.temperature !== undefined
                 ? { temperature: resolved.temperature }
                 : {}),
-            ...(reasoningEffort
+            ...(disableReasoning
                 ? {
-                      reasoning: { effort: reasoningEffort },
-                      reasoningEffort,
+                      // Pass reasoning: { enabled: false } via modelKwargs for OpenRouter
+                      modelKwargs: { reasoning: { enabled: false } },
                   }
-                : {}),
+                : reasoningEffort
+                  ? {
+                        reasoning: { effort: reasoningEffort },
+                        reasoningEffort,
+                    }
+                  : {}),
             ...(resolved.supportsReasoning && resolved.reasoningType === 'level'
                 ? { useResponsesApi: true }
                 : {}),
@@ -47,6 +55,15 @@ export class OpenAIAdapter implements ProviderAdapter {
                 ...(baseURL ? { baseURL } : {}),
             },
         };
+
+        // Debug log to see what's being passed
+        if (disableReasoning) {
+            console.log('[OpenAIAdapter] Payload with disableReasoning:', JSON.stringify({
+                model: payload.model,
+                modelKwargs: payload.modelKwargs,
+                baseURL: payload.configuration?.baseURL,
+            }, null, 2));
+        }
 
         return new ChatOpenAI(payload);
     }
