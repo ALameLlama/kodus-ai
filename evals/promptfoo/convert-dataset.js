@@ -28,7 +28,9 @@ const lines = files.flatMap(file => {
         console.warn(`Warning: ${file} not found, skipping`);
         return [];
     }
-    return fs.readFileSync(filePath, 'utf-8').split('\n').filter(Boolean);
+    return fs.readFileSync(filePath, 'utf-8').split('\n').filter(Boolean).filter(line => {
+        try { JSON.parse(line); return true; } catch { console.warn(`Warning: skipping malformed JSON line in ${file}`); return false; }
+    });
 });
 
 // Escape template patterns to avoid nunjucks interpretation

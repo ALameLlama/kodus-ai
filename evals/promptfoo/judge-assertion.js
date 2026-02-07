@@ -184,13 +184,13 @@ module.exports = async (output, context) => {
         gptReason = 'JUDGE_ERROR: ' + gptResult.reason.message;
     }
 
-    // Combined score (missing judge = 0 to prevent inflation)
-    const sScore = sonnetScores.final !== null ? sonnetScores.final : 0;
-    const gScore = gptScores.final !== null ? gptScores.final : 0;
+    // Combined score (missing/NaN judge = 0 to prevent inflation)
+    const sScore = sonnetScores.final !== null && !isNaN(sonnetScores.final) ? sonnetScores.final : 0;
+    const gScore = gptScores.final !== null && !isNaN(gptScores.final) ? gptScores.final : 0;
     const combined = (sScore + gScore) / 2;
 
     // Build structured reason for analyze-results.js
-    const fmt = v => v !== null ? v.toFixed(4) : 'null';
+    const fmt = v => v !== null && !isNaN(v) ? v.toFixed(4) : 'null';
     const metrics = `JUDGE_METRICS sonnet_score=${fmt(sonnetScores.final)} gpt_score=${fmt(gptScores.final)} sonnet_coverage=${fmt(sonnetScores.coverage)} sonnet_validity=${fmt(sonnetScores.validity)} gpt_coverage=${fmt(gptScores.coverage)} gpt_validity=${fmt(gptScores.validity)}`;
 
     const reason = `${metrics}\n\n--- SONNET JUDGE ---\n${sonnetReason.slice(-1000)}\n\n--- GPT JUDGE ---\n${gptReason.slice(-1000)}`;

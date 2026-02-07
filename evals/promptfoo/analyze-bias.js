@@ -83,9 +83,10 @@ function padLeft(str, len) {
 // ──────────────────────────────────────────────────────
 
 const parsed = results.map(r => {
-  const parseComp = r.gradingResult.componentResults[0];
-  const llmComp = r.gradingResult.componentResults[1];
-  const lineComp = r.gradingResult.componentResults[2];
+  const components = r.gradingResult?.componentResults || [];
+  const parseComp = components[0] || { reason: '', score: 0 };
+  const llmComp = components[1] || { reason: '', score: 0 };
+  const lineComp = components[2] || { reason: '', score: 0 };
 
   const scores = extractScoresFromReason(llmComp.reason || '');
   const suggestionCount = extractSuggestionCount(parseComp.reason || '');
