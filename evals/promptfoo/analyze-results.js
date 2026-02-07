@@ -230,7 +230,7 @@ sorted.forEach(([model, stats], index) => {
         if (stats.judgeFailsGpt > 0) parts.push(`${stats.judgeFailsGpt} judge-gpt`);
         console.log(`   ├─ Errors:    ${errorTotal + judgeFails}/${totalTests} (${parts.join(', ')})`);
     }
-    console.log(`   ├─ Passou:    ${passCount}/${totalTests} (threshold 0.7)`);
+    console.log(`   ├─ Passed:    ${passCount}/${totalTests} (threshold 0.7)`);
     console.log(`   ├─ Coverage:  ${fmtPct(combinedCov)} (Sonnet: ${fmtPct(sonnetCov)} | GPT: ${fmtPct(gptCov)})`);
     console.log(`   ├─ Validity:  ${fmtPct(combinedVal)} (Sonnet: ${fmtPct(sonnetVal)} | GPT: ${fmtPct(gptVal)})`);
 
@@ -253,10 +253,10 @@ sorted.forEach(([model, stats], index) => {
 
 console.log('─────────────────────────────────────────────────────────────────');
 console.log('Score    = avg(Judge Sonnet score, Judge GPT score)');
-console.log('Coverage = % dos bugs conhecidos que foram encontrados');
-console.log('Validity = % das sugestoes que sao bugs reais');
-console.log('Line Acc = IoU medio das linhas (incluindo bugs nao encontrados = 0)');
-console.log('Avg IoU  = IoU medio so dos bugs que o modelo encontrou');
-console.log('Exact    = % de linhas exatamente iguais ao reference');
-console.log('Within 3 = % com diferenca <= 3 linhas no start/end');
+console.log('Coverage = % of known bugs that were found');
+console.log('Validity = % of suggestions that are real bugs');
+console.log('Line Acc = avg IoU of lines (unfound bugs count as 0)');
+console.log('Avg IoU  = avg IoU only for bugs the model found');
+console.log('Exact    = % of lines exactly matching reference');
+console.log('Within 3 = % with start/end diff <= 3 lines');
 console.log('');
