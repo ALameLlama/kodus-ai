@@ -3,10 +3,33 @@
 const fs = require('fs');
 const path = require('path');
 
-const inputFile = path.join(__dirname, 'datasets', 'dataset_eb7a4983-a789-4cf7-8901-bc039c3a9372.jsonl');
+// Accept --lang argument: tsjs, python, java, ruby, all (default: all)
+const langArg = process.argv.find(a => a.startsWith('--lang='));
+const lang = langArg ? langArg.split('=')[1] : 'all';
+
+const DATASETS = {
+    tsjs: 'tsjs.jsonl',
+    python: 'python.jsonl',
+    java: 'java.jsonl',
+    ruby: 'ruby.jsonl',
+};
+
+const files = lang === 'all'
+    ? Object.values(DATASETS)
+    : DATASETS[lang]
+        ? [DATASETS[lang]]
+        : (() => { console.error(`Unknown lang: ${lang}. Options: ${Object.keys(DATASETS).join(', ')}, all`); process.exit(1); })();
+
 const outputFile = path.join(__dirname, 'datasets', 'codereview-tests.json');
 
-const lines = fs.readFileSync(inputFile, 'utf-8').split('\n').filter(Boolean);
+const lines = files.flatMap(file => {
+    const filePath = path.join(__dirname, 'datasets', file);
+    if (!fs.existsSync(filePath)) {
+        console.warn(`Warning: ${file} not found, skipping`);
+        return [];
+    }
+    return fs.readFileSync(filePath, 'utf-8').split('\n').filter(Boolean);
+});
 
 // Escape template patterns to avoid nunjucks interpretation
 // Using {% raw %}...{% endraw %} or just escaping the braces

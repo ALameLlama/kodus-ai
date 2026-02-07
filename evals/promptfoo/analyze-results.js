@@ -182,6 +182,7 @@ sorted.forEach(([model, stats], index) => {
         .replace('openrouter:moonshotai/', '')
         .replace('openrouter:z-ai/', '')
         .replace('-20250929', '')
+        .replace('-20251001', '')
         .replace('-preview', '')
         .replace('kimi-k2.5', 'Kimi K2.5')
         .replace('glm-4.7', 'GLM 4.7');
