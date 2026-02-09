@@ -10,6 +10,7 @@ import { AutomationStatus } from '@libs/automation/domain/automation/enum/automa
 import {
     GitHubReaction,
     GitlabReaction,
+    Reaction,
     ReviewStatusReaction,
 } from '@libs/code-review/domain/codeReviewFeedback/enums/codeReviewCommentReaction.enum';
 import { CodeReviewPipelineContext } from '@libs/code-review/pipeline/context/code-review-pipeline.context';
@@ -361,10 +362,7 @@ export class CodeReviewHandlerService {
                 return;
             }
 
-            const reactionsToRemove = Object.values(platformReactions) as (
-                | GitHubReaction
-                | GitlabReaction
-            )[];
+            const reactionsToRemove = Object.values(platformReactions) as Reaction[];
 
             if (triggerCommentId) {
                 await this.codeManagement.removeReactionsFromComment({
