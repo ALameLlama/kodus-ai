@@ -170,7 +170,7 @@
         "ajv": "^8.17.1",
         "amqp-connection-manager": "^5.0.0",
         "amqplib": "^0.10.9",
-        "axios": "^1.13.4",
+        "axios": "^1.13.5",
         "azure-devops-node-api": "^15.1.2",
         "bcryptjs": "^3.0.3",
         "bitbucket": "^2.12.0",
