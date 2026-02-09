@@ -102,6 +102,7 @@ export class UpdateCommentsAndGenerateSummaryStage extends BasePipelineStage<Cod
                     repository,
                     summaryPR,
                     context.dryRun,
+                    codeReviewConfig.summary,
                 );
             } catch (error) {
                 this.logger.error({

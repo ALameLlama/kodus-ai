@@ -19,6 +19,7 @@ import {
     GroupingModeSuggestions,
     LimitationType,
     ReviewCadenceType,
+    SummaryOutputTarget,
 } from '@libs/core/infrastructure/config/types/general/codeReview.type';
 import { PullRequestMessageStatus } from '@libs/core/infrastructure/config/types/general/pullRequestMessages.type';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
@@ -101,6 +102,14 @@ class SummaryConfigDto {
         enumName: 'BehaviourForNewCommits',
     })
     behaviourForNewCommits?: BehaviourForNewCommits;
+
+    @IsOptional()
+    @IsEnum(SummaryOutputTarget)
+    @ApiPropertyOptional({
+        enum: SummaryOutputTarget,
+        enumName: 'SummaryOutputTarget',
+    })
+    summaryOutputTarget?: SummaryOutputTarget;
 }
 
 class SeverityLimitsDto {

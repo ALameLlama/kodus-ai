@@ -23,6 +23,7 @@ import {
     FallbackSuggestionsBySeverity,
     FileChange,
     SummaryConfig,
+    SummaryOutputTarget,
 } from '@libs/core/infrastructure/config/types/general/codeReview.type';
 import { OrganizationAndTeamData } from '@libs/core/infrastructure/config/types/general/organizationAndTeamData';
 import { BYOKPromptRunnerService } from '@libs/core/infrastructure/services/tokenTracking/byokPromptRunner.service';
@@ -412,31 +413,59 @@ export class CommentManagerService implements ICommentManagerService {
         repository: { name: string; id: string },
         summary: string,
         dryRun: CodeReviewPipelineContext['dryRun'],
+        summaryConfig?: SummaryConfig,
     ): Promise<void> {
         try {
             if (!summary) {
                 return;
             }
 
-            await this.codeManagementService.updateDescriptionInPullRequest(
-                {
-                    organizationAndTeamData,
-                    prNumber,
-                    repository: {
-                        name: repository.name,
-                        id: repository.id,
-                    },
-                    summary,
-                    dryRun,
-                },
-                dryRun?.enabled ? PlatformType.INTERNAL : undefined,
-            );
+            const shouldPostAsComment =
+                summaryConfig?.summaryOutputTarget === SummaryOutputTarget.COMMENT;
 
-            this.logger.log({
-                message: `Updated summary for PR#${prNumber}`,
-                context: CommentManagerService.name,
-                metadata: { prNumber, summary },
-            });
+            if (shouldPostAsComment) {
+                // Post summary as a PR comment
+                await this.codeManagementService.createCommentInPullRequest(
+                    {
+                        organizationAndTeamData,
+                        prNumber,
+                        repository: {
+                            name: repository.name,
+                            id: repository.id,
+                        },
+                        comment: summary,
+                        dryRun,
+                    },
+                    dryRun?.enabled ? PlatformType.INTERNAL : undefined,
+                );
+
+                this.logger.log({
+                    message: `Posted summary as comment for PR#${prNumber}`,
+                    context: CommentManagerService.name,
+                    metadata: { prNumber, summary },
+                });
+            } else {
+                // Default: Update PR description (original behavior)
+                await this.codeManagementService.updateDescriptionInPullRequest(
+                    {
+                        organizationAndTeamData,
+                        prNumber,
+                        repository: {
+                            name: repository.name,
+                            id: repository.id,
+                        },
+                        summary,
+                        dryRun,
+                    },
+                    dryRun?.enabled ? PlatformType.INTERNAL : undefined,
+                );
+
+                this.logger.log({
+                    message: `Updated summary in PR description for PR#${prNumber}`,
+                    context: CommentManagerService.name,
+                    metadata: { prNumber, summary },
+                });
+            }
         } catch (error) {
             this.logger.error({
                 message: `Failed to update overall comment for PR#${prNumber}`,

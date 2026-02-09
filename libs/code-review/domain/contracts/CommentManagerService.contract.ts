@@ -75,6 +75,7 @@ export interface ICommentManagerService {
         repository: { name: string; id: string },
         summary: string,
         dryRun: CodeReviewPipelineContext['dryRun'],
+        summaryConfig?: SummaryConfig,
     ): Promise<void>;
 
     createLineComments(

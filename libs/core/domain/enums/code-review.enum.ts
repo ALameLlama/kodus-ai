@@ -64,3 +64,8 @@ export enum BehaviourForNewCommits {
     REPLACE = 'replace',
     CONCATENATE = 'concatenate',
 }
+
+export enum SummaryOutputTarget {
+    DESCRIPTION = 'description',
+    COMMENT = 'comment',
+}

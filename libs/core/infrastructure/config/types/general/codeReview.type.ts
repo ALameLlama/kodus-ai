@@ -24,6 +24,7 @@ import {
     ReviewModeResponse,
     ReviewPreset,
     SuggestionType,
+    SummaryOutputTarget,
 } from '@libs/core/domain/enums/code-review.enum';
 import {
     GetImpactAnalysisResponse,
@@ -47,6 +48,7 @@ export {
     ReviewModeResponse,
     ReviewPreset,
     SuggestionType,
+    SummaryOutputTarget,
 };
 
 export interface IFinalAnalysisResult {
@@ -291,6 +293,7 @@ export interface SummaryConfig {
     customInstructions?: string;
     behaviourForExistingDescription?: BehaviourForExistingDescription;
     behaviourForNewCommits?: BehaviourForNewCommits;
+    summaryOutputTarget?: SummaryOutputTarget;
 }
 
 export interface SuggestionControlConfig {

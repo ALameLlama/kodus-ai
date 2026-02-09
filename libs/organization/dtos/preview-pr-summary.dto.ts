@@ -1,4 +1,7 @@
-import { BehaviourForExistingDescription } from '@libs/core/infrastructure/config/types/general/codeReview.type';
+import {
+    BehaviourForExistingDescription,
+    SummaryOutputTarget,
+} from '@libs/core/infrastructure/config/types/general/codeReview.type';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
     IsEnum,
@@ -43,4 +46,13 @@ export class PreviewPrSummaryDto {
         example: 'Focus on security and error handling for the summary.',
     })
     customInstructions: string;
+
+    @IsOptional()
+    @IsEnum(SummaryOutputTarget)
+    @ApiPropertyOptional({
+        enum: SummaryOutputTarget,
+        enumName: 'SummaryOutputTarget',
+        example: SummaryOutputTarget.DESCRIPTION,
+    })
+    summaryOutputTarget?: SummaryOutputTarget;
 }
