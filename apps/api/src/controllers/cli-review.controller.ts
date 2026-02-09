@@ -369,6 +369,13 @@ export class CliReviewController {
             }
 
             const { team, organization } = teamData;
+
+            if (!team?.uuid || !organization?.uuid) {
+                throw new UnauthorizedException(
+                    'Invalid or incomplete team API key',
+                );
+            }
+
             organizationAndTeamData = {
                 organizationId: organization.uuid,
                 teamId: team.uuid,
