@@ -6,6 +6,11 @@ import {
     TEAM_CLI_KEY_SERVICE_TOKEN,
 } from '@libs/organization/domain/team-cli-key/contracts/team-cli-key.service.contract';
 import {
+    ITeamService,
+    TEAM_SERVICE_TOKEN,
+} from '@libs/organization/domain/team/contracts/team.service.contract';
+import {
+    BadRequestException,
     Body,
     Controller,
     ForbiddenException,
@@ -15,9 +20,18 @@ import {
     HttpStatus,
     Inject,
     Post,
+    Query,
     Res,
     UnauthorizedException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { JwtService } from '@nestjs/jwt';
+import { JWT } from '@libs/core/infrastructure/config/types/jwt/jwt';
+import { STATUS } from '@libs/core/infrastructure/config/types/database/status.type';
+import {
+    AUTH_SERVICE_TOKEN,
+    IAuthService,
+} from '@libs/identity/domain/auth/contracts/auth.service.contracts';
 import {
     ApiBadRequestResponse,
     ApiHeader,
@@ -50,13 +64,23 @@ import {
 @Public()
 @Controller('cli')
 export class CliReviewController {
+    private readonly jwtConfig: JWT;
+
     constructor(
         private readonly executeCliReviewUseCase: ExecuteCliReviewUseCase,
         private readonly trialRateLimiter: TrialRateLimiterService,
         private readonly authenticatedRateLimiter: AuthenticatedRateLimiterService,
         @Inject(TEAM_CLI_KEY_SERVICE_TOKEN)
         private readonly teamCliKeyService: ITeamCliKeyService,
-    ) {}
+        @Inject(TEAM_SERVICE_TOKEN)
+        private readonly teamService: ITeamService,
+        @Inject(AUTH_SERVICE_TOKEN)
+        private readonly authService: IAuthService,
+        private readonly jwtService: JwtService,
+        private readonly configService: ConfigService,
+    ) {
+        this.jwtConfig = this.configService.get<JWT>('jwtConfig');
+    }
 
     /**
      * Validate a Team CLI key (health check for CLI)
@@ -80,9 +104,14 @@ export class CliReviewController {
     async validateKey(
         @Headers('x-team-key') teamKey: string,
         @Headers('authorization') authHeader: string,
+        @Query('teamId') queryTeamId: string,
         @Res() res,
     ) {
-        const payload = await this.validateKeyInternal(teamKey, authHeader);
+        const payload = await this.validateKeyInternal(
+            teamKey,
+            authHeader,
+            queryTeamId,
+        );
         return res.status(payload.valid ? 200 : 401).json(payload);
     }
 
@@ -108,14 +137,23 @@ export class CliReviewController {
     async validateKeyPost(
         @Headers('x-team-key') teamKey: string,
         @Headers('authorization') authHeader: string,
+        @Query('teamId') queryTeamId: string,
         @Res() res,
     ) {
-        const payload = await this.validateKeyInternal(teamKey, authHeader);
+        const payload = await this.validateKeyInternal(
+            teamKey,
+            authHeader,
+            queryTeamId,
+        );
         return res.status(payload.valid ? 200 : 401).json(payload);
     }
 
-    private async validateKeyInternal(teamKey?: string, authHeader?: string) {
-        const key = teamKey || authHeader?.replace(/^Bearer\s+/i, '');
+    private async validateKeyInternal(
+        teamKey?: string,
+        authHeader?: string,
+        queryTeamId?: string,
+    ) {
+        const bearerToken = authHeader?.replace(/^Bearer\s+/i, '');
 
         const buildPayload = (base: any) => ({
             ...base,
@@ -142,55 +180,140 @@ export class CliReviewController {
                 },
             });
 
-        if (!key) {
-            return buildInvalidPayload(
-                'Team API key required. Provide via X-Team-Key or Authorization: Bearer header.',
-            );
-        }
+        // Route 1: Team CLI key (via X-Team-Key or Bearer with kodus_ prefix)
+        if (teamKey || bearerToken?.startsWith('kodus_')) {
+            const key = teamKey || bearerToken;
 
-        const teamData = await this.teamCliKeyService.validateKey(key);
+            if (!key) {
+                return buildInvalidPayload(
+                    'Team API key required. Provide via X-Team-Key or Authorization: Bearer header.',
+                );
+            }
 
-        if (!teamData) {
-            return buildInvalidPayload('Invalid or revoked team API key');
-        }
+            const teamData = await this.teamCliKeyService.validateKey(key);
 
-        const { team, organization } = teamData;
+            if (!teamData) {
+                return buildInvalidPayload('Invalid or revoked team API key');
+            }
 
-        const safeTeam: any = team ?? {};
-        const safeOrg: any = organization ?? {};
-        const safeTeamName =
-            typeof safeTeam.name === 'string' ? safeTeam.name : '';
-        const safeOrgName =
-            typeof safeOrg.name === 'string' ? safeOrg.name : '';
+            const { team, organization } = teamData;
 
-        const result = {
-            valid: !!(safeTeam.uuid && safeOrg.uuid),
-            teamId: safeTeam.uuid ?? null,
-            organizationId: safeOrg.uuid ?? null,
-            teamName: safeTeamName,
-            organizationName: safeOrgName,
-            team: {
-                id: safeTeam.uuid ?? null,
-                name: safeTeamName,
-            },
-            organization: {
-                id: safeOrg.uuid ?? null,
-                name: safeOrgName,
-            },
-            user: {
+            const safeTeam: any = team ?? {};
+            const safeOrg: any = organization ?? {};
+            const safeTeamName =
+                typeof safeTeam.name === 'string' ? safeTeam.name : '';
+            const safeOrgName =
+                typeof safeOrg.name === 'string' ? safeOrg.name : '';
+
+            const result = {
+                valid: !!(safeTeam.uuid && safeOrg.uuid),
+                teamId: safeTeam.uuid ?? null,
+                organizationId: safeOrg.uuid ?? null,
+                teamName: safeTeamName,
+                organizationName: safeOrgName,
+                team: {
+                    id: safeTeam.uuid ?? null,
+                    name: safeTeamName,
+                },
+                organization: {
+                    id: safeOrg.uuid ?? null,
+                    name: safeOrgName,
+                },
+                user: {
+                    email: '',
+                    name: '',
+                },
                 email: '',
-                name: '',
-            },
-            // compat fields some clients expect
-            email: '',
-            userEmail: '',
-        };
+                userEmail: '',
+            };
 
-        if (!result.valid) {
-            result['error'] = 'Invalid or incomplete team API key';
+            if (!result.valid) {
+                result['error'] = 'Invalid or incomplete team API key';
+            }
+
+            return buildPayload(result);
         }
 
-        return buildPayload(result);
+        // Route 2: JWT Bearer token
+        if (bearerToken) {
+            let jwtPayload: any;
+            try {
+                jwtPayload = this.jwtService.verify(bearerToken, {
+                    secret: this.jwtConfig.secret,
+                });
+            } catch {
+                return buildInvalidPayload('Invalid or expired JWT token');
+            }
+
+            const user = await this.authService.validateUser({
+                email: jwtPayload.email,
+            });
+
+            if (
+                !user ||
+                user.role !== jwtPayload.role ||
+                user.status !== jwtPayload.status ||
+                user.status === STATUS.REMOVED
+            ) {
+                return buildInvalidPayload(
+                    'User account is inactive or removed',
+                );
+            }
+
+            if (!queryTeamId) {
+                return buildInvalidPayload(
+                    'teamId query parameter is required when using JWT authentication',
+                );
+            }
+
+            const team = await this.teamService.findById(queryTeamId);
+
+            if (!team) {
+                return buildInvalidPayload(
+                    'Team not found for the provided teamId',
+                );
+            }
+
+            if (team.organization?.uuid !== jwtPayload.organizationId) {
+                return buildInvalidPayload(
+                    'Team does not belong to the authenticated organization',
+                );
+            }
+
+            const safeTeamName =
+                typeof team.name === 'string' ? team.name : '';
+            const safeOrgName =
+                typeof team.organization?.name === 'string'
+                    ? team.organization.name
+                    : '';
+
+            return buildPayload({
+                valid: true,
+                teamId: team.uuid,
+                organizationId: jwtPayload.organizationId,
+                teamName: safeTeamName,
+                organizationName: safeOrgName,
+                team: {
+                    id: team.uuid,
+                    name: safeTeamName,
+                },
+                organization: {
+                    id: jwtPayload.organizationId,
+                    name: safeOrgName,
+                },
+                user: {
+                    email: jwtPayload.email ?? '',
+                    name: '',
+                },
+                email: jwtPayload.email ?? '',
+                userEmail: jwtPayload.email ?? '',
+            });
+        }
+
+        // No auth provided
+        return buildInvalidPayload(
+            'Authentication required. Provide a team API key via X-Team-Key header, or a JWT via Authorization: Bearer header.',
+        );
     }
 
     /**
@@ -217,32 +340,126 @@ export class CliReviewController {
         @Body() body: CliReviewRequestDto,
         @Headers('x-team-key') teamKey?: string,
         @Headers('authorization') authHeader?: string,
+        @Query('teamId') queryTeamId?: string,
     ) {
-        // 1. Extract team key from headers
-        const key = teamKey || authHeader?.replace(/^Bearer\s+/i, '');
+        const bearerToken = authHeader?.replace(/^Bearer\s+/i, '');
 
-        if (!key) {
+        let organizationAndTeamData: {
+            organizationId: string;
+            teamId: string;
+        };
+        let teamForRateLimit: { uuid: string; cliConfig?: any };
+
+        // Route 1: Team CLI key (via X-Team-Key header or Bearer with kodus_ prefix)
+        if (teamKey || bearerToken?.startsWith('kodus_')) {
+            const key = teamKey || bearerToken;
+
+            if (!key) {
+                throw new UnauthorizedException(
+                    'Team API key required. Provide via X-Team-Key header or Authorization: Bearer header.',
+                );
+            }
+
+            const teamData = await this.teamCliKeyService.validateKey(key);
+
+            if (!teamData) {
+                throw new UnauthorizedException(
+                    'Invalid or revoked team API key',
+                );
+            }
+
+            const { team, organization } = teamData;
+
+            if (!team?.uuid || !organization?.uuid) {
+                throw new UnauthorizedException(
+                    'Invalid or incomplete team API key',
+                );
+            }
+
+            organizationAndTeamData = {
+                organizationId: organization.uuid,
+                teamId: team.uuid,
+            };
+            teamForRateLimit = {
+                uuid: team.uuid,
+                cliConfig: team.cliConfig,
+            };
+        }
+        // Route 2: JWT Bearer token
+        else if (bearerToken) {
+            let payload: any;
+            try {
+                payload = this.jwtService.verify(bearerToken, {
+                    secret: this.jwtConfig.secret,
+                });
+            } catch {
+                throw new UnauthorizedException(
+                    'Invalid or expired JWT token',
+                );
+            }
+
+            const user = await this.authService.validateUser({
+                email: payload.email,
+            });
+
+            if (!user) {
+                throw new UnauthorizedException('User not found');
+            }
+
+            if (user.role !== payload.role) {
+                throw new UnauthorizedException('User role has changed');
+            }
+
+            if (
+                user.status !== payload.status ||
+                user.status === STATUS.REMOVED
+            ) {
+                throw new UnauthorizedException(
+                    'User account is inactive or removed',
+                );
+            }
+
+            if (!queryTeamId) {
+                throw new BadRequestException(
+                    'teamId query parameter is required when using JWT authentication',
+                );
+            }
+
+            const team = await this.teamService.findById(queryTeamId);
+
+            if (!team) {
+                throw new UnauthorizedException(
+                    'Team not found for the provided teamId',
+                );
+            }
+
+            if (team.organization?.uuid !== payload.organizationId) {
+                throw new ForbiddenException(
+                    'Team does not belong to the authenticated organization',
+                );
+            }
+
+            organizationAndTeamData = {
+                organizationId: payload.organizationId,
+                teamId: team.uuid,
+            };
+            teamForRateLimit = {
+                uuid: team.uuid,
+                cliConfig: team.cliConfig,
+            };
+        }
+        // No auth provided
+        else {
             throw new UnauthorizedException(
-                'Team API key required. Provide via X-Team-Key header or Authorization: Bearer header.',
+                'Authentication required. Provide a team API key via X-Team-Key header, or a JWT via Authorization: Bearer header.',
             );
         }
 
-        // 2. Validate team key
-        const teamData = await this.teamCliKeyService.validateKey(key);
-
-        if (!teamData) {
-            throw new UnauthorizedException('Invalid or revoked team API key');
-        }
-
-        const { team, organization } = teamData;
-        const organizationAndTeamData = {
-            organizationId: organization.uuid,
-            teamId: team.uuid,
-        };
-
         // 3. Check rate limit for authenticated team
         const rateLimitResult =
-            await this.authenticatedRateLimiter.checkRateLimit(team.uuid);
+            await this.authenticatedRateLimiter.checkRateLimit(
+                teamForRateLimit.uuid,
+            );
 
         if (!rateLimitResult.allowed) {
             throw new HttpException(
@@ -259,7 +476,8 @@ export class CliReviewController {
 
         // 4. Validate domain of email (if configured)
         if (body.userEmail) {
-            const allowedDomains = team.cliConfig?.allowedDomains || [];
+            const allowedDomains =
+                teamForRateLimit.cliConfig?.allowedDomains || [];
 
             if (allowedDomains.length > 0) {
                 const isValidDomain = allowedDomains.some((domain: string) =>
