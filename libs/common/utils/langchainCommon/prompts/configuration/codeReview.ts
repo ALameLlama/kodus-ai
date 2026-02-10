@@ -985,8 +985,8 @@ Return only valid JSON, nothing more. Under no circumstances should there be any
             "existingCode": "Problematic code from PR",
             "improvedCode": "Fixed code proposal",
             "oneSentenceSummary": "Concise issue description",
-            "relevantLinesStart": 1,
-            "relevantLinesEnd": 10,
+            "relevantLinesStart": 1, // Line number (integer)
+            "relevantLinesEnd": 10, // Line number (integer)
             "label": "bug|performance|security",
             "severity": "low|medium|high|critical",
             "llmPrompt": "Prompt for LLMs"
@@ -1102,8 +1102,8 @@ Your final output should be **only** a JSON object with the following structure:
             "existingCode": "Relevant new code from the PR",
             "improvedCode": "Improved proposal",
             "oneSentenceSummary": "Concise summary of the suggestion",
-            "relevantLinesStart": 1,
-            "relevantLinesEnd": 10,
+            "relevantLinesStart": 1, // Line number (integer)
+            "relevantLinesEnd": 10, // Line number (integer)
             "label": "selected_label",
             "llmPrompt": "Prompt for LLMs"
         }
@@ -1314,8 +1314,8 @@ Your final output should be **ONLY** a JSON object with the following structure:
             "existingCode": "Relevant new code from the PR",
             "improvedCode": "Improved proposal",
             "oneSentenceSummary": "Concise summary of the suggestion",
-            "relevantLinesStart": 1,
-            "relevantLinesEnd": 10,
+            "relevantLinesStart": 1, // Line number (integer)   
+            "relevantLinesEnd": 10, // Line number (integer)
             "label": "selected_label",
             "llmPrompt": "Prompt for LLMs"
         }
