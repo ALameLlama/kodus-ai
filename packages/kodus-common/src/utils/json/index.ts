@@ -42,17 +42,23 @@ function tryParseJSONObjectWithFallback<T>(payload: string): T | null {
         } catch {
             try {
                 const noCodeBlocks = stripCodeBlocks(payload);
-                const cleanedPayload = noCodeBlocks
-                    .replace(/\\n/g, '') // Remove newline characters
-                    .replace(/\\/g, '') // Remove backslashes (escape characters)
-                    .replace(/\/\*[\s\S]*?\*\//g, '') // Remove multi-line comments (/* comment */)
-                    .replace(/<[^>]*>/g, '') // Remove HTML tags (e.g., <tag>)
-                    .replace(/^`+|`+$/g, '') // Remove backticks at the beginning and end
-                    .trim();
-
-                return JSON.parse(cleanedPayload) as T;
+                return JSON.parse(noCodeBlocks.trim()) as T;
             } catch {
-                return null;
+                // Last resort: aggressive cleaning (may corrupt escape sequences in strings)
+                try {
+                    const noCodeBlocks = stripCodeBlocks(payload);
+                    const cleanedPayload = noCodeBlocks
+                        .replace(/\\n/g, '') // Remove newline characters
+                        .replace(/\\/g, '') // Remove backslashes (escape characters)
+                        .replace(/\/\*[\s\S]*?\*\//g, '') // Remove multi-line comments (/* comment */)
+                        .replace(/<[^>]*>/g, '') // Remove HTML tags (e.g., <tag>)
+                        .replace(/^`+|`+$/g, '') // Remove backticks at the beginning and end
+                        .trim();
+
+                    return JSON.parse(cleanedPayload) as T;
+                } catch {
+                    return null;
+                }
             }
         }
     }
@@ -62,10 +68,24 @@ function stripCodeBlocks(text: string): string {
     // Remove quotes at the beginning and end if they exist
     const cleanText = text.replace(/^['"]|['"]$/g, '');
 
-    // Extract the content between ```json and ```
-    const match = cleanText.match(/```json({[\s\S]*?})```/);
-    if (match && match[1]) {
-        return match[1];
+    // Prefer ```json blocks (captures content including whitespace after language tag)
+    const jsonMatch = cleanText.match(/```json([\s\S]*?)```/);
+    if (jsonMatch && jsonMatch[1]) {
+        return jsonMatch[1];
+    }
+
+    // Fallback: any code block containing JSON-like content
+    const genericMatch = cleanText.match(/```(?:\w*)\s*([\s\S]*?)```/g);
+    if (genericMatch) {
+        for (const block of genericMatch) {
+            const content = block
+                .replace(/^```\w*\s*/, '')
+                .replace(/```$/, '')
+                .trim();
+            if (content.startsWith('{') || content.startsWith('[')) {
+                return content;
+            }
+        }
     }
 
     return cleanText;
