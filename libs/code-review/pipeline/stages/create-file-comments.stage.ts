@@ -121,6 +121,7 @@ export class CreateFileCommentsStage extends BasePipelineStage<CodeReviewPipelin
                 },
             });
 
+            // Even without valid suggestions, we need to save discarded suggestions to database
             // Usar todos os commits para determinar o lastAnalyzedCommit
             const allCommits = context.prAllCommits;
 
@@ -129,6 +130,45 @@ export class CreateFileCommentsStage extends BasePipelineStage<CodeReviewPipelin
             }
 
             const lastAnalyzedCommit = allCommits[allCommits.length - 1];
+
+            // Save discarded suggestions to database
+            if (discardedSuggestions.length > 0) {
+                try {
+                    await this.savePullRequestSuggestions(
+                        context.organizationAndTeamData,
+                        context.pullRequest,
+                        context.repository,
+                        changedFiles,
+                        [], // No comment results since no suggestions were sent
+                        [], // No prioritized suggestions
+                        discardedSuggestions,
+                        context.platformType,
+                        context.fileMetadata,
+                        context.dryRun,
+                        allCommits,
+                    );
+
+                    this.logger.log({
+                        message: `Saved ${discardedSuggestions.length} discarded suggestions to database for PR#${context.pullRequest.number}`,
+                        context: this.stageName,
+                        metadata: {
+                            organizationAndTeamData: context.organizationAndTeamData,
+                            prNumber: context.pullRequest.number,
+                            discardedSuggestionsCount: discardedSuggestions.length,
+                        },
+                    });
+                } catch (error) {
+                    this.logger.error({
+                        message: `Error saving discarded suggestions for PR#${context.pullRequest.number}`,
+                        context: this.stageName,
+                        error,
+                        metadata: {
+                            organizationAndTeamData: context.organizationAndTeamData,
+                            prNumber: context.pullRequest.number,
+                        },
+                    });
+                }
+            }
 
             return this.updateContext(context, (draft) => {
                 draft.lineComments = [];
