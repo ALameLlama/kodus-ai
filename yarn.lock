@@ -423,10 +423,10 @@
   dependencies:
     "@jridgewell/trace-mapping" "0.3.9"
 
-"@datadog/pprof@5.12.0":
-  version "5.12.0"
-  resolved "https://registry.npmjs.org/@datadog/pprof/-/pprof-5.12.0.tgz#1f0a592aec5ea3a48ad795d069e8a925d21667db"
-  integrity sha512-qX32upm9eqObGVGvqHpjQB2bXVPTX0ccXTW3mUqUWXgJrAKyHtTfo9PqfoXhflYs0WD9el9xl9c0bM1RS4vRmQ==
+"@datadog/pprof@5.13.2":
+  version "5.13.2"
+  resolved "https://registry.npmjs.org/@datadog/pprof/-/pprof-5.13.2.tgz#9361809e712417e04c21e7f7ea239bfb3513c358"
+  integrity sha512-Th8u7pvoguTfbUx/mlZLHD9TxFCHO+wRAvlEaYFAYAmMvbPLww4YowvTy1UMvpi8LbUbwil3Fo8rKCrilvXHhQ==
   dependencies:
     delay "^5.0.0"
     node-gyp-build "<4.0"
@@ -1316,10 +1316,10 @@
     zod "^4.2.1"
     zod-from-json-schema "^0.5.2"
 
-"@kodus/kodus-common@1.3.6":
-  version "1.3.6"
-  resolved "https://us-central1-npm.pkg.dev/kodus-infra-prod/kodus-pkg/@kodus/kodus-common/-/@kodus/kodus-common-1.3.6.tgz#53634847dff68db4f8b2d6fe0e4c1c5917dc528d"
-  integrity sha512-jz7Ky08sqT9+SVlltJAxDiAosAqX+ogO9WNo0FjCyB+hdATH44QlJiGgD8jf+y6moqbkGsjo90drUWt4QkyHNw==
+"@kodus/kodus-common@1.3.7":
+  version "1.3.7"
+  resolved "https://us-central1-npm.pkg.dev/kodus-infra-prod/kodus-pkg/@kodus/kodus-common/-/@kodus/kodus-common-1.3.7.tgz#3eaecbc6a5fa2488b7dabd71924269aa0c006768"
+  integrity sha512-w83o3d+STFiK42ZVd6iIKZ7lP9t04Y1lbIQrxvJJUz7UUHPmlMqQYiDMlSV8/eM2jXCa52Tya5jthsSAytttYQ==
 
 "@kwsites/file-exists@^1.1.1":
   version "1.1.1"
@@ -1659,14 +1659,14 @@
     load-esm "1.0.3"
     tslib "2.8.1"
 
-"@nestjs/config@^4.0.2":
-  version "4.0.2"
-  resolved "https://registry.npmjs.org/@nestjs/config/-/config-4.0.2.tgz#a2777a1fd2d0d594bab3953f50fbca95c14cce52"
-  integrity sha512-McMW6EXtpc8+CwTUwFdg6h7dYcBUpH5iUILCclAsa+MbCEvC9ZKu4dCHRlJqALuhjLw97pbQu62l4+wRwGeZqA==
+"@nestjs/config@^4.0.3":
+  version "4.0.3"
+  resolved "https://registry.npmjs.org/@nestjs/config/-/config-4.0.3.tgz#bb24a5f64e4e3ccf6fbf9e02f63303d14d7f308e"
+  integrity sha512-FQ3M3Ohqfl+nHAn5tp7++wUQw0f2nAk+SFKe8EpNRnIifPqvfJP6JQxPKtFLMOHbyer4X646prFG4zSRYEssQQ==
   dependencies:
-    dotenv "16.4.7"
-    dotenv-expand "12.0.1"
-    lodash "4.17.21"
+    dotenv "17.2.3"
+    dotenv-expand "12.0.3"
+    lodash "4.17.23"
 
 "@nestjs/core@^11.1.13":
   version "11.1.13"
@@ -1730,12 +1730,12 @@
     path-to-regexp "8.3.0"
     tslib "2.8.1"
 
-"@nestjs/schedule@^6.1.0":
-  version "6.1.0"
-  resolved "https://registry.npmjs.org/@nestjs/schedule/-/schedule-6.1.0.tgz#4653383c6aaf82e19754eae281ec1036da41febe"
-  integrity sha512-W25Ydc933Gzb1/oo7+bWzzDiOissE+h/dhIAPugA39b9MuIzBbLybuXpc1AjoQLczO3v0ldmxaffVl87W0uqoQ==
+"@nestjs/schedule@^6.1.1":
+  version "6.1.1"
+  resolved "https://registry.npmjs.org/@nestjs/schedule/-/schedule-6.1.1.tgz#757775c099d4b5df8e11e9a8c2f701115b4ed5cd"
+  integrity sha512-kQl1RRgi02GJ0uaUGCrXHCcwISsCsJDciCKe38ykJZgnAeeoeVWs8luWtBo4AqAAXm4nS5K8RlV0smHUJ4+2FA==
   dependencies:
-    cron "4.3.5"
+    cron "4.4.0"
 
 "@nestjs/schematics@^11.0.1", "@nestjs/schematics@^11.0.9":
   version "11.0.9"
@@ -2701,12 +2701,12 @@
   resolved "https://registry.npmjs.org/@protobufjs/utf8/-/utf8-1.1.0.tgz#a777360b5b39a1a2e5106f8e858f2fd2d060c570"
   integrity sha512-Vvn3zZrhQZkkBE8LSuW3em98c0FwgO4nxzv6OdSxPKJIEKY2bGbHn+mhGIPerzI4twdxaP8/0+06HBpwf345Lw==
 
-"@pyroscope/nodejs@^0.4.8":
-  version "0.4.8"
-  resolved "https://registry.npmjs.org/@pyroscope/nodejs/-/nodejs-0.4.8.tgz#a8b4a9a4bbd4e667b36fe93b27fbe90f18fabf87"
-  integrity sha512-DhuGx1IzrFLheZ2zQayDHIEFfB1imZJgOc4Mpu/u6LKTN454nui+YXbgWb5clqIuuLCWF84Uc3kJ1ZrCKu36yA==
+"@pyroscope/nodejs@^0.4.9":
+  version "0.4.9"
+  resolved "https://registry.npmjs.org/@pyroscope/nodejs/-/nodejs-0.4.9.tgz#73d031c79a4e2def48a1468bf460b9d8baea17a7"
+  integrity sha512-OYAxF+Z13GGxuaxhFEWCGuQCH15Fevo9xf0NII6XRD0blFUQDGdN6Lw3Dp+c6BYidOFaRbPUyPJ17tSmYVvjuA==
   dependencies:
-    "@datadog/pprof" "5.12.0"
+    "@datadog/pprof" "5.13.2"
     debug "^4.4.3"
     p-limit "^7.2.0"
     regenerator-runtime "^0.14.1"
@@ -5446,18 +5446,10 @@ create-require@^1.1.0:
   resolved "https://registry.npmjs.org/create-require/-/create-require-1.1.1.tgz#c1d7e8f1e5f6cfc9ff65f9cd352d37348756c333"
   integrity sha512-dcKFX3jn0MpIaXjisoRvexIJVEKzaq7z2rZKxf+MSr9TkdmHmsU4m2lcLojrj/FHl8mk5VxMmYA+ftRkP/3oKQ==
 
-cron@*:
+cron@*, cron@4.4.0:
   version "4.4.0"
   resolved "https://registry.npmjs.org/cron/-/cron-4.4.0.tgz#1488444a23ea7134e2b7686c17711abdffcebba8"
   integrity sha512-fkdfq+b+AHI4cKdhZlppHveI/mgz2qpiYxcm+t5E5TsxX7QrLS1VE0+7GENEk9z0EeGPcpSciGv6ez24duWhwQ==
-  dependencies:
-    "@types/luxon" "~3.7.0"
-    luxon "~3.7.0"
-
-cron@4.3.5:
-  version "4.3.5"
-  resolved "https://registry.npmjs.org/cron/-/cron-4.3.5.tgz#53112ec0f5260722b89633ed72f005dc782864f1"
-  integrity sha512-hKPP7fq1+OfyCqoePkKfVq7tNAdFwiQORr4lZUHwrf0tebC65fYEeWgOrXOL6prn1/fegGOdTfrM6e34PJfksg==
   dependencies:
     "@types/luxon" "~3.7.0"
     luxon "~3.7.0"
@@ -5706,27 +5698,22 @@ doctrine@^2.1.0:
   dependencies:
     esutils "^2.0.2"
 
-dotenv-expand@12.0.1:
-  version "12.0.1"
-  resolved "https://registry.npmjs.org/dotenv-expand/-/dotenv-expand-12.0.1.tgz#44bdfa204a368100689ec35d7385755f599ceeb1"
-  integrity sha512-LaKRbou8gt0RNID/9RoI+J2rvXsBRPMV7p+ElHlPhcSARbCPDYcYG2s1TIzAfWv4YSgyY5taidWzzs31lNV3yQ==
+dotenv-expand@12.0.3:
+  version "12.0.3"
+  resolved "https://registry.npmjs.org/dotenv-expand/-/dotenv-expand-12.0.3.tgz#6323ceca51ca0c1b1f0055e2aba39c79781739a6"
+  integrity sha512-uc47g4b+4k/M/SeaW1y4OApx+mtLWl92l5LMPP0GNXctZqELk+YGgOPIIC5elYmUH4OuoK3JLhuRUYegeySiFA==
   dependencies:
     dotenv "^16.4.5"
 
-dotenv@16.4.7:
-  version "16.4.7"
-  resolved "https://registry.npmjs.org/dotenv/-/dotenv-16.4.7.tgz#0e20c5b82950140aa99be360a8a5f52335f53c26"
-  integrity sha512-47qPchRCykZC03FhkYAhrvwU4xDBFIj1QPqaarj6mdM/hgUzfPHcpkHJOn3mJAufFeeAxAzeGsr5X0M4k6fLZQ==
+dotenv@17.2.3, dotenv@^17.2.3:
+  version "17.2.3"
+  resolved "https://registry.npmjs.org/dotenv/-/dotenv-17.2.3.tgz#ad995d6997f639b11065f419a22fabf567cdb9a2"
+  integrity sha512-JVUnt+DUIzu87TABbhPmNfVdBDt18BLOWjMUFJMSi/Qqg7NTYtabbvSNJGOJ7afbRuv9D/lngizHtP7QyLQ+9w==
 
 dotenv@^16.4.5, dotenv@^16.6.1:
   version "16.6.1"
   resolved "https://registry.npmjs.org/dotenv/-/dotenv-16.6.1.tgz#773f0e69527a8315c7285d5ee73c4459d20a8020"
   integrity sha512-uBq4egWHTcTt33a72vpSG0z3HnPuIl6NqYcTrKEg2azoEyl2hpW0zqlxysq2pK9HlDIHyHyakeYaYnSAwd8bow==
-
-dotenv@^17.2.3:
-  version "17.2.3"
-  resolved "https://registry.npmjs.org/dotenv/-/dotenv-17.2.3.tgz#ad995d6997f639b11065f419a22fabf567cdb9a2"
-  integrity sha512-JVUnt+DUIzu87TABbhPmNfVdBDt18BLOWjMUFJMSi/Qqg7NTYtabbvSNJGOJ7afbRuv9D/lngizHtP7QyLQ+9w==
 
 dset@^3.1.4:
   version "3.1.4"
@@ -7117,10 +7104,10 @@ ignore@^7.0.5:
   resolved "https://registry.npmjs.org/ignore/-/ignore-7.0.5.tgz#4cb5f6cd7d4c7ab0365738c7aea888baa6d7efd9"
   integrity sha512-Hs59xBNfUIunMFgWAbGX5cq6893IbWg4KnrjbYwX3tx0ztorVgTDA6B2sxf8ejHJ4wz8BqGUMYlnzNBer5NvGg==
 
-immer@^11.1.3:
-  version "11.1.3"
-  resolved "https://registry.npmjs.org/immer/-/immer-11.1.3.tgz#78681e1deb6cec39753acf04eb16d7576c04f4d6"
-  integrity sha512-6jQTc5z0KJFtr1UgFpIL3N9XSC3saRaI9PwWtzM2pSqkNGtiNkYY2OSwkOGDK2XcTRcLb1pi/aNkKZz0nxVH4Q==
+immer@^11.1.4:
+  version "11.1.4"
+  resolved "https://registry.npmjs.org/immer/-/immer-11.1.4.tgz#37aee86890b134a8f1a2fadd44361fb86c6ae67e"
+  integrity sha512-XREFCPo6ksxVzP4E0ekD5aMdf8WMwmdNaz6vuvxgI40UaEiu6q3p8X52aU6GdyvLY3XXX/8R7JOTXStz/nBbRw==
 
 immer@^9.0.6:
   version "9.0.21"
@@ -8146,10 +8133,10 @@ kind-of@^6.0.2:
   resolved "https://registry.npmjs.org/kind-of/-/kind-of-6.0.3.tgz#07c05034a6c349fa06e24fa35aa76db4580ce4dd"
   integrity sha512-dcS1ul+9tmeD95T+x28/ehLgd9mENa3LsvDTtzm3vyBEO7RPptvAD+t44WVXaUjTBRcrpFeFlC8WCruUR456hw==
 
-langsmith@0.4.12:
-  version "0.4.12"
-  resolved "https://registry.npmjs.org/langsmith/-/langsmith-0.4.12.tgz#2264073b757327ca1de93cfc5c8e2ede978f4339"
-  integrity sha512-YWt0jcGvKqjUgIvd78rd4QcdMss0lUkeUaqp0UpVRq7H2yNDx8H5jOUO/laWUmaPtWGgcip0qturykXe1g9Gqw==
+langsmith@0.5.2:
+  version "0.5.2"
+  resolved "https://registry.npmjs.org/langsmith/-/langsmith-0.5.2.tgz#9ab70755d396669ad6a59086d830c54e13eb9f88"
+  integrity sha512-CfkcQsiajtTWknAcyItvJsKEQdY2VgDpm6U8pRI9wnM07mevnOv5EF+RcqWGwx37SEUxtyi2RXMwnKW8b06JtA==
   dependencies:
     "@types/uuid" "^10.0.0"
     chalk "^4.1.2"
@@ -8293,11 +8280,6 @@ lodash.topath@^4.5.2:
   version "4.5.2"
   resolved "https://registry.npmjs.org/lodash.topath/-/lodash.topath-4.5.2.tgz#3616351f3bba61994a0931989660bd03254fd009"
   integrity sha512-1/W4dM+35DwvE/iEd1M9ekewOSTlpFekhw9mhAtrwjVqUr83/ilQiyAvmg4tVX7Unkcfl1KC+i9WdaT4B6aQcg==
-
-lodash@4.17.21:
-  version "4.17.21"
-  resolved "https://registry.npmjs.org/lodash/-/lodash-4.17.21.tgz#679591c564c3bffaae8454cf0b3df370c3d6911c"
-  integrity sha512-v2kDEe57lecTulaDIuNTPy3Ry4gLGJ6Z1O3vE1krgXZNrsQ+LFTGHVxVjcXPs17LhbZVGedAJv8XZ1tvj5FvSg==
 
 lodash@4.17.23, lodash@^4.17.21, lodash@~4.17.21, lodash@~4.17.23:
   version "4.17.23"
