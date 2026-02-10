@@ -84,8 +84,7 @@ export default {
             '<rootDir>/libs/kodyRules/infrastructure/adapters/services/$1',
 
         // Code Review domain (was codeBase)
-        '^@/core/domain/codeBase/(.*)$':
-            '<rootDir>/libs/code-review/domain/$1',
+        '^@/core/domain/codeBase/(.*)$': '<rootDir>/libs/code-review/domain/$1',
         '^@libs/core/domain/codeBase/(.*)$':
             '<rootDir>/libs/code-review/domain/$1',
         '^@/core/infrastructure/adapters/services/codeBase/codeReviewPipeline/pipeline/pipeline-state-manager\\.service$':
@@ -183,7 +182,7 @@ export default {
     transformIgnorePatterns: [
         'node_modules/(?!(@octokit|universal-user-agent|p-limit|@kodus/flow|uuid|universal-github-app-jwt|before-after-hook|yocto-queue)/)',
     ],
-    modulePathIgnorePatterns: ['<rootDir>/.yalc'],
+    modulePathIgnorePatterns: ['<rootDir>/.yalc', '<rootDir>/.worktrees'],
     // Resolve ESM-style .js imports to .ts files in packages
     resolver: '<rootDir>/jest-resolver.cjs',
 };
