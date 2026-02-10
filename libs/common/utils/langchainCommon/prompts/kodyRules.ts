@@ -268,8 +268,8 @@ DO NOT under any circumstances provide any sort of code block in this field, lik
       "existingCode": "Snippet from the PR",
       "improvedCode": "Refactored code (if changed)",
       "oneSentenceSummary": "Concise summary of the suggestion",
-      "relevantLinesStart": 1, // Line number (integer)
-      "relevantLinesEnd": 10, // Line number (integer)
+      "relevantLinesStart": 1,
+      "relevantLinesEnd": 10,
       "label": "string",
       "severity": "string",
       "llmPrompt": "Prompt for LLMs",
@@ -547,8 +547,8 @@ DISCUSSION HERE
             "existingCode": "Relevant code from the PR",
             "improvedCode": "Improved proposal",
             "oneSentenceSummary": "Concise summary",
-            "relevantLinesStart": 1, // Line number (integer)
-            "relevantLinesEnd": 10, // Line number (integer)
+            "relevantLinesStart": 1,
+            "relevantLinesEnd": 10,
             "label": "kody_rules",
             "llmPrompt": "Prompt for LLMs",
             "brokenKodyRulesIds": [

@@ -28,8 +28,8 @@ Your final response must be a JSON object in the following format:
             "existingCode": "Snippet of the problematic code or contract in the newFunction",
             "improvedCode": "Proposed correction to ensure compatibility with the callers",
             "oneSentenceSummary": "Concise summary of the suggestion",
-            "relevantLinesStart": 1, // Line number (integer)
-            "relevantLinesEnd": 10, // Line number (integer)
+            "relevantLinesStart": 1,
+            "relevantLinesEnd": 10,
         }
     ]
 }
