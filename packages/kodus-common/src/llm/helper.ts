@@ -109,6 +109,18 @@ const getChatGemini = (options?: Partial<FactoryArgs>) => {
         ? { ...defaultOptions, ...options }
         : defaultOptions;
 
+    let maxReasoningTokens = finalOptions.maxReasoningTokens;
+    if (
+        finalOptions.maxTokens &&
+        maxReasoningTokens &&
+        maxReasoningTokens >= finalOptions.maxTokens
+    ) {
+        maxReasoningTokens = finalOptions.maxTokens - 1;
+        if (maxReasoningTokens < 0) {
+            maxReasoningTokens = undefined;
+        }
+    }
+
     return new ChatGoogle({
         model: finalOptions.model,
         apiKey: process.env.API_GOOGLE_AI_API_KEY,
@@ -117,7 +129,7 @@ const getChatGemini = (options?: Partial<FactoryArgs>) => {
         maxOutputTokens: finalOptions.maxTokens,
         verbose: finalOptions.verbose,
         callbacks: finalOptions.callbacks,
-        maxReasoningTokens: finalOptions.maxReasoningTokens,
+        maxReasoningTokens: maxReasoningTokens,
     });
 };
 
@@ -141,6 +153,18 @@ export const getChatVertexAI = (options?: Partial<FactoryArgs>) => {
         ? { ...defaultOptions, ...options }
         : defaultOptions;
 
+    let maxReasoningTokens = finalOptions.maxReasoningTokens;
+    if (
+        finalOptions.maxTokens &&
+        maxReasoningTokens &&
+        maxReasoningTokens >= finalOptions.maxTokens
+    ) {
+        maxReasoningTokens = finalOptions.maxTokens - 1;
+        if (maxReasoningTokens < 0) {
+            maxReasoningTokens = undefined;
+        }
+    }
+
     const credentials = Buffer.from(
         process.env.API_VERTEX_AI_API_KEY || '',
         'base64',
@@ -162,7 +186,7 @@ export const getChatVertexAI = (options?: Partial<FactoryArgs>) => {
         maxOutputTokens: finalOptions.maxTokens,
         verbose: finalOptions.verbose,
         callbacks: finalOptions.callbacks,
-        maxReasoningTokens: finalOptions.maxReasoningTokens,
+        maxReasoningTokens: maxReasoningTokens,
     });
 };
 
