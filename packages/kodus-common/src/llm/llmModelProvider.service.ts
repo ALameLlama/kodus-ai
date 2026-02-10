@@ -9,6 +9,7 @@ import {
     LLMModelProvider,
     MODEL_STRATEGIES,
     getChatGPT,
+    getChatVertexAI,
 } from './helper';
 import { supportsJsonMode } from './providerAdapters';
 
@@ -62,10 +63,23 @@ export class LLMProviderService {
             const envMode = process.env.API_LLM_PROVIDER_MODEL ?? 'auto';
 
             if (envMode !== 'auto') {
-                // for self-hosted: using openAI provider and changing baseURL
+                // Check if Vertex AI Service Account is configured
+                const useVertexAI = !!process.env.API_VERTEX_AI_API_KEY;
+
+                if (useVertexAI) {
+                    // Use Vertex AI with Service Account credentials
+                    const llm = getChatVertexAI({
+                        ...options,
+                        model: envMode,
+                    });
+
+                    return llm;
+                }
+
+                // Fallback to OpenAI-compatible provider
                 if (!process.env.API_OPEN_AI_API_KEY) {
                     throw new Error(
-                        'API_OPEN_AI_API_KEY not configured for self-hosted mode',
+                        'API_OPEN_AI_API_KEY or API_VERTEX_AI_API_KEY not configured for self-hosted mode',
                     );
                 }
 
@@ -99,6 +113,17 @@ export class LLMProviderService {
                     },
                     context: LLMProviderService.name,
                 });
+
+                // Use Vertex AI if configured, otherwise fallback to OpenAI
+                const useVertexAI = !!process.env.API_VERTEX_AI_API_KEY;
+                if (useVertexAI) {
+                    return getChatVertexAI({
+                        ...options,
+                        model: MODEL_STRATEGIES[
+                            LLMModelProvider.VERTEX_GEMINI_2_5_FLASH
+                        ].modelName,
+                    });
+                }
 
                 const llm = getChatGPT({
                     ...options,
@@ -170,6 +195,17 @@ export class LLMProviderService {
                 error:
                     error instanceof Error ? error : new Error(String(error)),
             });
+
+            // Use Vertex AI if configured, otherwise fallback to OpenAI
+            const useVertexAI = !!process.env.API_VERTEX_AI_API_KEY;
+            if (useVertexAI) {
+                return getChatVertexAI({
+                    ...options,
+                    model: MODEL_STRATEGIES[
+                        LLMModelProvider.VERTEX_GEMINI_2_5_FLASH
+                    ].modelName,
+                });
+            }
 
             const llm = getChatGPT({
                 ...options,

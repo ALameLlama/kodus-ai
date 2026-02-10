@@ -17,7 +17,17 @@ RUN corepack disable \
 
 FROM base AS deps
 COPY package.json yarn.lock .npmrc ./
+COPY packages/kodus-common ./packages/kodus-common
+COPY packages/kodus-flow ./packages/kodus-flow
+
+# Build local packages first
+RUN cd packages/kodus-common && yarn install && yarn prepack
+RUN cd packages/kodus-flow && yarn install && yarn build
+
+# Install dependencies and link local packages
 RUN yarn install --frozen-lockfile
+RUN rm -rf node_modules/@kodus/kodus-common && cp -r packages/kodus-common node_modules/@kodus/kodus-common
+RUN rm -rf node_modules/@kodus/flow && cp -r packages/kodus-flow node_modules/@kodus/flow
 
 FROM deps AS build
 ARG API_CLOUD_MODE=false
@@ -39,7 +49,17 @@ RUN yarn build:apps && yarn build:migrations
 # Install production dependencies only
 FROM base AS prod-deps
 COPY package.json yarn.lock .npmrc ./
+COPY packages/kodus-common ./packages/kodus-common
+COPY packages/kodus-flow ./packages/kodus-flow
+
+# Build local packages first
+RUN cd packages/kodus-common && yarn install && yarn prepack
+RUN cd packages/kodus-flow && yarn install && yarn build
+
+# Install dependencies and link local packages
 RUN yarn install --frozen-lockfile && yarn cache clean
+RUN rm -rf node_modules/@kodus/kodus-common && cp -r packages/kodus-common node_modules/@kodus/kodus-common
+RUN rm -rf node_modules/@kodus/flow && cp -r packages/kodus-flow node_modules/@kodus/flow
 
 FROM docker.io/library/node:22.22.0-slim AS runtime-common
 WORKDIR /usr/src/app

@@ -9,12 +9,13 @@ export class CacheService {
     constructor(@Inject(CACHE_MANAGER) private cacheManager: Cache) {}
 
     async addToCache<T>(
-        key: string,
+        key: string | number,
         item: T,
         ttl: number = 60000, // 1 minute
     ): Promise<void> {
+        const keyStr = String(key);
         try {
-            await this.cacheManager.set(key, JSON.stringify(item), ttl);
+            await this.cacheManager.set(keyStr, JSON.stringify(item), ttl);
         } catch (error) {
             this.logger.error({
                 message: 'Error adding item to cache with the key',
@@ -22,15 +23,16 @@ export class CacheService {
                 serviceName: 'CacheService',
                 error: error,
                 metadata: {
-                    key: key,
+                    key: keyStr,
                 },
             });
         }
     }
 
-    async getFromCache<T>(key: string): Promise<T | null> {
+    async getFromCache<T>(key: string | number): Promise<T | null> {
+        const keyStr = String(key);
         try {
-            const value = await this.cacheManager.get<string>(key);
+            const value = await this.cacheManager.get<string>(keyStr);
 
             if (!value) {
                 return null;
@@ -44,15 +46,16 @@ export class CacheService {
                 serviceName: 'CacheService',
                 error: error,
                 metadata: {
-                    key: key,
+                    key: keyStr,
                 },
             });
         }
     }
 
-    async removeFromCache(key: string) {
+    async removeFromCache(key: string | number) {
+        const keyStr = String(key);
         try {
-            await this.cacheManager.del(key);
+            await this.cacheManager.del(keyStr);
         } catch (error) {
             this.logger.error({
                 message: 'Error removing item from cache with the key',
@@ -60,7 +63,7 @@ export class CacheService {
                 serviceName: 'CacheService',
                 error: error,
                 metadata: {
-                    key: key,
+                    key: keyStr,
                 },
             });
         }
@@ -79,9 +82,10 @@ export class CacheService {
         }
     }
 
-    async cacheExists(key: string): Promise<boolean> {
+    async cacheExists(key: string | number): Promise<boolean> {
+        const keyStr = String(key);
         try {
-            const value = await this.cacheManager.get(key);
+            const value = await this.cacheManager.get(keyStr);
 
             return !!value;
         } catch (error) {
@@ -91,6 +95,9 @@ export class CacheService {
                 context: CacheService.name,
                 serviceName: 'CacheService',
                 error: error,
+                metadata: {
+                    key: keyStr,
+                },
             });
             return false;
         }
