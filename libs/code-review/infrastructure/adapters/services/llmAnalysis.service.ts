@@ -270,11 +270,8 @@ ${JSON.stringify(context?.suggestions) || 'No suggestions provided'}
                                 existingCode: z.string().optional(),
                                 improvedCode: z.string(),
                                 oneSentenceSummary: z.string().optional(),
-                                relevantLinesStart: z
-                                    .coerce.number()
-                                    .min(1)
-                                    .optional(),
-                                relevantLinesEnd: z.coerce.number().min(1).optional(),
+                                relevantLinesStart: z.coerce.number().int().positive().optional(),
+                                relevantLinesEnd: z.coerce.number().int().positive().optional(),
                                 label: z.string(),
                                 severity: z.string().optional(),
                                 rankScore: z.number().optional(),
@@ -666,8 +663,8 @@ ${JSON.stringify(context?.suggestions) || 'No suggestions provided'}
                         existingCode: z.string(),
                         improvedCode: z.string().nullable(),
                         oneSentenceSummary: z.string(),
-                        relevantLinesStart: z.number().min(1),
-                        relevantLinesEnd: z.number().min(1),
+                        relevantLinesStart: z.coerce.number().int().positive().optional(),
+                        relevantLinesEnd: z.coerce.number().int().positive().optional(),
                         label: z.string().optional(),
                         action: z.string(),
                         reason: z.string().optional(),
@@ -774,8 +771,8 @@ ${JSON.stringify(context?.suggestions) || 'No suggestions provided'}
                         oneSentenceSummary:
                             updatedSuggestion?.oneSentenceSummary,
                         relevantLinesStart:
-                            updatedSuggestion?.relevantLinesStart,
-                        relevantLinesEnd: updatedSuggestion?.relevantLinesEnd,
+                            updatedSuggestion?.relevantLinesStart || undefined,
+                        relevantLinesEnd: updatedSuggestion?.relevantLinesEnd || undefined,
                     };
                 });
 
