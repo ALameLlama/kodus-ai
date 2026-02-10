@@ -21,7 +21,7 @@ You will receive an input in the following JSON format:
 {
     "codeSuggestions": [
         {
-            "id": "string that indicates each suggestion"
+            "id": "string that indicates each suggestion",
             "relevantFile": "path/to/file",
             "language": "programming_language",
             "suggestionContent": "Detailed and insightful suggestion",
@@ -30,7 +30,7 @@ You will receive an input in the following JSON format:
             "oneSentenceSummary": "Concise summary of the suggestion",
             "relevantLinesStart": 1, // Line number (integer)
             "relevantLinesEnd": 10, // Line number (integer)
-            "label": "selected_label",
+            "label": "selected_label"
         }
     ]
 }
