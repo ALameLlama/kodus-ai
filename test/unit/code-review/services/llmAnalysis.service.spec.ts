@@ -399,6 +399,66 @@ describe('LLMAnalysisService', () => {
         });
     });
 
+    describe('schema validation', () => {
+        it('should coerce string line numbers to numbers in LLM response', async () => {
+            const mockBuilder = {
+                setParser: jest.fn().mockReturnThis(),
+                setLLMJsonMode: jest.fn().mockReturnThis(),
+                setPayload: jest.fn().mockReturnThis(),
+                addPrompt: jest.fn().mockReturnThis(),
+                addMetadata: jest.fn().mockReturnThis(),
+                addCallbacks: jest.fn().mockReturnThis(),
+                setRunName: jest.fn().mockReturnThis(),
+                setTemperature: jest.fn().mockReturnThis(),
+                execute: jest.fn().mockResolvedValue({
+                    result: {
+                        codeSuggestions: [
+                            {
+                                id: 's1',
+                                relevantFile: 'test.ts',
+                                language: 'typescript',
+                                suggestionContent: 'Use const instead of var',
+                                existingCode: 'var x = 1;',
+                                improvedCode: 'const x = 1;',
+                                oneSentenceSummary: 'Replace var with const',
+                                relevantLinesStart: '143', // String from LLM
+                                relevantLinesEnd: '145', // String from LLM
+                                label: 'refactoring',
+                                severity: 'low',
+                            },
+                        ],
+                    },
+                }),
+            };
+
+            mockPromptRunnerService.builder.mockReturnValue(mockBuilder);
+
+            const fileContext = {
+                patchWithLinesStr: '@@ -143,3 +143,3 @@\n-var x = 1;\n+const x = 1;',
+                file: { filename: 'test.ts', fileContent: 'var x = 1;' },
+            };
+
+            const context = {
+                pullRequest: { number: 123 },
+                repository: { language: 'typescript' },
+                organizationAndTeamData: mockOrganizationAndTeamData,
+                codeReviewConfig: {
+                    suggestionControl: {},
+                    languageResultPrompt: 'en',
+                },
+            };
+
+            // This should not throw even though LLM returns strings
+            const result = await (service as any).prepareAnalysisContext(
+                fileContext,
+                context,
+            );
+
+            expect(result).toBeDefined();
+            expect(result.filePath).toBe('test.ts');
+        });
+    });
+
     describe('integration scenarios', () => {
         it('should handle complete code review flow context preparation', async () => {
             const fileContext = {
