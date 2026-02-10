@@ -1,9 +1,6 @@
 import { createLogger } from '@kodus/flow';
 
-import {
-    GitHubReaction,
-    GitlabReaction,
-} from '@libs/code-review/domain/codeReviewFeedback/enums/codeReviewCommentReaction.enum';
+import { Reaction } from '@libs/code-review/domain/codeReviewFeedback/enums/codeReviewCommentReaction.enum';
 import { hasKodyMarker } from '@libs/common/utils/codeManagement/codeCommentMarkers';
 import { decrypt, encrypt } from '@libs/common/utils/crypto';
 import { IntegrationServiceDecorator } from '@libs/common/utils/decorators/integration-service.decorator';
@@ -109,7 +106,7 @@ export class BitbucketService implements Omit<
         organizationAndTeamData: OrganizationAndTeamData;
         repository: { id?: string; name?: string };
         prNumber: number;
-        reaction: GitHubReaction | GitlabReaction;
+        reaction: Reaction;
     }): Promise<void> {
         throw new Error('Method not implemented.');
     }
@@ -118,7 +115,7 @@ export class BitbucketService implements Omit<
         repository: { id?: string; name?: string };
         prNumber: number;
         commentId: number;
-        reaction: GitHubReaction | GitlabReaction;
+        reaction: Reaction;
     }): Promise<void> {
         throw new Error('Method not implemented.');
     }
@@ -126,7 +123,7 @@ export class BitbucketService implements Omit<
         organizationAndTeamData: OrganizationAndTeamData;
         repository: { id?: string; name?: string };
         prNumber: number;
-        reactions: (GitHubReaction | GitlabReaction)[];
+        reactions: Reaction[];
     }): Promise<void> {
         throw new Error('Method not implemented.');
     }
@@ -135,7 +132,7 @@ export class BitbucketService implements Omit<
         repository: { id?: string; name?: string };
         prNumber: number;
         commentId: number;
-        reactions: (GitHubReaction | GitlabReaction)[];
+        reactions: Reaction[];
     }): Promise<void> {
         throw new Error('Method not implemented.');
     }

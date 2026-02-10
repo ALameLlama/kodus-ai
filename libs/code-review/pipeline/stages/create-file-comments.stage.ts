@@ -7,6 +7,10 @@ import {
     ISuggestionService,
     SUGGESTION_SERVICE_TOKEN,
 } from '@libs/code-review/domain/contracts/SuggestionService.contract';
+import {
+    calculateCommentEndLine,
+    calculateCommentStartLine,
+} from '@libs/common/utils/comment-builder.utils';
 import { PlatformType } from '@libs/core/domain/enums';
 import {
     ClusteringType,
@@ -14,6 +18,7 @@ import {
     CodeSuggestion,
     CommentResult,
     FileChange,
+    FallbackSuggestionsBySeverity,
     Repository,
 } from '@libs/core/infrastructure/config/types/general/codeReview.type';
 import { Commit } from '@libs/core/infrastructure/config/types/general/commit.type';
@@ -28,6 +33,7 @@ import {
     IPullRequestsService,
     PULL_REQUESTS_SERVICE_TOKEN,
 } from '@libs/platformData/domain/pullRequests/contracts/pullRequests.service.contracts';
+import { PriorityStatus } from '@libs/platformData/domain/pullRequests/enums/priorityStatus.enum';
 import { Inject, Injectable } from '@nestjs/common';
 import { CodeReviewPipelineContext } from '../context/code-review-pipeline.context';
 import { ICommit } from '@libs/platformData/domain/pullRequests/interfaces/pullRequests.interface';
@@ -115,6 +121,7 @@ export class CreateFileCommentsStage extends BasePipelineStage<CodeReviewPipelin
                 },
             });
 
+            // Even without valid suggestions, we need to save discarded suggestions to database
             // Usar todos os commits para determinar o lastAnalyzedCommit
             const allCommits = context.prAllCommits;
 
@@ -123,6 +130,45 @@ export class CreateFileCommentsStage extends BasePipelineStage<CodeReviewPipelin
             }
 
             const lastAnalyzedCommit = allCommits[allCommits.length - 1];
+
+            // Save discarded suggestions to database
+            if (discardedSuggestions.length > 0) {
+                try {
+                    await this.savePullRequestSuggestions(
+                        context.organizationAndTeamData,
+                        context.pullRequest,
+                        context.repository,
+                        changedFiles,
+                        [], // No comment results since no suggestions were sent
+                        [], // No prioritized suggestions
+                        discardedSuggestions,
+                        context.platformType,
+                        context.fileMetadata,
+                        context.dryRun,
+                        allCommits,
+                    );
+
+                    this.logger.log({
+                        message: `Saved ${discardedSuggestions.length} discarded suggestions to database for PR#${context.pullRequest.number}`,
+                        context: this.stageName,
+                        metadata: {
+                            organizationAndTeamData: context.organizationAndTeamData,
+                            prNumber: context.pullRequest.number,
+                            discardedSuggestionsCount: discardedSuggestions.length,
+                        },
+                    });
+                } catch (error) {
+                    this.logger.error({
+                        message: `Error saving discarded suggestions for PR#${context.pullRequest.number}`,
+                        context: this.stageName,
+                        error,
+                        metadata: {
+                            organizationAndTeamData: context.organizationAndTeamData,
+                            prNumber: context.pullRequest.number,
+                        },
+                    });
+                }
+            }
 
             return this.updateContext(context, (draft) => {
                 draft.lineComments = [];
@@ -219,6 +265,10 @@ export class CreateFileCommentsStage extends BasePipelineStage<CodeReviewPipelin
                 discardedSuggestionsBySafeGuard,
             );
 
+        // Extract discarded-by-quantity suggestions and group by severity for fallback
+        const fallbackSuggestionsBySeverity =
+            this.groupDiscardedByQuantitySuggestions(allDiscardedSuggestions);
+
         // Create line comments
         const { commentResults, lastAnalyzedCommit } =
             await this.createLineComments(
@@ -232,6 +282,7 @@ export class CreateFileCommentsStage extends BasePipelineStage<CodeReviewPipelin
                     ?.lastAnalyzedCommit || null,
                 context.pullRequestMessagesConfig?.globalSettings
                     ?.suggestionCopyPrompt,
+                fallbackSuggestionsBySeverity,
             );
 
         // Save pull request suggestions
@@ -255,28 +306,31 @@ export class CreateFileCommentsStage extends BasePipelineStage<CodeReviewPipelin
         };
     }
 
-    private calculateStartLine(suggestion: any) {
-        if (
-            suggestion.relevantLinesStart === undefined ||
-            suggestion.relevantLinesStart === suggestion.relevantLinesEnd
-        ) {
-            return undefined;
-        }
-        return suggestion.relevantLinesStart + 15 > suggestion.relevantLinesEnd
-            ? suggestion.relevantLinesStart
-            : undefined;
-    }
+    private groupDiscardedByQuantitySuggestions(
+        allDiscardedSuggestions: Partial<CodeSuggestion>[],
+    ): FallbackSuggestionsBySeverity {
+        const fallbackSuggestions: FallbackSuggestionsBySeverity = {
+            critical: [],
+            high: [],
+            medium: [],
+            low: [],
+        };
 
-    private calculateEndLine(suggestion: any) {
-        if (
-            suggestion.relevantLinesStart === undefined ||
-            suggestion.relevantLinesStart === suggestion.relevantLinesEnd
-        ) {
-            return suggestion.relevantLinesEnd;
+        for (const suggestion of allDiscardedSuggestions) {
+            if (
+                suggestion.priorityStatus ===
+                PriorityStatus.DISCARDED_BY_QUANTITY
+            ) {
+                const severity =
+                    (suggestion.severity?.toLowerCase() as keyof FallbackSuggestionsBySeverity) ||
+                    'low';
+                if (fallbackSuggestions[severity]) {
+                    fallbackSuggestions[severity].push(suggestion);
+                }
+            }
         }
-        return suggestion.relevantLinesStart + 15 > suggestion.relevantLinesEnd
-            ? suggestion.relevantLinesEnd
-            : suggestion.relevantLinesStart;
+
+        return fallbackSuggestions;
     }
 
     private async createLineComments(
@@ -288,6 +342,7 @@ export class CreateFileCommentsStage extends BasePipelineStage<CodeReviewPipelin
         dryRun: CodeReviewPipelineContext['dryRun'],
         lastAnalyzedCommitFromContext: any,
         suggestionCopyPrompt?: boolean,
+        fallbackSuggestionsBySeverity?: FallbackSuggestionsBySeverity,
     ) {
         try {
             const lineComments = sortedPrioritizedSuggestions
@@ -307,8 +362,8 @@ export class CreateFileCommentsStage extends BasePipelineStage<CodeReviewPipelin
                                 suggestion?.clusteringInformation
                                     ?.actionStatement || '',
                         },
-                        start_line: this.calculateStartLine(suggestion),
-                        line: this.calculateEndLine(suggestion),
+                        start_line: calculateCommentStartLine(suggestion),
+                        line: calculateCommentEndLine(suggestion),
                         side: 'RIGHT',
                         suggestion,
                     };
@@ -327,6 +382,7 @@ export class CreateFileCommentsStage extends BasePipelineStage<CodeReviewPipelin
                     codeReviewConfig?.languageResultPrompt,
                     dryRun,
                     suggestionCopyPrompt,
+                    fallbackSuggestionsBySeverity,
                 );
 
             return { lastAnalyzedCommit, commentResults };
@@ -385,6 +441,7 @@ export class CreateFileCommentsStage extends BasePipelineStage<CodeReviewPipelin
             return;
         }
 
+        // Update status for originally prioritized suggestions based on comment results
         const suggestionsWithStatus =
             await this.suggestionService.verifyIfSuggestionsWereSent(
                 organizationAndTeamData,
@@ -393,6 +450,20 @@ export class CreateFileCommentsStage extends BasePipelineStage<CodeReviewPipelin
                 commentResults,
             );
 
+        // Extract repriorized suggestions (fallback suggestions that were sent)
+        // and remove them from discarded to avoid duplicate saves
+        const { repriorizedSuggestions, filteredDiscardedSuggestions } =
+            this.suggestionService.extractRepriorizedSuggestions(
+                commentResults,
+                discardedSuggestions,
+            );
+
+        // Combine original prioritized suggestions with repriorized ones
+        const allPrioritizedSuggestions = [
+            ...suggestionsWithStatus,
+            ...repriorizedSuggestions,
+        ];
+
         // Reutilizar commits do context (buscados no ValidateNewCommitsStage)
         const pullRequestCommits = prCommits || [];
 
@@ -400,8 +471,8 @@ export class CreateFileCommentsStage extends BasePipelineStage<CodeReviewPipelin
             pullRequest,
             repository,
             enrichedFiles,
-            suggestionsWithStatus,
-            discardedSuggestions,
+            allPrioritizedSuggestions,
+            filteredDiscardedSuggestions,
             platformType,
             organizationAndTeamData,
             pullRequestCommits as unknown as ICommit[],

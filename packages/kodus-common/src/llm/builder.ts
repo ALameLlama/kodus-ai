@@ -29,6 +29,7 @@ export interface BYOKProviderConfig {
     baseURL?: string;
     projectId?: string;
     region?: string;
+    disableReasoning?: boolean;
 }
 
 //#region Types

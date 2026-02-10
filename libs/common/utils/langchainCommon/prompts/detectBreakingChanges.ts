@@ -37,5 +37,6 @@ Your final response must be a JSON object in the following format:
 ### Important:
 - If no compatibility issues are found in the newFunction, the "codeSuggestions" array must be empty.
 - All the answers must be concise and direct language.
-- Responde ALWAYS only in ${payload?.languageResultPrompt}.`;
+- Responde ALWAYS only in ${payload?.languageResultPrompt}.
+- The current date is ${new Date().toLocaleDateString('en-GB')}.`;
 };

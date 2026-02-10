@@ -11,6 +11,7 @@ export interface AdapterBuildParams {
         jsonMode?: boolean;
         maxReasoningTokens?: number;
         reasoningLevel?: 'low' | 'medium' | 'high';
+        disableReasoning?: boolean;
         callbacks?: Callbacks;
     };
 }

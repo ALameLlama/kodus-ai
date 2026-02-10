@@ -67,6 +67,7 @@ If you prefer manual setup or need to customize settings:
    ```bash
    ENV_FILE=.env.qa docker compose --profile local-db -f docker-compose.dev.yml up
    ```
+   Esse perfil também sobe o RabbitMQ local para desenvolvimento.
    O perfil pode ser combinado com `down`, `logs` e demais subcomandos do Docker Compose.
    Se estiver usando apenas o `.env` principal, remova o prefixo `ENV_FILE=...`.
 
@@ -104,6 +105,7 @@ Once running, you can access:
 
 - **API Health:** http://localhost:3331/health
 - **API Base:** http://localhost:3331
+- **RabbitMQ Management UI:** http://localhost:15672 (default user/pass: `dev` / `devpass`)
 
 ## Troubleshooting
 

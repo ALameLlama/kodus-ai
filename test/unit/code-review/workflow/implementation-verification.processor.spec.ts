@@ -12,7 +12,6 @@ import { ErrorClassification } from '@/core/workflow/domain/enums/error-classifi
 import { DeliveryStatus } from '@/platformData/domain/pullRequests/enums/deliveryStatus.enum';
 import { ImplementationStatus } from '@/platformData/domain/pullRequests/enums/implementationStatus.enum';
 import { AutomationType } from '@/automation/domain/automation/enum/automation-type';
-import { AutomationStatus } from '@/automation/domain/automation/enum/automation-status';
 import { PlatformType } from '@/core/domain/enums/platform-type.enum';
 
 // Mock logger to silence logs during tests

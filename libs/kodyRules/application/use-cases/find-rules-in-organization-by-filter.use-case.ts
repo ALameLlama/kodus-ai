@@ -20,9 +20,9 @@ import {
     KodyRulesStatus,
 } from '@libs/kodyRules/domain/interfaces/kodyRules.interface';
 
-import { enrichRulesWithContextReferences } from './utils/enrich-rules-with-context-references.util';
 import { createLogger } from '@kodus/flow';
 import { IUseCase } from '@libs/core/domain/interfaces/use-case.interface';
+import { enrichRulesWithContextReferences } from './utils/enrich-rules-with-context-references.util';
 
 @Injectable()
 export class FindRulesInOrganizationByRuleFilterKodyRulesUseCase implements IUseCase {
@@ -64,10 +64,8 @@ export class FindRulesInOrganizationByRuleFilterKodyRulesUseCase implements IUse
 
             if (repositoryId && directoryId) {
                 ruleFilters.push({ repositoryId, directoryId });
-                ruleFilters.push({ repositoryId: 'global' });
             } else if (repositoryId) {
                 ruleFilters.push({ repositoryId });
-                ruleFilters.push({ repositoryId: 'global' });
             } else if (directoryId) {
                 ruleFilters.push({ directoryId });
             }

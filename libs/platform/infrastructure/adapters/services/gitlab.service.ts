@@ -10,10 +10,7 @@ import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
 import { v4 as uuidv4 } from 'uuid';
 
-import {
-    GitHubReaction,
-    GitlabReaction,
-} from '@libs/code-review/domain/codeReviewFeedback/enums/codeReviewCommentReaction.enum';
+import { Reaction } from '@libs/code-review/domain/codeReviewFeedback/enums/codeReviewCommentReaction.enum';
 import { CacheService } from '@libs/core/cache/cache.service';
 import {
     CreateAuthIntegrationStatus,
@@ -2398,7 +2395,7 @@ export class GitlabService implements Omit<
         organizationAndTeamData: OrganizationAndTeamData;
         repository: { id?: string; name?: string };
         prNumber: number;
-        reaction: GitHubReaction | GitlabReaction;
+        reaction: Reaction;
     }): Promise<void> {
         try {
             if (!params.repository.id) {
@@ -2440,7 +2437,7 @@ export class GitlabService implements Omit<
         repository: { id?: string; name?: string };
         prNumber: number;
         commentId: number;
-        reaction: GitHubReaction | GitlabReaction;
+        reaction: Reaction;
     }): Promise<void> {
         try {
             if (!params.repository.id) {
@@ -2482,7 +2479,7 @@ export class GitlabService implements Omit<
         organizationAndTeamData: OrganizationAndTeamData;
         repository: { id?: string; name?: string };
         prNumber: number;
-        reactions: (GitHubReaction | GitlabReaction)[];
+        reactions: Reaction[];
     }): Promise<void> {
         try {
             if (!params.repository.id) {
@@ -2538,7 +2535,7 @@ export class GitlabService implements Omit<
         repository: { id?: string; name?: string };
         prNumber: number;
         commentId: number;
-        reactions: (GitHubReaction | GitlabReaction)[];
+        reactions: Reaction[];
     }): Promise<void> {
         try {
             if (!params.repository.id) {

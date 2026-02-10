@@ -82,7 +82,9 @@ const getChatAnthropic = (options?: Partial<FactoryArgs>) => {
         model: finalOptions.model,
         apiKey: process.env.API_ANTHROPIC_API_KEY,
         temperature: finalOptions.temperature,
-        maxTokens: finalOptions.maxTokens,
+        ...(finalOptions.maxTokens && finalOptions.maxTokens > 0
+            ? { maxTokens: finalOptions.maxTokens }
+            : {}),
         callbacks: finalOptions.callbacks,
     });
 };
@@ -107,6 +109,18 @@ const getChatGemini = (options?: Partial<FactoryArgs>) => {
         ? { ...defaultOptions, ...options }
         : defaultOptions;
 
+    let maxReasoningTokens = finalOptions.maxReasoningTokens;
+    if (
+        finalOptions.maxTokens &&
+        maxReasoningTokens &&
+        maxReasoningTokens >= finalOptions.maxTokens
+    ) {
+        maxReasoningTokens = finalOptions.maxTokens - 1;
+        if (maxReasoningTokens < 0) {
+            maxReasoningTokens = undefined;
+        }
+    }
+
     return new ChatGoogle({
         model: finalOptions.model,
         apiKey: process.env.API_GOOGLE_AI_API_KEY,
@@ -115,11 +129,11 @@ const getChatGemini = (options?: Partial<FactoryArgs>) => {
         maxOutputTokens: finalOptions.maxTokens,
         verbose: finalOptions.verbose,
         callbacks: finalOptions.callbacks,
-        maxReasoningTokens: finalOptions.maxReasoningTokens,
+        maxReasoningTokens: maxReasoningTokens,
     });
 };
 
-const getChatVertexAI = (options?: Partial<FactoryArgs>) => {
+export const getChatVertexAI = (options?: Partial<FactoryArgs>) => {
     const defaultOptions = {
         model: MODEL_STRATEGIES[LLMModelProvider.VERTEX_GEMINI_2_5_PRO]
             .modelName,
@@ -139,10 +153,25 @@ const getChatVertexAI = (options?: Partial<FactoryArgs>) => {
         ? { ...defaultOptions, ...options }
         : defaultOptions;
 
+    let maxReasoningTokens = finalOptions.maxReasoningTokens;
+    if (
+        finalOptions.maxTokens &&
+        maxReasoningTokens &&
+        maxReasoningTokens >= finalOptions.maxTokens
+    ) {
+        maxReasoningTokens = finalOptions.maxTokens - 1;
+        if (maxReasoningTokens < 0) {
+            maxReasoningTokens = undefined;
+        }
+    }
+
     const credentials = Buffer.from(
         process.env.API_VERTEX_AI_API_KEY || '',
         'base64',
     ).toString('utf-8');
+
+    // Support configurable location via environment variable (default: us-central1)
+    const location = process.env.API_VERTEX_AI_LOCATION || 'us-central1';
 
     return new ChatVertexAI({
         model: finalOptions.model,
@@ -152,12 +181,12 @@ const getChatVertexAI = (options?: Partial<FactoryArgs>) => {
             // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
             projectId: JSON.parse(credentials).project_id,
         },
-        location: 'us-east5',
+        location,
         temperature: finalOptions.temperature,
         maxOutputTokens: finalOptions.maxTokens,
         verbose: finalOptions.verbose,
         callbacks: finalOptions.callbacks,
-        maxReasoningTokens: finalOptions.maxReasoningTokens,
+        maxReasoningTokens: maxReasoningTokens,
     });
 };
 
@@ -281,8 +310,10 @@ export enum LLMModelProvider {
     OPENAI_GPT_4O = 'openai:gpt-4o',
     OPENAI_GPT_4O_MINI = 'openai:gpt-4o-mini',
     OPENAI_GPT_4_1 = 'openai:gpt-4.1',
+    OPENAI_GPT_5_1 = 'openai:gpt-5.1',
     OPENAI_GPT_O4_MINI = 'openai:o4-mini',
     CLAUDE_3_5_SONNET = 'anthropic:claude-3-5-sonnet-20241022',
+    CLAUDE_SONNET_4_5 = 'anthropic:claude-sonnet-4-5-20250929',
     GEMINI_2_0_FLASH = 'google:gemini-2.0-flash',
     GEMINI_2_5_PRO = 'google:gemini-2.5-pro',
     GEMINI_2_5_FLASH = 'google:gemini-2.5-flash',
@@ -332,6 +363,12 @@ export const MODEL_STRATEGIES: Record<LLMModelProvider, ModelStrategy> = {
         modelName: 'gpt-4.1',
         defaultMaxTokens: -1,
     },
+    [LLMModelProvider.OPENAI_GPT_5_1]: {
+        provider: 'openai',
+        factory: getChatGPT,
+        modelName: 'gpt-5.1',
+        defaultMaxTokens: -1,
+    },
     [LLMModelProvider.OPENAI_GPT_O4_MINI]: {
         provider: 'openai',
         factory: getChatGPT,
@@ -345,6 +382,12 @@ export const MODEL_STRATEGIES: Record<LLMModelProvider, ModelStrategy> = {
         factory: getChatAnthropic,
         modelName: 'claude-3-5-sonnet-20241022',
         defaultMaxTokens: -1,
+    },
+    [LLMModelProvider.CLAUDE_SONNET_4_5]: {
+        provider: 'anthropic',
+        factory: getChatAnthropic,
+        modelName: 'claude-sonnet-4-5-20250929',
+        defaultMaxTokens: 16384,
     },
 
     // Google Gemini

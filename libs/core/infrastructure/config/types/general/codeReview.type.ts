@@ -257,6 +257,13 @@ export type CommentResult = {
     };
 };
 
+export type FallbackSuggestionsBySeverity = {
+    critical: Partial<CodeSuggestion>[];
+    high: Partial<CodeSuggestion>[];
+    medium: Partial<CodeSuggestion>[];
+    low: Partial<CodeSuggestion>[];
+};
+
 export type ReviewComment = {
     id: number;
     pullRequestReviewId: string;

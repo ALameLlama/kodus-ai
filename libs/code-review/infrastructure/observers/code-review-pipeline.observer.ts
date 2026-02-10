@@ -166,7 +166,20 @@ export class CodeReviewPipelineObserver implements IPipelineObserver {
                     : `Posting File Comments (No suggestions)`;
         }
 
-        const message = errors.length > 0 ? 'Completed' : '';
+        let message = '';
+        if (errors.length > 0) {
+            const uniqueMessages = [
+                ...new Set(
+                    errors.map(
+                        (e) => e.error?.message || String(e.error),
+                    ),
+                ),
+            ];
+            const displayMessages = uniqueMessages.slice(0, 3);
+            const remaining = uniqueMessages.length - displayMessages.length;
+
+            message = `Error: ${displayMessages.join(' | ')}${remaining > 0 ? ` (+${remaining} more)` : ''}`;
+        }
 
         await this.logStage(stageName, status, message, context, {
             additionalMetadata,

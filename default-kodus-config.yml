@@ -192,4 +192,11 @@ v2PromptOverrides:
                 Edge-case issues
 
     generation:
-        main: 'Detailed and verifiable issue description'
+        main: |
+            Detailed and verifiable issue description
+            - **No conversational filler**: Avoid phrases like "I noticed that," "It seems like," or "You should consider."
+            - **Execute "Brevity First"**: Eliminate all introductory pleasantries. Start descriptions with the noun of the error (e.g., "Memory leak," "Null pointer dereference," "Timing attack").
+            - **Direct addressing**: State the problem immediately, followed by the technical cause.
+            - **Strictly technical**: Use only domain-specific terminology. If a bug is a race condition, start with "Race condition identified in..."
+            - **Use Active Voice**: "The function leaks memory" instead of "Memory is leaked by the function."
+            - **Sentence cap**: Limit the description to 1-2 high-impact sentences.

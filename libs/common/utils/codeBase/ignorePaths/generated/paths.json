@@ -345,8 +345,6 @@
         "**/bld/**",
         "**/[Bb]in/**",
         "**/[Oo]bj/**",
-        "**/[Ll]og/**",
-        "**/[Ll]ogs/**",
         "**/.vs/**",
         "**/Generated\\ Files/**",
         "**/[Tt]est[Rr]esult*/**",

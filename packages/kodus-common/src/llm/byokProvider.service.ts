@@ -19,6 +19,7 @@ export interface BYOKConfig {
         apiKey: string;
         model: string;
         baseURL?: string;
+        disableReasoning?: boolean;
     };
     fallback?: {
         provider: BYOKProvider;
@@ -42,9 +43,11 @@ export class BYOKProviderService {
             jsonMode?: boolean;
             maxReasoningTokens?: number;
             reasoningLevel?: 'low' | 'medium' | 'high';
+            disableReasoning?: boolean;
         },
     ): BaseChatModel {
-        const { provider, apiKey, model, baseURL } = config.main;
+        const { provider, apiKey, model, baseURL, disableReasoning } =
+            config.main;
         const adapter = getAdapter(provider);
 
         if (provider === BYOKProvider.OPENAI_COMPATIBLE && !baseURL) {
@@ -68,6 +71,8 @@ export class BYOKProviderService {
                 jsonMode: options?.jsonMode,
                 maxReasoningTokens: options?.maxReasoningTokens,
                 reasoningLevel: options?.reasoningLevel,
+                // Use config.main.disableReasoning or options.disableReasoning
+                disableReasoning: disableReasoning ?? options?.disableReasoning,
                 callbacks: options?.callbacks as Callbacks,
             },
         });

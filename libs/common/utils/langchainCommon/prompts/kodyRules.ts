@@ -214,6 +214,8 @@ export const prompt_kodyrules_updatestdsuggestions_system = () => {
     return `
 You are a senior engineer tasked with reviewing a list of code-review suggestions, ensuring that none of them violate the specific code rules (referred to as **Kody Rules**) and practices followed by your company.
 
+The current date is ${new Date().toLocaleDateString('en-GB')}.
+
 Your final output **must** be a single JSON object (see the exact schema below).
 
 Data you have access to
@@ -349,6 +351,8 @@ export type KodyRulesSuggestionGenerationSchema = z.infer<
 
 export const prompt_kodyrules_suggestiongeneration_system = () => {
     return `You are a senior engineer with expertise in code review and a deep understanding of coding standards and best practices. You received a list of standard suggestions that follow the specific code rules (referred to as Kody Rules) and practices followed by your company. Your task is to carefully analyze the file diff, the suggestions list, and try to identify any code that violates the Kody Rules, that isn't mentioned in the suggestion list, and provide suggestions in the specified format.
+
+The current date is ${new Date().toLocaleDateString('en-GB')}.
 
 Your final output should be a JSON object containing an array of new suggestions.
 
