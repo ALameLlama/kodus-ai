@@ -472,7 +472,7 @@ describe('CodeReviewPipelineObserver', () => {
             'stage-log-uuid',
             expect.objectContaining({
                 status: AutomationStatus.PARTIAL_ERROR,
-                message: 'Completed',
+                message: 'Error: Partial error',
                 finishedAt: expect.any(Date),
                 metadata: expect.objectContaining({
                     partialErrors: expect.arrayContaining([
@@ -483,6 +483,246 @@ describe('CodeReviewPipelineObserver', () => {
                 }),
             }),
         );
+    });
+
+    describe('error message propagation to code_review_execution', () => {
+        it('should save actual error message for FileAnalysisStage (e.g. LLM rate limit)', async () => {
+            const llmError = '429 Insufficient balance or no resource package. Please recharge.';
+            context.errors = [
+                {
+                    stage: 'FileAnalysisStage',
+                    substage: 'src/app.ts',
+                    error: new Error(llmError),
+                    metadata: { filename: 'src/app.ts' },
+                },
+            ];
+            context.changedFiles = [{ filename: 'src/app.ts' }] as any;
+
+            await observer.onStageStart(
+                'FileAnalysisStage',
+                context as CodeReviewPipelineContext,
+                observersContext,
+            );
+
+            await observer.onStageFinish(
+                'FileAnalysisStage',
+                context as CodeReviewPipelineContext,
+                observersContext,
+            );
+
+            expect(
+                mockAutomationExecutionService.updateStageLog,
+            ).toHaveBeenCalledWith(
+                'stage-log-uuid',
+                expect.objectContaining({
+                    status: AutomationStatus.ERROR,
+                    message: `Error: ${llmError}`,
+                }),
+            );
+        });
+
+        it('should save actual error message for ProcessFilesPrLevelReviewStage', async () => {
+            context.errors = [
+                {
+                    stage: 'ProcessFilesPrLevelReviewStage',
+                    substage: 'kody-rules',
+                    error: new Error('Timeout waiting for LLM response'),
+                },
+            ];
+
+            await observer.onStageStart(
+                'ProcessFilesPrLevelReviewStage',
+                context as CodeReviewPipelineContext,
+                observersContext,
+            );
+
+            await observer.onStageFinish(
+                'ProcessFilesPrLevelReviewStage',
+                context as CodeReviewPipelineContext,
+                observersContext,
+            );
+
+            expect(
+                mockAutomationExecutionService.updateStageLog,
+            ).toHaveBeenCalledWith(
+                'stage-log-uuid',
+                expect.objectContaining({
+                    status: AutomationStatus.PARTIAL_ERROR,
+                    message: 'Error: Timeout waiting for LLM response',
+                }),
+            );
+        });
+
+        it('should save actual error message for FinishCommentsStage', async () => {
+            context.errors = [
+                {
+                    stage: 'FinishCommentsStage',
+                    substage: 'resolve-comment',
+                    error: new Error('GitHub API rate limit exceeded'),
+                },
+            ];
+
+            await observer.onStageStart(
+                'FinishCommentsStage',
+                context as CodeReviewPipelineContext,
+                observersContext,
+            );
+
+            await observer.onStageFinish(
+                'FinishCommentsStage',
+                context as CodeReviewPipelineContext,
+                observersContext,
+            );
+
+            expect(
+                mockAutomationExecutionService.updateStageLog,
+            ).toHaveBeenCalledWith(
+                'stage-log-uuid',
+                expect.objectContaining({
+                    status: AutomationStatus.PARTIAL_ERROR,
+                    message: 'Error: GitHub API rate limit exceeded',
+                }),
+            );
+        });
+
+        it('should deduplicate repeated errors and show unique messages only', async () => {
+            const repeatedError = '429 Insufficient balance or no resource package. Please recharge.';
+            context.errors = [
+                {
+                    stage: 'FileAnalysisStage',
+                    substage: 'src/file1.ts',
+                    error: new Error(repeatedError),
+                    metadata: { filename: 'src/file1.ts' },
+                },
+                {
+                    stage: 'FileAnalysisStage',
+                    substage: 'src/file2.ts',
+                    error: new Error(repeatedError),
+                    metadata: { filename: 'src/file2.ts' },
+                },
+                {
+                    stage: 'FileAnalysisStage',
+                    substage: 'src/file3.ts',
+                    error: new Error(repeatedError),
+                    metadata: { filename: 'src/file3.ts' },
+                },
+            ];
+            context.changedFiles = [
+                { filename: 'src/file1.ts' },
+                { filename: 'src/file2.ts' },
+                { filename: 'src/file3.ts' },
+            ] as any;
+
+            await observer.onStageStart(
+                'FileAnalysisStage',
+                context as CodeReviewPipelineContext,
+                observersContext,
+            );
+
+            await observer.onStageFinish(
+                'FileAnalysisStage',
+                context as CodeReviewPipelineContext,
+                observersContext,
+            );
+
+            expect(
+                mockAutomationExecutionService.updateStageLog,
+            ).toHaveBeenCalledWith(
+                'stage-log-uuid',
+                expect.objectContaining({
+                    message: `Error: ${repeatedError}`,
+                }),
+            );
+        });
+
+        it('should show up to 3 unique errors separated by pipe and indicate remaining count', async () => {
+            context.errors = [
+                {
+                    stage: 'FileAnalysisStage',
+                    substage: 'src/a.ts',
+                    error: new Error('Error type A'),
+                    metadata: { filename: 'src/a.ts' },
+                },
+                {
+                    stage: 'FileAnalysisStage',
+                    substage: 'src/b.ts',
+                    error: new Error('Error type B'),
+                    metadata: { filename: 'src/b.ts' },
+                },
+                {
+                    stage: 'FileAnalysisStage',
+                    substage: 'src/c.ts',
+                    error: new Error('Error type C'),
+                    metadata: { filename: 'src/c.ts' },
+                },
+                {
+                    stage: 'FileAnalysisStage',
+                    substage: 'src/d.ts',
+                    error: new Error('Error type D'),
+                    metadata: { filename: 'src/d.ts' },
+                },
+                {
+                    stage: 'FileAnalysisStage',
+                    substage: 'src/e.ts',
+                    error: new Error('Error type E'),
+                    metadata: { filename: 'src/e.ts' },
+                },
+            ];
+            context.changedFiles = [
+                { filename: 'src/a.ts' },
+                { filename: 'src/b.ts' },
+                { filename: 'src/c.ts' },
+                { filename: 'src/d.ts' },
+                { filename: 'src/e.ts' },
+            ] as any;
+
+            await observer.onStageStart(
+                'FileAnalysisStage',
+                context as CodeReviewPipelineContext,
+                observersContext,
+            );
+
+            await observer.onStageFinish(
+                'FileAnalysisStage',
+                context as CodeReviewPipelineContext,
+                observersContext,
+            );
+
+            expect(
+                mockAutomationExecutionService.updateStageLog,
+            ).toHaveBeenCalledWith(
+                'stage-log-uuid',
+                expect.objectContaining({
+                    message: 'Error: Error type A | Error type B | Error type C (+2 more)',
+                }),
+            );
+        });
+
+        it('should keep message empty when stage finishes without errors', async () => {
+            context.errors = [];
+
+            await observer.onStageStart(
+                'FileAnalysisStage',
+                context as CodeReviewPipelineContext,
+                observersContext,
+            );
+
+            await observer.onStageFinish(
+                'FileAnalysisStage',
+                context as CodeReviewPipelineContext,
+                observersContext,
+            );
+
+            expect(
+                mockAutomationExecutionService.updateStageLog,
+            ).toHaveBeenCalledWith(
+                'stage-log-uuid',
+                expect.objectContaining({
+                    status: AutomationStatus.SUCCESS,
+                    message: '',
+                }),
+            );
+        });
     });
 
     it('should include visibility in metadata on stage finish', async () => {
