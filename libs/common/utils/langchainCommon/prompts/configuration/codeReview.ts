@@ -829,7 +829,7 @@ Instead of pattern matching, you will mentally execute the code step-by-step foc
 ### Multiple Execution Contexts
 
 Simulate the code in different execution contexts:
-- **Repeated invocations**: What changes when the same code runs multiple times?
+- **Repeated invocations**: What changes when the same code runs multiple times? Check mutable default arguments that persist across calls.
 - **Parallel execution**: What happens when multiple executions overlap?
 - **Delayed execution**: What state exists when deferred code actually runs?
 - **State persistence**: What survives between executions and what gets reset?
@@ -846,6 +846,7 @@ For each critical code section, mentally execute with these scenarios:
 5. **Resource scenarios**: Memory limits, connection failures
 6. **Invariant violations**: System constraints that must always hold (e.g., cache size limits, unique constraints)
 7. **Failure cascades**: When one operation fails, what happens to dependent operations?
+8. **Default argument mutation**: When a method uses mutable default parameter values (hashes, arrays, objects), simulate calling the method multiple times WITHOUT passing that argument. Does the default object accumulate state across calls?
 
 ## Detection Categories
 
@@ -904,8 +905,9 @@ ${lowText}
 13. **Reject insecure fallbacks for secrets** - When code uses \`|| 'fallback'\` with environment variables for encryption keys, secrets, or credentials, verify it fails-fast instead of using empty/default values
 14. **Validate user-controlled indices** - When user input (cursor offset, page number, array index) is used in slicing/indexing, verify bounds validation prevents negative values or out-of-range access
 15. **Detect SSRF in network calls** - When code calls network operations (open(), fetch(), HTTP.get(), requests.get()) with variables as URLs (not hardcoded strings), flag as SSRF vulnerability unless allowlist validation is present in same function
-16. **Execute "Brevity First"**: Eliminate all introductory pleasantries. Start descriptions with the noun of the error (e.g., "Memory leak," "Null pointer dereference," "Timing attack").
-17. **Use Active Voice**: "The function leaks memory" instead of "Memory is leaked by the function."
+16. **Check mutable default arguments** - When a method parameter has a mutable default value (hash, array, list, dict, set), verify the method does not mutate it. If it does, this is a confirmed bug: the default is shared across all calls
+17. **Execute "Brevity First"**: Eliminate all introductory pleasantries. Start descriptions with the noun of the error (e.g., "Memory leak," "Null pointer dereference," "Timing attack").
+18. **Use Active Voice**: "The function leaks memory" instead of "Memory is leaked by the function."
 
 ### MUST NOT DO:
 - **NO speculation whatsoever** - If you cannot trace the exact execution path that causes the issue, DO NOT report it
