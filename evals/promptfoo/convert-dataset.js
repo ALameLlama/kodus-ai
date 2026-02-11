@@ -4,8 +4,11 @@ const fs = require('fs');
 const path = require('path');
 
 // Accept --lang argument: tsjs, python, java, ruby, all (default: all)
+// Accept --limit=N argument: max examples per language (default: all)
 const langArg = process.argv.find(a => a.startsWith('--lang='));
 const lang = langArg ? langArg.split('=')[1] : 'all';
+const limitArg = process.argv.find(a => a.startsWith('--limit='));
+const limit = limitArg ? parseInt(limitArg.split('=')[1], 10) : Infinity;
 
 const DATASETS = {
     tsjs: 'tsjs.jsonl',
@@ -28,9 +31,10 @@ const lines = files.flatMap(file => {
         console.warn(`Warning: ${file} not found, skipping`);
         return [];
     }
-    return fs.readFileSync(filePath, 'utf-8').split('\n').filter(Boolean).filter(line => {
+    const allLines = fs.readFileSync(filePath, 'utf-8').split('\n').filter(Boolean).filter(line => {
         try { JSON.parse(line); return true; } catch { console.warn(`Warning: skipping malformed JSON line in ${file}`); return false; }
     });
+    return allLines.slice(0, limit);
 });
 
 // Escape template patterns to avoid nunjucks interpretation

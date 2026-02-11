@@ -8,15 +8,20 @@
 
 function stripCodeBlocks(text) {
     const cleanText = text.replace(/^['"]|['"]$/g, '');
-    // Prefer ```json blocks (production parser behavior)
-    const jsonMatch = cleanText.match(/```json([\s\S]*?)```/);
-    if (jsonMatch && jsonMatch[1]) {
-        return jsonMatch[1];
+    // Try all ```json blocks, return the first one that parses as valid JSON
+    const jsonMatches = cleanText.matchAll(/```json([\s\S]*?)```/g);
+    for (const match of jsonMatches) {
+        const content = match[1].trim();
+        try {
+            JSON.parse(content);
+            return match[1];
+        } catch {
+            // Invalid JSON, try next block
+        }
     }
     // Fallback: any code block containing JSON-like content
     const genericMatch = cleanText.match(/```(?:\w*)\s*([\s\S]*?)```/g);
     if (genericMatch) {
-        // Try each code block, return the first one that looks like JSON
         for (const block of genericMatch) {
             const content = block.replace(/^```\w*\s*/, '').replace(/```$/, '').trim();
             if (content.startsWith('{') || content.startsWith('[')) {

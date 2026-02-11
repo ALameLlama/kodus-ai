@@ -11,7 +11,7 @@ import { convertTiptapJSONToMarkdown } from '../../tiptap-json';
  * @param max - Maximum character length (default: 2000)
  * @returns Truncated text if it exceeds max length, otherwise the original text
  */
-export function limitText(text: string, max = 2000): string {
+export function limitText(text: string, max = 5000): string {
     return text.length > max ? text.slice(0, max) : text;
 }
 
