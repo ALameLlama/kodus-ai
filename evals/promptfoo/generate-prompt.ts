@@ -12,9 +12,21 @@ import * as path from 'path';
 import {
     prompt_codereview_system_gemini_v2,
 } from '../../libs/common/utils/langchainCommon/prompts/configuration/codeReview';
+import {
+    V2_DEFAULT_CATEGORY_DESCRIPTIONS_TEXT,
+    V2_DEFAULT_SEVERITY_FLAGS_TEXT,
+} from '../../libs/common/utils/codeReview/v2Defaults';
 
 const systemPrompt = prompt_codereview_system_gemini_v2({
     languageResultPrompt: 'en-US',
+    v2PromptOverrides: {
+        categories: {
+            descriptions: V2_DEFAULT_CATEGORY_DESCRIPTIONS_TEXT,
+        },
+        severity: {
+            flags: V2_DEFAULT_SEVERITY_FLAGS_TEXT,
+        },
+    },
 });
 
 const userPrompt = `## Code Under Review
