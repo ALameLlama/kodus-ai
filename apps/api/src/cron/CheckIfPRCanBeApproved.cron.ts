@@ -2,8 +2,20 @@ import { createLogger } from '@kodus/flow';
 import { Inject, Injectable } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 
-import { PullRequestState } from '@libs/core/domain/enums/pullRequestState.enum';
-import { AzureRepoCommentTypeString } from '@libs/platform/domain/azure/entities/azureRepoExtras.type';
+import {
+    AUTOMATION_SERVICE_TOKEN,
+    IAutomationService,
+} from '@libs/automation/domain/automation/contracts/automation.service';
+import { AutomationStatus } from '@libs/automation/domain/automation/enum/automation-status';
+import { AutomationType } from '@libs/automation/domain/automation/enum/automation-type';
+import {
+    AUTOMATION_EXECUTION_SERVICE_TOKEN,
+    IAutomationExecutionService,
+} from '@libs/automation/domain/automationExecution/contracts/automation-execution.service';
+import {
+    ITeamAutomationService,
+    TEAM_AUTOMATION_SERVICE_TOKEN,
+} from '@libs/automation/domain/teamAutomation/contracts/team-automation.service';
 import {
     CODE_BASE_CONFIG_SERVICE_TOKEN,
     ICodeBaseConfigService,
@@ -13,42 +25,34 @@ import {
     PULL_REQUEST_MESSAGES_SERVICE_TOKEN,
 } from '@libs/code-review/domain/pullRequestMessages/contracts/pullRequestMessages.service.contract';
 import { IPullRequestMessages } from '@libs/code-review/domain/pullRequestMessages/interfaces/pullRequestMessages.interface';
-import {
-    IPullRequestsService,
-    PULL_REQUESTS_SERVICE_TOKEN,
-} from '@libs/platformData/domain/pullRequests/contracts/pullRequests.service.contracts';
-import { CodeReviewConfig } from '@libs/core/infrastructure/config/types/general/codeReview.type';
-import { IPullRequestWithDeliveredSuggestions } from '@libs/platformData/domain/pullRequests/interfaces/pullRequests.interface';
 import { IntegrationCategory } from '@libs/core/domain/enums/integration-category.enum';
 import { ParametersKey } from '@libs/core/domain/enums/parameters-key.enum';
 import { PlatformType } from '@libs/core/domain/enums/platform-type.enum';
+import { PullRequestState } from '@libs/core/domain/enums/pullRequestState.enum';
 import { STATUS } from '@libs/core/infrastructure/config/types/database/status.type';
+import { CodeReviewConfig } from '@libs/core/infrastructure/config/types/general/codeReview.type';
 import { OrganizationAndTeamData } from '@libs/core/infrastructure/config/types/general/organizationAndTeamData';
 import { ConfigLevel } from '@libs/core/infrastructure/config/types/general/pullRequestMessages.type';
+import {
+    DistributedLock,
+    DistributedLockService,
+} from '@libs/core/workflow/infrastructure/distributed-lock.service';
 import {
     IParametersService,
     PARAMETERS_SERVICE_TOKEN,
 } from '@libs/organization/domain/parameters/contracts/parameters.service.contract';
 import {
-    TEAM_SERVICE_TOKEN,
     ITeamService,
+    TEAM_SERVICE_TOKEN,
 } from '@libs/organization/domain/team/contracts/team.service.contract';
 import { IntegrationStatusFilter } from '@libs/organization/domain/team/interfaces/team.interface';
+import { AzureRepoCommentTypeString } from '@libs/platform/domain/azure/entities/azureRepoExtras.type';
 import { CodeManagementService } from '@libs/platform/infrastructure/adapters/services/codeManagement.service';
 import {
-    AUTOMATION_EXECUTION_SERVICE_TOKEN,
-    IAutomationExecutionService,
-} from '@libs/automation/domain/automationExecution/contracts/automation-execution.service';
-import {
-    AUTOMATION_SERVICE_TOKEN,
-    IAutomationService,
-} from '@libs/automation/domain/automation/contracts/automation.service';
-import {
-    ITeamAutomationService,
-    TEAM_AUTOMATION_SERVICE_TOKEN,
-} from '@libs/automation/domain/teamAutomation/contracts/team-automation.service';
-import { AutomationType } from '@libs/automation/domain/automation/enum/automation-type';
-import { AutomationStatus } from '@libs/automation/domain/automation/enum/automation-status';
+    IPullRequestsService,
+    PULL_REQUESTS_SERVICE_TOKEN,
+} from '@libs/platformData/domain/pullRequests/contracts/pullRequests.service.contracts';
+import { IPullRequestWithDeliveredSuggestions } from '@libs/platformData/domain/pullRequests/interfaces/pullRequests.interface';
 
 const API_CRON_CHECK_IF_PR_SHOULD_BE_APPROVED =
     process.env.API_CRON_CHECK_IF_PR_SHOULD_BE_APPROVED;
@@ -81,13 +85,41 @@ export class CheckIfPRCanBeApprovedCronProvider {
         private readonly teamAutomationService: ITeamAutomationService,
         @Inject(PULL_REQUEST_MESSAGES_SERVICE_TOKEN)
         private readonly pullRequestMessagesService: IPullRequestMessagesService,
+        private readonly distributedLockService: DistributedLockService,
     ) {}
 
     @Cron(API_CRON_CHECK_IF_PR_SHOULD_BE_APPROVED, {
         name: 'CHECK IF PR SHOULD BE APPROVED',
         timeZone: 'America/Sao_Paulo',
+        waitForCompletion: true,
     })
     async handleCron() {
+        const lockKey = 'CRON:CHECK_IF_PR_SHOULD_BE_APPROVED';
+
+        let lock: DistributedLock;
+        try {
+            lock = await this.distributedLockService.acquire(lockKey, {
+                ttl: 1000 * 60 * 5, // 5 minutes TTL to prevent stale locks
+            });
+
+            if (!lock) {
+                this.logger.log({
+                    message: 'Cron execution skipped - Lock already acquired',
+                    context: CheckIfPRCanBeApprovedCronProvider.name,
+                    metadata: { lockKey },
+                });
+                return;
+            }
+        } catch (error) {
+            this.logger.error({
+                message: 'Error acquiring distributed lock for cron execution',
+                context: CheckIfPRCanBeApprovedCronProvider.name,
+                metadata: { lockKey },
+                error,
+            });
+            return;
+        }
+
         // Clear cache at start of each cron run
         this.pullRequestMessagesCache.clear();
 
@@ -323,6 +355,18 @@ export class CheckIfPRCanBeApprovedCronProvider {
                     timestamp: new Date().toISOString(),
                 },
             });
+        } finally {
+            try {
+                await lock.release();
+            } catch (error) {
+                this.logger.error({
+                    message:
+                        'Error releasing distributed lock after cron execution',
+                    context: CheckIfPRCanBeApprovedCronProvider.name,
+                    metadata: { lockKey },
+                    error,
+                });
+            }
         }
     }
 
