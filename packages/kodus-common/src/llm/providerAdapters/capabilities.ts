@@ -125,8 +125,13 @@ const MODELS_WITHOUT_JSON_MODE = new Set([
 const MODELS_WITHOUT_JSON_MODE_PATTERNS: RegExp[] = [
     /^gpt-5(\b|[-_@])/, // all gpt-5 models
     /glm/i, // all GLM models
-    /(?:azure.*claude|claude.*azure)/i, // only Azure-hosted Claude models
 ];
+
+// Check if model is Azure-hosted Claude (both "azure" and "claude" appear)
+function isAzureHostedClaude(model: string): boolean {
+    const lower = model.toLowerCase();
+    return lower.includes('azure') && lower.includes('claude');
+}
 
 const REASONING_PATTERN_RULES: Array<[RegExp, ReasoningConfig]> = [
     // OpenAI families (level)
@@ -234,6 +239,11 @@ export function supportsJsonMode(model: string | undefined | null): boolean {
     }
 
     if (MODELS_WITHOUT_JSON_MODE.has(model)) {
+        return false;
+    }
+
+    // Check Azure-hosted Claude separately (avoids ReDoS-vulnerable regex)
+    if (isAzureHostedClaude(model)) {
         return false;
     }
 

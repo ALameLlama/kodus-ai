@@ -85,14 +85,24 @@ export class IdGenerator {
     /**
      * Generate random string using crypto.randomBytes
      * Converted to base62 for URL-safe IDs
+     * Uses rejection sampling to avoid modulo bias
      */
     private static generateRandomString(length: number): string {
-        const bytes = randomBytes(Math.ceil((length * 3) / 4));
+        // 256 / 62 = 4 with remainder, so we reject values >= 248 (62 * 4)
+        // This ensures uniform distribution across base62 characters
+        const maxValidByte = 248;
         let result = '';
 
-        for (const byte of bytes) {
-            result += this.base62Chars[byte % 62];
-            if (result.length >= length) break;
+        while (result.length < length) {
+            const bytes = randomBytes(
+                Math.ceil((length - result.length) * 1.5),
+            );
+            for (const byte of bytes) {
+                if (byte < maxValidByte) {
+                    result += this.base62Chars[byte % 62];
+                    if (result.length >= length) break;
+                }
+            }
         }
 
         return result.slice(0, length);

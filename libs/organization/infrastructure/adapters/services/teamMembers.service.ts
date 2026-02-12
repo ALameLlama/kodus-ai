@@ -1,4 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
+import { randomBytes } from 'crypto';
 
 import { STATUS } from '@libs/core/infrastructure/config/types/database/status.type';
 import { OrganizationAndTeamData } from '@libs/core/infrastructure/config/types/general/organizationAndTeamData';
@@ -477,10 +478,15 @@ export class TeamMemberService implements ITeamMemberService {
     }
 
     private generateTemporaryPassword(): string {
-        return (
-            Math.random().toString(36).slice(-8) +
-            Math.random().toString(36).slice(-8)
-        );
+        // Use cryptographically secure random bytes for password generation
+        const chars =
+            'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+        const bytes = randomBytes(16);
+        let password = '';
+        for (const byte of bytes) {
+            password += chars[byte % chars.length];
+        }
+        return password;
     }
 
     async findMembersByCommunicationId(communicationId: string) {

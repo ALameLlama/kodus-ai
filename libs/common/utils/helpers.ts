@@ -203,9 +203,24 @@ export const generateRandomOrgName = (name: string): string => {
 export const randomString = (length: number) => {
     const charset =
         'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-    return Array.from(crypto.getRandomValues(new Uint32Array(length)))
-        .map((x) => charset[x % charset.length])
-        .join('');
+    // Use rejection sampling to avoid modulo bias
+    // 2^32 / 62 leaves remainder, so reject values >= maxValid
+    const maxValid = Math.floor(0xffffffff / charset.length) * charset.length;
+    const result: string[] = [];
+
+    while (result.length < length) {
+        const values = crypto.getRandomValues(
+            new Uint32Array(length - result.length),
+        );
+        for (const x of values) {
+            if (x < maxValid) {
+                result.push(charset[x % charset.length]);
+                if (result.length >= length) break;
+            }
+        }
+    }
+
+    return result.join('');
 };
 
 const retryWithBackoff = async <T>(

@@ -801,6 +801,7 @@ function inferPlatformFromUrl(url) {
         if (
             hostname === 'dev.azure.com' ||
             hostname.endsWith('.dev.azure.com') ||
+            hostname === 'visualstudio.com' ||
             hostname.endsWith('.visualstudio.com')
         ) {
             return 'azuredevops';
