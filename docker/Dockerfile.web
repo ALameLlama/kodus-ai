@@ -1,0 +1,34 @@
+# Multi-stage production build for kodus-web (Next.js)
+# Used for both cloud production and QA builds
+
+# 1) Builder stage: install all deps and build
+FROM docker.io/library/node:22.22.0-slim AS builder
+WORKDIR /usr/src/app
+
+COPY package.json yarn.lock ./
+
+RUN yarn install --frozen-lockfile --production=false
+
+COPY . .
+RUN yarn build
+
+# 2) Production stage: only the final artifacts
+FROM docker.io/library/node:22.22.0-slim AS production
+
+RUN apt-get update && apt-get install -y curl
+
+WORKDIR /usr/src/app
+
+ENV NODE_ENV=production
+ENV WEB_NODE_ENV=production
+
+COPY --from=builder /usr/src/app/.next ./.next
+COPY --from=builder /usr/src/app/node_modules ./node_modules
+COPY --from=builder /usr/src/app/package.json ./
+COPY --from=builder /usr/src/app/public ./public
+
+COPY .env .env
+
+EXPOSE 3000
+
+CMD ["yarn", "start"]

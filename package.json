@@ -117,7 +117,12 @@
         "openapi:lint": "spectral lint docs/openapi.json",
         "openapi:lint:local": "spectral lint http://localhost:3001/openapi.json",
         "openapi:postman": "scripts/openapi/generate-postman.sh",
-        "openapi:newman": "scripts/openapi/run-newman.sh"
+        "openapi:newman": "scripts/openapi/run-newman.sh",
+        "web:dev": "cd apps/web && yarn start:dev",
+        "web:build": "cd apps/web && yarn build",
+        "web:install": "cd apps/web && yarn install",
+        "docker:start:web": "docker compose -f docker-compose.dev.yml up web",
+        "docker:start:all": "docker compose -f docker-compose.dev.yml up"
     },
     "dependencies": {
         "@casl/ability": "^6.8.0",

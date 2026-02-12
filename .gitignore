@@ -129,3 +129,11 @@ docs/openapi.postman_environment.json
 docs/openapi.newman.json
 docs/openapi.newman.responses.2xx.json
 docs/openapi.newman.responses.4xx-5xx.json
+
+# Web (Next.js)
+apps/web/.next/
+apps/web/out/
+apps/web/node_modules/
+apps/web/.vercel
+apps/web/.env
+apps/web/.env*.local

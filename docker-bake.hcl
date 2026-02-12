@@ -26,6 +26,10 @@ variable "WORKER_TAGS" {
   default = "kodus-ai-worker:local"
 }
 
+variable "WEB_TAGS" {
+  default = "kodus-web:local"
+}
+
 target "base" {
   context = "."
   dockerfile = "${DOCKERFILE}"
@@ -55,6 +59,14 @@ target "worker" {
   tags = split(",", WORKER_TAGS)
 }
 
+target "web" {
+  context = "./apps/web"
+  dockerfile = "../../docker/Dockerfile.web.selfhosted"
+  tags = split(",", WEB_TAGS)
+  cache-from = ["type=gha,scope=${CACHE_SCOPE}"]
+  cache-to = ["type=gha,scope=${CACHE_SCOPE},mode=max"]
+}
+
 group "default" {
-  targets = ["api", "webhooks", "worker"]
+  targets = ["api", "webhooks", "worker", "web"]
 }

@@ -73,6 +73,20 @@ services:
       - kodus-backend-services
 
   #----------------------------------------------------------------
+  # Web Frontend
+  #----------------------------------------------------------------
+  web:
+    image: ghcr.io/kodustech/kodus-web:${KODUS_VERSION:-latest}
+    container_name: kodus_web_prod
+    restart: unless-stopped
+    env_file:
+      - ${ENV_FILE:-.env.prod}
+    ports:
+      - "3000:3000"
+    networks:
+      - kodus-backend-services
+
+  #----------------------------------------------------------------
   # Databases & Infrastructure
   #----------------------------------------------------------------
   db_postgres:
