@@ -478,14 +478,26 @@ export class TeamMemberService implements ITeamMemberService {
     }
 
     private generateTemporaryPassword(): string {
-        // Use cryptographically secure random bytes for password generation
+        // Use cryptographically secure random bytes with rejection sampling
+        // to avoid modulo bias when mapping bytes to characters
         const chars =
             'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-        const bytes = randomBytes(16);
+        const length = 16;
+        // Largest multiple of chars.length that fits in a byte (256)
+        // 256 - (256 % 62) = 256 - 8 = 248
+        const maxByte = 256 - (256 % chars.length);
         let password = '';
-        for (const byte of bytes) {
-            password += chars[byte % chars.length];
+
+        while (password.length < length) {
+            const bytes = randomBytes(length - password.length);
+            for (const byte of bytes) {
+                if (byte < maxByte) {
+                    password += chars[byte % chars.length];
+                    if (password.length >= length) break;
+                }
+            }
         }
+
         return password;
     }
 
