@@ -783,13 +783,34 @@ async function getOpenPRs(platform, token, repo) {
 function inferPlatformFromUrl(url) {
     if (!url) return null;
 
-    if (url.includes('github.com')) return 'github';
-    if (url.includes('gitlab.com')) return 'gitlab';
-    if (url.includes('bitbucket.org')) return 'bitbucket';
-    if (url.includes('dev.azure.com') || url.includes('visualstudio.com'))
-        return 'azuredevops';
+    try {
+        const parsedUrl = new URL(url);
+        const hostname = parsedUrl.hostname.toLowerCase();
 
-    return null;
+        // Use exact hostname matching to prevent bypass attacks
+        // e.g., "evil-github.com" should not match "github.com"
+        if (hostname === 'github.com' || hostname.endsWith('.github.com')) {
+            return 'github';
+        }
+        if (hostname === 'gitlab.com' || hostname.endsWith('.gitlab.com')) {
+            return 'gitlab';
+        }
+        if (hostname === 'bitbucket.org' || hostname.endsWith('.bitbucket.org')) {
+            return 'bitbucket';
+        }
+        if (
+            hostname === 'dev.azure.com' ||
+            hostname.endsWith('.dev.azure.com') ||
+            hostname.endsWith('.visualstudio.com')
+        ) {
+            return 'azuredevops';
+        }
+
+        return null;
+    } catch {
+        // Invalid URL format
+        return null;
+    }
 }
 
 function getAzureRepoContext(repo) {

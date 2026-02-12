@@ -42,8 +42,6 @@ import { SharedLogModule } from '@libs/shared/infrastructure/shared-log.module';
 import { SharedObservabilityModule } from '@libs/shared/infrastructure/shared-observability.module';
 import { GlobalCacheModule } from '@libs/core/cache/cache.module';
 import { Module } from '@nestjs/common';
-import { DevtoolsModule } from '@nestjs/devtools-integration';
-
 import { LoggerWrapperService } from '@libs/core/log/loggerWrapper.service';
 import { SSOModule } from '@libs/ee/sso/sso.module';
 import { AgentController } from './controllers/agent.controller';
@@ -73,17 +71,8 @@ import { TokenUsageController } from './controllers/tokenUsage.controller';
 import { UsersController } from './controllers/user.controller';
 import { CronModule } from './cron/cron.module';
 
-import { ConfigService } from '@nestjs/config';
-
 @Module({
     imports: [
-        DevtoolsModule.registerAsync({
-            inject: [ConfigService],
-            useFactory: (configService: ConfigService) => ({
-                http: configService.get('NODE_ENV') !== 'production',
-                port: 8000,
-            }),
-        }),
         SharedCoreModule,
         SharedConfigModule,
         SharedLogModule,
