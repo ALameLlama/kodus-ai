@@ -11,6 +11,9 @@ name: "Preview: Deploy"
 #   RAILWAY_TOKEN, RAILWAY_PROJECT_ID, RAILWAY_API_SERVICE_ID
 # =============================================================================
 
+permissions:
+    contents: read
+
 on:
     pull_request:
         types: [opened, synchronize, reopened]

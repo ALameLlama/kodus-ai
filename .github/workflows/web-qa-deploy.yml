@@ -1,11 +1,14 @@
 name: "Web: CI/CD QA Deploy"
 
+permissions:
+    contents: read
+
 on:
     push:
         branches:
             - main
         paths:
-            - 'apps/web/**'
+            - "apps/web/**"
 
 jobs:
     build_and_push_image:

@@ -9,6 +9,9 @@ name: "Preview: Cleanup"
 #   RAILWAY_TOKEN, RAILWAY_PROJECT_ID
 # =============================================================================
 
+permissions:
+    contents: read
+
 on:
     pull_request:
         types: [closed]

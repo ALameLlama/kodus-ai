@@ -1,5 +1,8 @@
 name: "Web: Deploy Manual to Production Server"
 
+permissions:
+    contents: read
+
 on:
     workflow_dispatch:
         inputs:
