@@ -1,4 +1,6 @@
-name: "Web: CI/CD QA Deploy"
+name: "Web: QA Deploy"
+
+# Scope: web application only. Backend deploys are handled by backend workflows.
 
 permissions:
     contents: read
@@ -9,6 +11,9 @@ on:
             - main
         paths:
             - "apps/web/**"
+            - "docker/Dockerfile.web"
+            - "docker/Dockerfile.web.dev"
+            - "docker/Dockerfile.web.selfhosted"
 
 jobs:
     build_and_push_image:

@@ -1,4 +1,4 @@
-name: Build and Publish Docker Images for Self-Hosted
+name: "Self-Hosted: Build and Publish Images"
 
 on:
     release:

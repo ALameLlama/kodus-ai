@@ -1,4 +1,4 @@
-name: "Web: Deploy Manual to Production Server"
+name: "Web: Manual Production Deploy"
 
 permissions:
     contents: read

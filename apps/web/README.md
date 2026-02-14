@@ -5,7 +5,7 @@
 <p align="center">
   <a href="https://kodus.io" target="_blank">Website</a>
   ·
-  <a href="" target="_blank">Community</a>
+  <a href="https://discord.gg/6WbWrRbsH7" target="_blank">Community</a>
   ·
   <a href="https://docs.kodus.io" target="_blank">Docs</a>
   ·
@@ -13,71 +13,62 @@
 </p>
 
 <p align="center">
-   <a href="https://github.com/kodustech/web" target="_blank"><img src="https://img.shields.io/github/stars/kodustech/web" alt="Github Stars"></a>
-   <a href="https://github.com/kodustech/web/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-AGPLv3-red" alt="License"></a>
+   <a href="https://github.com/kodustech/kodus-ai" target="_blank"><img src="https://img.shields.io/github/stars/kodustech/kodus-ai" alt="Github Stars"></a>
+   <a href="../../license.md"><img src="https://img.shields.io/badge/license-AGPLv3-red" alt="License"></a>
 </p>
 
-<h3 align="center">A modern, intuitive interface for managing your code reviews.</h3>
+<h3 align="center">A modern interface for managing Kodus code reviews.</h3>
 
 <br/>
 
-## About Kodus Web
+## About
 
-Kodus Web is the official web interface for Kodus, delivering a modern and intuitive experience for managing your code reviews. Built with cutting-edge technologies, it provides a seamless and responsive experience for all users.
+Kodus Web is the Next.js frontend for Kodus. In this repository it lives in `apps/web` and is developed/deployed independently from backend pipelines.
 
-### Key Features
-
-- **Modern Interface** — Clean and intuitive design that makes navigation and review management a breeze
-- **Responsive Design** — Perfectly crafted for both desktop and mobile devices
-- **Dark Mode** — Eye-friendly dark theme for comfortable viewing
-- **API Integration** — Efficient communication with the Kodus backend
-
-## Getting Started
+## Local Development (Monorepo)
 
 ### Prerequisites
 
-- Node.js 18+
-- npm or yarn
-- Docker
+- Node.js 22.x
+- Yarn 1.x
 
-### Installation
+### Run only web (without Docker)
 
-1. Clone the repository:
+From repository root:
 
 ```bash
-git clone https://github.com/kodustech/web.git
-cd web
+yarn web:install
+yarn web:dev
 ```
 
-2. Build and start the containers:
+Or from `apps/web`:
 
 ```bash
-npm run docker:build
-npm run docker:start
-# or
-yarn docker:build
+yarn install
+yarn start:dev
+```
+
+### Run full stack with Docker (backend + web)
+
+From repository root:
+
+```bash
 yarn docker:start
 ```
 
-## Tech Stack
+Web will be available at `http://localhost:3000`.
 
-- **Framework**: Next.js 15
-- **Language**: TypeScript
-- **Styling**:
-    - Tailwind CSS
-    - Radix UI
-    - Lucide React
-- **State Management**:
-    - React Query (TanStack Query)
-    - React Hook Form
-- **Authentication**: NextAuth.js
-- **Data Visualization**: Victory
-- **Development Tools**:
-    - ESLint
-    - Prettier
-    - TypeScript
-    - Docker
+## Scripts (`apps/web/package.json`)
 
-## Contributing
+- `yarn start:dev`: start Next.js in dev mode
+- `yarn build`: build production bundle
+- `yarn start`: run production server
+- `yarn lint`: run ESLint
+- `yarn check-types`: run TypeScript checks
 
-We welcome contributions!
+## CI/CD
+
+- PR checks: `.github/workflows/web-tests.yml`
+- QA deploy: `.github/workflows/web-qa-deploy.yml`
+- Production image build/push: `.github/workflows/web-build-push-production.yml`
+- Manual production deploy: `.github/workflows/web-deploy-to-prod.yml`

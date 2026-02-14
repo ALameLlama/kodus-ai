@@ -16,7 +16,7 @@ Thank you for your interest in contributing to Kodus! This document provides gui
 ## Prerequisites
 
 Before you begin, ensure you have the following installed:
-- Node.js (LTS version)
+- Node.js 22.x
 - Docker
 - Yarn or NPM
 - Git
@@ -54,31 +54,40 @@ yarn docker:start
 
 ### 6. First-time Setup
 ```bash
-yarn migrate:dev
+# Backend only (the web app has no migrations)
+yarn migration:run
 yarn seed
 ```
 
-### Important Note About Frontend
-For a complete development environment, you'll also need to set up the [frontend](https://github.com/kodustech/web). Please follow the frontend setup guide in our [web documentation](https://docs.kodus.io/how_to_deploy/en/local_quickstart/web) after setting up this repository.
+### Frontend in Monorepo
+The web frontend is now in this same repository under `apps/web`.
 
-The frontend will be available at `http://localhost:3000` and will communicate with this API at `http://localhost:3331`.
+- Run full stack (backend + web): `yarn docker:start`
+- Run only web locally: `yarn web:install && yarn web:dev`
+
+Default local endpoints:
+
+- Web: `http://localhost:3000`
+- API: `http://localhost:3001`
 
 ## Project Structure
 
-The project follows a clean, modular architecture:
+The repository is organized as a monorepo:
 
 ```
-├── src/
-│   ├── config/
-│   ├── core/
-│   ├── shared/
-│   └── modules/
+├── apps/
+│   ├── api/
+│   ├── webhooks/
+│   ├── worker/
+│   └── web/
+├── libs/
+├── packages/
 ├── test/
 ├── scripts/
 │   ├── dev/
 │   ├── docker/
 │   ├── gitops/
-│   └── seed/
+│   └── ...
 ├── docker/
 └── docs/
 ```
@@ -117,9 +126,9 @@ yarn test
 
 For specific test types:
 ```bash
-yarn test:unit    # Unit tests
 yarn test:e2e     # End-to-end tests
 yarn test:cov     # Test coverage
+yarn test:watch   # Watch mode
 ```
 
 ## Documentation

@@ -1,12 +1,16 @@
-# Deploy (ECS / ECR)
+# Deploy (Backend + Web)
 
-Este repo suporta build de **3 imagens** (1 processo por container) via `docker/Dockerfile`:
+Este monorepo possui pipelines separados para backend e web, mantendo deploy independente por serviço.
 
-- `api` → `node dist/apps/api/main.js`
-- `webhooks` → `node dist/apps/webhooks/main.js`
-- `worker` → `node dist/apps/worker/main.js`
+## Imagens Docker
 
-## Build local (targets)
+### Backend (`docker/Dockerfile`)
+
+- `api` -> `node dist/apps/api/main.js`
+- `webhooks` -> `node dist/apps/webhooks/main.js`
+- `worker` -> `node dist/apps/worker/main.js`
+
+Build local:
 
 ```bash
 docker build -f docker/Dockerfile --target api -t kodus-api:local .
@@ -14,130 +18,74 @@ docker build -f docker/Dockerfile --target webhooks -t kodus-webhooks:local .
 docker build -f docker/Dockerfile --target worker -t kodus-worker:local .
 ```
 
-## Build/push no ECR (local)
+### Web (`docker/Dockerfile.web`)
 
-Requisitos: `aws` CLI + Docker.
+Build local:
 
 ```bash
-export AWS_REGION=us-east-1
-export ECR_REGISTRY="123456789012.dkr.ecr.us-east-1.amazonaws.com"
-export TAG="$(git rev-parse HEAD)"
-
-export ECR_REPOSITORY_API="kodus-orchestrator-api-qa"
-export ECR_REPOSITORY_WEBHOOKS="kodus-orchestrator-webhook-qa"
-export ECR_REPOSITORY_WORKER="kodus-orchestrator-worker-qa"
-
-./scripts/docker/build-ecr-images.sh
-./scripts/docker/push-ecr-images.sh
+docker build -f docker/Dockerfile.web -t kodus-web:local apps/web
 ```
 
-## CI/CD (GitHub Actions) — QA (GitOps)
+## Roteamento de release/tag
 
-As imagens publicadas no ECR são multi-arch (linux/amd64 + linux/arm64).
+- Backend PROD (GitOps): tags semver `x.y.z` (ex.: `1.0.0`)
+- Web PROD (cloud): tags `web-x.y.z` (ex.: `web-1.0.2`)
+- Self-hosted: workflow dedicado que builda/publisha tudo junto
 
-### Workflows (repo do código)
+## CI/CD (GitHub Actions)
 
-- Deploy green (build/push + PR no repo infra): `.github/workflows/qa-build-push-and-pr-green.yml`
-- Promote traffic (PR de weights): `.github/workflows/qa-promote-traffic-pr.yml`
+### Backend
 
-### Configurar GitHub Environments (recomendado)
+- QA: `.github/workflows/qa-build-push-and-pr-green.yml`
+- PROD: `.github/workflows/prod-build-push-and-pr-green.yml`
+- PR checks: `.github/workflows/tests.yml`
 
-Crie o environment `qa` em `Settings → Environments` e mova os secrets de deploy (AWS + token do infra) para ele. Assim você consegue:
+### Web
 
-- limitar quem pode aprovar/executar deploy (required reviewers)
-- garantir que secrets só são liberados para jobs do environment
+- QA: `.github/workflows/web-qa-deploy.yml`
+- PROD build/push: `.github/workflows/web-build-push-production.yml`
+- PROD deploy manual no servidor: `.github/workflows/web-deploy-to-prod.yml`
+- PR checks: `.github/workflows/web-tests.yml`
 
-### Variáveis necessárias (repo → Settings → Actions → Variables)
+### Preview (PR)
 
-- `ECR_REPOSITORY_API`, `ECR_REPOSITORY_WEBHOOKS`, `ECR_REPOSITORY_WORKER`
-- `INFRA_REPO` (ex.: `kodus-ai/kodus-infra`)
+- Deploy preview web+backend: `.github/workflows/preview-deploy.yml`
+- Cleanup preview: `.github/workflows/preview-cleanup.yml`
+
+### Self-hosted
+
+- Build/publish de api + webhooks + worker + web: `.github/workflows/selfhosted-build-push.yml`
+
+## Backend GitOps (infra repo)
+
+### Variables (Actions -> Variables)
+
+- `ECR_REPOSITORY_API`
+- `ECR_REPOSITORY_WEBHOOKS`
+- `ECR_REPOSITORY_WORKER`
+- `INFRA_REPO` (ex.: `kodustech/kodus-infra`)
 - `INFRA_BASE_BRANCH` (ex.: `main`)
-- `INFRA_TFVARS_PATH` (QA: `envs/aws/qa/releases/orchestrator.auto.tfvars.json`; PROD: `envs/aws/prod/releases/orchestrator.auto.tfvars.json`)
+- `INFRA_TFVARS_PATH`
+- `INFRA_GITHUB_APP_ID`
 
-### Secrets necessárias
+### Secrets (Actions -> Secrets)
 
 - `AWS_REGION`
-- `AWS_ROLE_TO_ASSUME` (OIDC; evitar keys long-lived em repo open source)
-- `INFRA_GITHUB_APP_PRIVATE_KEY` (GitHub App private key; usado para gerar token efêmero por execução)
+- `AWS_ROLE_TO_ASSUME`
+- `INFRA_GITHUB_APP_PRIVATE_KEY`
 
-### Variables necessárias
+## Web (cloud) - variáveis/secrets típicas
 
-- `INFRA_GITHUB_APP_ID` (GitHub App id; usado para gerar token efêmero por execução)
+Os workflows de web (`web-qa-deploy.yml`, `web-build-push-production.yml`) usam:
 
-## Scripts GitOps (edição de tfvars)
+- AWS credentials/region para ECR/SSM
+- parâmetros SSM em `/qa/kodus-web/*` e `/prod/kodus-web/*`
+- secrets de SSH no deploy manual de produção
 
-Os workflows chamam scripts locais para manter o YAML mais enxuto:
+## Self-hosted (compose)
 
-- `scripts/gitops/update-tfvars-green.sh:1` (atualiza `*_green_image` + `*_green_desired_count`)
-- `scripts/gitops/update-tfvars-promote-weights.sh:1` (ajusta pesos para 100% green)
+`docker-compose.prod.yml` sobe backend + web via imagens GHCR:
 
-## Shutdown / drain (worker)
-
-No deploy (SIGTERM), o worker fecha consumidores RabbitMQ de forma graciosa:
-
-- cancela consumers (para de receber novas mensagens)
-- aguarda handlers em andamento finalizarem
-
-Implementado em `apps/worker/src/worker-drain.service.ts:1`.
-
-## Portas (QA / ECS)
-
-- API usa `API_PORT`.
-- Webhooks usa `API_WEBHOOKS_PORT` (obrigatório).
-
-## CI/CD (GitHub Actions) — PROD (GitOps)
-
-As imagens publicadas no ECR são multi-arch (linux/amd64 + linux/arm64).
-
-PROD roda **somente por release** (tag `x.y.z`, ex.: `1.0.92`) e usa o environment `production` com aprovação.
-
-### Workflows (repo do código)
-
-- Deploy green (release → build/push + PR no repo infra): `.github/workflows/prod-build-push-and-pr-green.yml`
-- Promote traffic (manual, PR de weights): `.github/workflows/prod-promote-traffic-pr.yml`
-
-### Workflows legados
-
-Removidos. Mantemos apenas GitOps via PR no repo de infra.
-
-### Contrato com o infra (PROD)
-
-- `INFRA_TFVARS_PATH`: `envs/aws/prod/releases/orchestrator.auto.tfvars.json`
-- ECR repos:
-    - `kodus-orchestrator-api-prod`
-    - `kodus-orchestrator-webhook-prod`
-    - `kodus-orchestrator-worker-prod`
-
-## Contrato GitOps (kodus-infra)
-
-Enviar para o time do `kodus-infra`:
-
-1. Paths GitOps (corrigidos)
-
-- QA: `envs/aws/qa/releases/orchestrator.auto.tfvars.json`
-- PROD: `envs/aws/prod/releases/orchestrator.auto.tfvars.json`
-
-2. Variáveis que o workflow deve editar (somente essas)
-
-- `api_green_image`
-- `webhook_green_image`
-- `worker_green_image`
-- `api_green_desired_count`
-- `webhook_green_desired_count`
-- `worker_green_desired_count`
-- `api_blue_weight`
-- `api_green_weight`
-- `webhook_blue_weight`
-- `webhook_green_weight`
-
-3. Regras de segurança (open source)
-
-- Não usar secrets em PR de fork.
-- Deploy/PR para infra só em `push` para `main` ou `workflow_dispatch`.
-- PR de infra deve tocar só os arquivos de release acima.
-
-4. ECR PROD
-
-- `kodus-orchestrator-api-prod`
-- `kodus-orchestrator-webhook-prod`
-- `kodus-orchestrator-worker-prod`
+```bash
+ENV_FILE=.env.prod docker compose -f docker-compose.prod.yml up -d
+```

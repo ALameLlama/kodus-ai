@@ -1,4 +1,4 @@
-name: "Preview: Deploy"
+name: "Preview: Deploy (Web + Backend)"
 
 # =============================================================================
 # Unified preview deploy for PRs.
@@ -50,6 +50,7 @@ jobs:
                         - 'package.json'
                         - 'yarn.lock'
                         - 'docker/Dockerfile'
+                        - 'docker-bake.hcl'
 
     # ------------------------------------------------------------------
     # 2. Backend preview on Railway (API service only)

@@ -1,4 +1,9 @@
-name: PROD (GitOps) - Build/Push images + Deploy
+name: "Backend: Production GitOps Deploy"
+
+# Release routing:
+# - backend: semantic tags like 1.2.3
+# - web: tags prefixed with web- (handled by Web workflows)
+# - selfhosted: separate workflow that builds all services together
 
 on:
     release:
@@ -18,7 +23,7 @@ permissions:
 
 env:
     AWS_REGION: ${{ secrets.AWS_REGION }}
-    IMAGE_TAG: ${{ github.event.inputs.image_tag || github.event.release.tag_name || github.ref_name }}
+    IMAGE_TAG: ${{ github.event.inputs.image_tag || github.event.release.tag_name || github.sha }}
     BUILDX_PLATFORMS: linux/arm64
     BUILDX_CACHE_SCOPE: kodus-ai-arm64
 
@@ -34,15 +39,20 @@ env:
 
 jobs:
     build_push_and_deploy:
+        name: Build/push backend images and open deploy PR
         runs-on: ubuntu-latest
         environment: production
-        if: github.event_name == 'release' || startsWith(github.ref, 'refs/tags/')
+        if: |
+            github.event_name == 'workflow_dispatch' ||
+            (github.event_name == 'release' && !startsWith(github.event.release.tag_name, 'web-')) ||
+            (startsWith(github.ref, 'refs/tags/') && !startsWith(github.ref_name, 'web-'))
         permissions:
             contents: read
             id-token: write
 
         steps:
             - name: Validate tag format (x.y.z)
+              if: github.event_name != 'workflow_dispatch'
               run: |
                   set -euo pipefail
                   TAG="${{ env.IMAGE_TAG }}"
@@ -144,7 +154,8 @@ jobs:
                     --set base.cache-from=type=gha,scope=${{ env.BUILDX_CACHE_SCOPE }} \
                     --set base.cache-to=type=gha,scope=${{ env.BUILDX_CACHE_SCOPE }},mode=max \
                     --set *.platform=${{ env.BUILDX_PLATFORMS }} \
-                    --push
+                    --push \
+                    api webhooks worker
 
             - name: Checkout infra repo
               uses: actions/checkout@v4.2.2

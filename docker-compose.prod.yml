@@ -5,7 +5,7 @@
 # infrastructure. It uses pre-built images from the GitHub Container Registry.
 #
 # Usage:
-# 1. Create a `.env.prod` file by copying `.env.example.prod`.
+# 1. Create a `.env.prod` file by copying `.env.example`.
 # 2. Fill in the required environment variables in `.env.prod`.
 # 3. Run `ENV_FILE=.env.prod docker compose -f docker-compose.prod.yml up -d`.
 # ==============================================================================
