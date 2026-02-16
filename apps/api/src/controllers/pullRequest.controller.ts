@@ -44,6 +44,11 @@ import {
     ITeamCliKeyService,
     TEAM_CLI_KEY_SERVICE_TOKEN,
 } from '@libs/organization/domain/team-cli-key/contracts/team-cli-key.service.contract';
+import {
+    IAutomationExecutionService,
+    AUTOMATION_EXECUTION_SERVICE_TOKEN,
+} from '@libs/automation/domain/automationExecution/contracts/automation-execution.service';
+import { AutomationStatus } from '@libs/automation/domain/automation/enum/automation-status';
 import { Public } from '@libs/identity/infrastructure/adapters/services/auth/public.decorator';
 import { ApiStandardResponses } from '../docs/api-standard-responses.decorator';
 import { PullRequestSuggestionsResponseDto } from '../dtos/pull-request-suggestions-response.dto';
@@ -67,6 +72,8 @@ export class PullRequestController {
         private readonly pullRequestsService: IPullRequestsService,
         @Inject(TEAM_CLI_KEY_SERVICE_TOKEN)
         private readonly teamCliKeyService: ITeamCliKeyService,
+        @Inject(AUTOMATION_EXECUTION_SERVICE_TOKEN)
+        private readonly automationExecutionService: IAutomationExecutionService,
     ) {}
 
     @Get('/executions')
@@ -140,6 +147,7 @@ export class PullRequestController {
             format,
             severity,
             category,
+            organizationId,
         });
     }
 
@@ -251,6 +259,7 @@ export class PullRequestController {
             format,
             severity,
             category,
+            organizationId: teamData.organization.uuid,
         });
     }
 
@@ -313,13 +322,34 @@ export class PullRequestController {
         return null;
     }
 
+    private trackSuggestionsFetch(params: {
+        organizationId: string;
+        prNumber: number;
+        repositoryFullName?: string;
+        format: string;
+        suggestionsCount: number;
+        filters?: { severity?: string; category?: string };
+    }): void {
+        this.automationExecutionService
+            .create({
+                status: AutomationStatus.SUCCESS,
+                origin: 'cli-suggestions',
+                dataExecution: {
+                    type: 'CLI_PR_SUGGESTIONS',
+                    ...params,
+                },
+            })
+            .catch(() => {}); // fire-and-forget
+    }
+
     private buildSuggestionsResponse(params: {
         pr: any;
         format: 'json' | 'markdown';
         severity?: string;
         category?: string;
+        organizationId: string;
     }) {
-        const { pr, format, severity, category } = params;
+        const { pr, format, severity, category, organizationId } = params;
 
         const severityFilter = severity
             ? new Set(
@@ -363,6 +393,17 @@ export class PullRequestController {
             (s) =>
                 s.deliveryStatus === DeliveryStatus.SENT && matchesFilters(s),
         );
+
+        this.trackSuggestionsFetch({
+            organizationId,
+            prNumber: pr.number,
+            repositoryFullName: pr.repository?.fullName,
+            format,
+            suggestionsCount:
+                fileSuggestions.length + prLevelSuggestions.length,
+            filters:
+                severity || category ? { severity, category } : undefined,
+        });
 
         const payload = {
             prNumber: pr.number,
