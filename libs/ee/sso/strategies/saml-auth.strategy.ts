@@ -1,7 +1,7 @@
 import { Inject, Injectable, UnauthorizedException } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import { Request } from 'express';
-import { MultiSamlStrategy } from 'passport-saml';
+import { MultiSamlStrategy } from '@node-saml/passport-saml';
 
 import { SSOProtocol } from '@libs/ee/sso/domain/interfaces/ssoConfig.interface';
 import {

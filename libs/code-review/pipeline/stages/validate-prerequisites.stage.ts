@@ -4,6 +4,7 @@ import {
     AutomationStatus,
 } from '@libs/automation/domain/automation/enum/automation-status';
 import {
+    ForgejoReaction,
     GitHubReaction,
     GitlabReaction,
 } from '@libs/code-review/domain/codeReviewFeedback/enums/codeReviewCommentReaction.enum';
@@ -50,6 +51,7 @@ const ERROR_TO_MESSAGE_TYPE: Record<
 const NO_LICENSE_REACTION_MAP = {
     [PlatformType.GITHUB]: GitHubReaction.THUMBS_DOWN,
     [PlatformType.GITLAB]: GitlabReaction.LOCK,
+    [PlatformType.FORGEJO]: ForgejoReaction.THUMBS_DOWN,
 };
 
 @Injectable()

@@ -48,7 +48,8 @@ function tryParseJSONObject<T>(payload: string): T | null {
 // Legacy export for compatibility
 function stripCodeBlocks(text: string): string {
     // Simple strip for legacy compatibility
-    const match = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+    // Use non-overlapping pattern to prevent ReDoS (removed \s* before closing ```)
+    const match = text.match(/```(?:json)?\n?([\s\S]*?)```/);
     if (match && match[1]) return match[1].trim();
     return text
         .replace(/^```json\s*/, '')
@@ -104,9 +105,10 @@ export class EnhancedJSONParser {
 
         // 3. Try extracting from markdown code blocks explicitly (Regex fallback)
         // Useful if the robust extraction failed due to unbalanced braces in the surrounding text
-        const match = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+        // Use non-overlapping pattern to prevent ReDoS (removed \s* before closing ```)
+        const match = text.match(/```(?:json)?\n?([\s\S]*?)```/);
         if (match && match[1]) {
-            result = tryParseJSONObject<T>(match[1]);
+            result = tryParseJSONObject<T>(match[1].trim());
             if (result !== null) return result;
         }
 

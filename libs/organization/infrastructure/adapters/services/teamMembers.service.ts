@@ -1,4 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
+import { randomBytes } from 'crypto';
 
 import { STATUS } from '@libs/core/infrastructure/config/types/database/status.type';
 import { OrganizationAndTeamData } from '@libs/core/infrastructure/config/types/general/organizationAndTeamData';
@@ -477,10 +478,27 @@ export class TeamMemberService implements ITeamMemberService {
     }
 
     private generateTemporaryPassword(): string {
-        return (
-            Math.random().toString(36).slice(-8) +
-            Math.random().toString(36).slice(-8)
-        );
+        // Use cryptographically secure random bytes with rejection sampling
+        // to avoid modulo bias when mapping bytes to characters
+        const chars =
+            'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+        const length = 16;
+        // Largest multiple of chars.length that fits in a byte (256)
+        // 256 - (256 % 62) = 256 - 8 = 248
+        const maxByte = 256 - (256 % chars.length);
+        let password = '';
+
+        while (password.length < length) {
+            const bytes = randomBytes(length - password.length);
+            for (const byte of bytes) {
+                if (byte < maxByte) {
+                    password += chars[byte % chars.length];
+                    if (password.length >= length) break;
+                }
+            }
+        }
+
+        return password;
     }
 
     async findMembersByCommunicationId(communicationId: string) {

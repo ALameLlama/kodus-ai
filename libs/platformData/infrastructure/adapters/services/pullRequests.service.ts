@@ -966,18 +966,21 @@ export class PullRequestsService implements IPullRequestsService {
              *  so we can build the assignee array properly.
              */
             if (data?.role) {
-                const completeUser =
-                    await this.codeManagement.getUserByUsername(
-                        {
-                            organizationAndTeamData,
-                            username:
-                                data?.login ||
-                                data?.username ||
-                                data?.nickname ||
-                                '',
-                        },
-                        platformType,
-                    );
+                const usernameForLookup =
+                    data?.login ||
+                    data?.username ||
+                    data?.nickname ||
+                    '';
+                // Only call getUserByUsername if we have a non-empty username
+                const completeUser = usernameForLookup
+                    ? await this.codeManagement.getUserByUsername(
+                          {
+                              organizationAndTeamData,
+                              username: usernameForLookup,
+                          },
+                          platformType,
+                      )
+                    : null;
 
                 return {
                     id: data?.user?.uuid.replace(/[{}]/g, '') || '',
@@ -988,19 +991,22 @@ export class PullRequestsService implements IPullRequestsService {
             }
 
             if (!data?.email && !data?.uniqueName) {
-                const completeUser =
-                    await this.codeManagement.getUserByUsername(
-                        {
-                            organizationAndTeamData,
-                            username:
-                                data?.login ||
-                                data?.username ||
-                                data?.nickname ||
-                                data?.descriptor ||
-                                '',
-                        },
-                        platformType,
-                    );
+                const usernameForLookup =
+                    data?.login ||
+                    data?.username ||
+                    data?.nickname ||
+                    data?.descriptor ||
+                    '';
+                // Only call getUserByUsername if we have a non-empty username
+                const completeUser = usernameForLookup
+                    ? await this.codeManagement.getUserByUsername(
+                          {
+                              organizationAndTeamData,
+                              username: usernameForLookup,
+                          },
+                          platformType,
+                      )
+                    : null;
 
                 return {
                     id: data?.id || data?.uuid || '',

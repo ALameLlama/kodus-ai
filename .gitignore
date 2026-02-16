@@ -119,7 +119,7 @@ specs
 .eslintcache
 
 .worktrees
-
+.entire
 
 scripts/pr-creator/accounts.json
 scripts/pr-creator/package-lock.json

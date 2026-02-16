@@ -505,8 +505,9 @@ RESPONSE FORMAT:
             fields.missingInfo = missingInfoMatch[1];
         }
 
+        // Use non-backtracking regex to prevent ReDoS
         const summaryMatch = text.match(
-            /"summary"\s*:\s*"([^"]*(?:\\.[^"]*)*)"/,
+            /"summary"\s*:\s*"((?:[^"\\]|\\.)*)"/,
         );
         if (summaryMatch) {
             fields.summary = summaryMatch[1]

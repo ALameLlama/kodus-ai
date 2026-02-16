@@ -25,6 +25,20 @@ export function extractRepoName(repoName: string): string {
     return parts[parts.length - 1].trim();
 }
 
+export function extractOwnerAndRepo(
+    repoFullName: string,
+): { owner: string; repo: string } | null {
+    if (!repoFullName) return null;
+
+    const parts = repoFullName.split('/', 2);
+    if (parts.length < 2) return null;
+
+    return {
+        owner: parts[0],
+        repo: parts[1],
+    };
+}
+
 export function extractRepoData(
     repositories: any[],
     repoName: string,
@@ -203,9 +217,24 @@ export const generateRandomOrgName = (name: string): string => {
 export const randomString = (length: number) => {
     const charset =
         'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-    return Array.from(crypto.getRandomValues(new Uint32Array(length)))
-        .map((x) => charset[x % charset.length])
-        .join('');
+    // Use rejection sampling to avoid modulo bias
+    // 2^32 / 62 leaves remainder, so reject values >= maxValid
+    const maxValid = Math.floor(0xffffffff / charset.length) * charset.length;
+    const result: string[] = [];
+
+    while (result.length < length) {
+        const values = crypto.getRandomValues(
+            new Uint32Array(length - result.length),
+        );
+        for (const x of values) {
+            if (x < maxValid) {
+                result.push(charset[x % charset.length]);
+                if (result.length >= length) break;
+            }
+        }
+    }
+
+    return result.join('');
 };
 
 const retryWithBackoff = async <T>(

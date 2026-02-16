@@ -43,6 +43,8 @@ export class WebhookProcessingJobProcessorService implements IJobProcessorServic
         private readonly bitbucketPullRequestHandler: IWebhookEventHandler,
         @Inject('AZURE_REPOS_WEBHOOK_HANDLER')
         private readonly azureReposPullRequestHandler: IWebhookEventHandler,
+        @Inject('FORGEJO_WEBHOOK_HANDLER')
+        private readonly forgejoPullRequestHandler: IWebhookEventHandler,
         private readonly observability?: ObservabilityService,
     ) {
         // Initialize handlers map
@@ -51,6 +53,7 @@ export class WebhookProcessingJobProcessorService implements IJobProcessorServic
             [PlatformType.GITLAB, gitlabMergeRequestHandler],
             [PlatformType.BITBUCKET, bitbucketPullRequestHandler],
             [PlatformType.AZURE_REPOS, azureReposPullRequestHandler],
+            [PlatformType.FORGEJO, forgejoPullRequestHandler],
         ]);
     }
 
