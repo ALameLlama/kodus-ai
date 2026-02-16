@@ -1,12 +1,10 @@
-name: "Preview: Cleanup (Web + Backend)"
+name: "Preview: Cleanup"
 
 # =============================================================================
-# Cleans up preview environments when a PR is closed/merged.
-# - Railway: deletes the PR environment
+# Updates PR comment when a PR is closed/merged.
+# - Railway: native PR environments auto-cleanup on PR close
 # - Vercel: auto-cleans (no action needed)
-#
-# Required secrets:
-#   RAILWAY_TOKEN, RAILWAY_PROJECT_ID
+# - This workflow only updates the PR comment
 # =============================================================================
 
 permissions:
@@ -17,25 +15,6 @@ on:
         types: [closed]
 
 jobs:
-    cleanup-railway:
-        name: Cleanup Railway environment
-        runs-on: ubuntu-latest
-        env:
-            RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
-        steps:
-            - name: Install Railway CLI
-              run: npm install -g @railway/cli
-
-            - name: Delete preview environment
-              run: |
-                  ENV_NAME="pr-${{ github.event.pull_request.number }}"
-
-                  railway environment delete "$ENV_NAME" \
-                    --project ${{ secrets.RAILWAY_PROJECT_ID }} \
-                    --yes 2>/dev/null || true
-
-                  echo "Cleaned up Railway environment: $ENV_NAME"
-
     cleanup-comment:
         name: Update PR comment
         runs-on: ubuntu-latest
