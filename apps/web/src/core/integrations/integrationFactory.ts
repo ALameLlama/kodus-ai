@@ -2,6 +2,7 @@ import { INTEGRATIONS_KEY } from "@enums";
 
 import { AzureReposConnection } from "./azureReposConnection";
 import { BitbucketConnection } from "./bitbucketConnection";
+import { ForgejoConnection } from "./forgejoConnection";
 import { GitHubConnection } from "./gitHubConnection";
 import { GitlabConnection } from "./gitlabConnection";
 import { IIntegrationConnector } from "./IIntegrationConnector";
@@ -15,6 +16,7 @@ class IntegrationFactory {
             [INTEGRATIONS_KEY.GITLAB]: new GitlabConnection(),
             [INTEGRATIONS_KEY.BITBUCKET]: new BitbucketConnection(),
             [INTEGRATIONS_KEY.AZURE_REPOS]: new AzureReposConnection(),
+            [INTEGRATIONS_KEY.FORGEJO]: new ForgejoConnection(),
         };
     }
 

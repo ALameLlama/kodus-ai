@@ -3,6 +3,7 @@ export const GIT_INTEGRATIONS_KEY = {
     GITLAB: "gitlab",
     BITBUCKET: "bitbucket",
     AZURE_REPOS: "azure_repos",
+    FORGEJO: "forgejo",
 } as const;
 
 export const INTEGRATIONS_KEY = {

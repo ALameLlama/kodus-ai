@@ -58,4 +58,5 @@ export enum PlatformType {
     GITLAB = "GITLAB",
     AZURE_REPOS = "AZURE_REPOS",
     BITBUCKET = "BITBUCKET",
+    FORGEJO = "FORGEJO",
 }

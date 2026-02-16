@@ -53,11 +53,8 @@ yarn docker:start
 ```
 
 ### 6. First-time Setup
-```bash
-# Backend only (the web app has no migrations)
-yarn migration:run
-yarn seed
-```
+No additional command is needed for migrations/seed in the default Docker flow.
+`yarn docker:start` already runs backend migrations + seed automatically.
 
 ### Frontend in Monorepo
 The web frontend is now in this same repository under `apps/web`.

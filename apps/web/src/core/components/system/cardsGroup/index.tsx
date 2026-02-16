@@ -6,6 +6,7 @@ import { Button } from "@components/ui/button";
 import { Heading } from "@components/ui/heading";
 import { SvgAzureRepos } from "@components/ui/icons/SvgAzureRepos";
 import { SvgBitbucket } from "@components/ui/icons/SvgBitbucket";
+import { SvgForgejo } from "@components/ui/icons/SvgForgejo";
 import { SvgGithub } from "@components/ui/icons/SvgGithub";
 import { SvgGitlab } from "@components/ui/icons/SvgGitlab";
 import { magicModal } from "@components/ui/magic-modal";
@@ -53,6 +54,10 @@ const codeManagementPlatforms = {
     [INTEGRATIONS_KEY.AZURE_REPOS]: {
         svg: <SvgAzureRepos />,
         platformName: "Azure Repos",
+    },
+    [INTEGRATIONS_KEY.FORGEJO]: {
+        svg: <SvgForgejo />,
+        platformName: "Forgejo",
     },
 } satisfies Partial<
     Record<
@@ -117,6 +122,12 @@ export default function CardsGroup({
             },
             {
                 key: INTEGRATIONS_KEY.BITBUCKET,
+                isSetupComplete: false,
+                hasConnection: false,
+                serviceType: "codeManagement",
+            },
+            {
+                key: INTEGRATIONS_KEY.FORGEJO,
                 isSetupComplete: false,
                 hasConnection: false,
                 serviceType: "codeManagement",

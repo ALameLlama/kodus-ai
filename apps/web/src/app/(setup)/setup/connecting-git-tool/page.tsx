@@ -6,6 +6,7 @@ import { Button } from "@components/ui/button";
 import { Heading } from "@components/ui/heading";
 import { SvgAzureRepos } from "@components/ui/icons/SvgAzureRepos";
 import { SvgBitbucket } from "@components/ui/icons/SvgBitbucket";
+import { SvgForgejo } from "@components/ui/icons/SvgForgejo";
 import { SvgGithub } from "@components/ui/icons/SvgGithub";
 import { SvgGitlab } from "@components/ui/icons/SvgGitlab";
 import { SvgKodus } from "@components/ui/icons/SvgKodus";
@@ -26,6 +27,7 @@ import { StepIndicators } from "../_components/step-indicators";
 import { useGoToStep } from "../_hooks/use-goto-step";
 import { AzureReposTokenModal } from "./_components/modals/azure-repos";
 import { BitbucketTokenModal } from "./_components/modals/bitbucket";
+import { ForgejoTokenModal } from "./_components/modals/forgejo";
 import { GithubTokenModal } from "./_components/modals/github";
 import { GitlabTokenModal } from "./_components/modals/gitlab";
 
@@ -104,7 +106,7 @@ export default function App() {
             </div>
 
             <div className="flex flex-14 flex-col items-center justify-center gap-20 p-10">
-                <div className="flex max-w-118 flex-1 flex-col justify-center gap-10">
+                <div className="flex max-w-fit flex-1 flex-col justify-center gap-10">
                     <StepIndicators.Auto />
 
                     <div className="flex flex-col gap-2">
@@ -145,6 +147,13 @@ export default function App() {
                                 <div className="flex flex-row items-center gap-2">
                                     <SvgAzureRepos className="size-5" />
                                     Azure Repos
+                                </div>
+                            </TabsTrigger>
+                            <TabsTrigger
+                                value={GIT_INTEGRATIONS_KEY.FORGEJO}>
+                                <div className="flex flex-row items-center gap-2">
+                                    <SvgForgejo className="size-5" />
+                                    Forgejo
                                 </div>
                             </TabsTrigger>
                         </TabsList>
@@ -312,6 +321,40 @@ export default function App() {
                                             userEmail={email}
                                         />
                                     ));
+                                }}>
+                                Connect via token
+                            </Button>
+                        </TabsContent>
+
+                        <TabsContent
+                            value={GIT_INTEGRATIONS_KEY.FORGEJO}
+                            className="bg-card-lv1 flex flex-col gap-2 rounded-3xl border p-8">
+                            <Button
+                                size="lg"
+                                variant="primary"
+                                className="w-full"
+                                onClick={async () => {
+                                    captureSegmentEvent({
+                                        userId: userId!,
+                                        event: "try_setup_git_integration",
+                                        properties: {
+                                            platform: "forgejo",
+                                            method: "token",
+                                        },
+                                    });
+
+                                    const response =
+                                        await magicModal.show<true>(() => (
+                                            <ForgejoTokenModal
+                                                teamId={teamId}
+                                                userId={userId!}
+                                                userEmail={email}
+                                            />
+                                        ));
+
+                                    if (!response) return;
+
+                                    router.push(nextStepPath);
                                 }}>
                                 Connect via token
                             </Button>

@@ -132,6 +132,9 @@ docs/openapi.newman.responses.4xx-5xx.json
 
 # Web (Next.js)
 apps/web/.next/
+
+# TypeScript incremental cache
+*.tsbuildinfo
 apps/web/out/
 apps/web/build/
 apps/web/coverage/
