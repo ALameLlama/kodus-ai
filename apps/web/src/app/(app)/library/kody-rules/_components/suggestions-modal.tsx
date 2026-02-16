@@ -44,10 +44,11 @@ const buildExternalPullRequestUrl = ({
 
     try {
         const url = new URL(prUrl);
-        const host = url.host.toLowerCase();
+        const hostname = url.hostname.toLowerCase();
 
-        if (host.includes("github.com")) {
-            if (host.includes("api.github.com")) {
+        // GitHub: api.github.com for API, github.com for web
+        if (hostname === "github.com" || hostname === "api.github.com") {
+            if (hostname === "api.github.com") {
                 const apiMatch = url.pathname.match(/\/repos\/([^/]+)\/([^/]+)\/pulls/);
                 if (apiMatch) {
                     const [, owner, repo] = apiMatch;
@@ -61,7 +62,8 @@ const buildExternalPullRequestUrl = ({
             }
         }
 
-        if (host.includes("gitlab.com")) {
+        // GitLab: gitlab.com only
+        if (hostname === "gitlab.com") {
             if (url.pathname.includes("/api/v4/projects/")) {
                 if (repositoryFullName) {
                     return `https://gitlab.com/${repositoryFullName}/-/merge_requests/${prNumber}`;
@@ -71,8 +73,9 @@ const buildExternalPullRequestUrl = ({
             }
         }
 
-        if (host.includes("bitbucket.org")) {
-            if (host.includes("api.bitbucket.org")) {
+        // Bitbucket: api.bitbucket.org for API, bitbucket.org for web
+        if (hostname === "bitbucket.org" || hostname === "api.bitbucket.org") {
+            if (hostname === "api.bitbucket.org") {
                 const apiMatch = url.pathname.match(/\/2\.0\/repositories\/([^/]+)\/([^/]+)/);
                 if (apiMatch) {
                     const [, workspace, repo] = apiMatch;
@@ -86,15 +89,16 @@ const buildExternalPullRequestUrl = ({
             }
         }
 
-        if (host.includes("dev.azure.com")) {
+        // Azure DevOps: dev.azure.com only
+        if (hostname === "dev.azure.com") {
             if (!url.pathname.includes("/_apis/")) {
                 return prUrl;
             }
 
-            const azureMatch = prUrl.match(/dev\.azure\.com\/([^/]+)\/([^/]+)\/_apis/);
+            const pathMatch = url.pathname.match(/^\/([^/]+)\/([^/]+)\/_apis\//);
             const repositoryName = repositoryFullName?.split("/").pop();
-            if (azureMatch && repositoryName) {
-                const [, organization, project] = azureMatch;
+            if (pathMatch && repositoryName) {
+                const [, organization, project] = pathMatch;
                 return `https://dev.azure.com/${organization}/${project}/_git/${repositoryName}/pullrequest/${prNumber}`;
             }
         }
