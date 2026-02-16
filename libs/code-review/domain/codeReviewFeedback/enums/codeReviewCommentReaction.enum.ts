@@ -17,7 +17,18 @@ export enum GitlabReaction {
     LOCK = 'lock',
 }
 
-export type Reaction = GitHubReaction | GitlabReaction;
+export enum ForgejoReaction {
+    THUMBS_UP = '+1',
+    THUMBS_DOWN = '-1',
+    LAUGH = 'laugh',
+    HOORAY = 'hooray',
+    CONFUSED = 'confused',
+    HEART = 'heart',
+    ROCKET = 'rocket',
+    EYES = 'eyes',
+}
+
+export type Reaction = GitHubReaction | GitlabReaction | ForgejoReaction;
 
 export enum CountingType {
     CREATE = 'create',

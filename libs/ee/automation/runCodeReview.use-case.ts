@@ -234,6 +234,7 @@ export class RunCodeReviewAutomationUseCase implements IUseCase {
         const allowedActions = [
             'opened',
             'synchronize',
+            'synchronized', // Forgejo uses 'synchronized' instead of 'synchronize'
             'ready_for_review',
             'open',
             'update',

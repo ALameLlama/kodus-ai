@@ -22,7 +22,7 @@ services:
     #----------------------------------------------------------------
     # Application Services
     #----------------------------------------------------------------
-    api:
+    kodus-api:
         <<: *app-service-defaults
         container_name: kodus_api
         ports:

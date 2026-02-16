@@ -8,6 +8,7 @@ import { Inject, Injectable } from '@nestjs/common';
 
 import { AutomationStatus } from '@libs/automation/domain/automation/enum/automation-status';
 import {
+    ForgejoReaction,
     GitHubReaction,
     GitlabReaction,
     Reaction,
@@ -37,6 +38,12 @@ export class CodeReviewHandlerService {
             [ReviewStatusReaction.SUCCESS]: GitlabReaction.TADA,
             [ReviewStatusReaction.ERROR]: GitlabReaction.CONFUSED,
             [ReviewStatusReaction.SKIP]: GitlabReaction.EYES,
+        },
+        [PlatformType.FORGEJO]: {
+            [ReviewStatusReaction.START]: ForgejoReaction.ROCKET,
+            [ReviewStatusReaction.SUCCESS]: ForgejoReaction.HOORAY,
+            [ReviewStatusReaction.ERROR]: ForgejoReaction.CONFUSED,
+            [ReviewStatusReaction.SKIP]: ForgejoReaction.EYES,
         },
     };
 

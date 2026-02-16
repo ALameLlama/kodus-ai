@@ -3,6 +3,7 @@ import { IMappedPlatform } from '@libs/platform/domain/platformIntegrations/type
 
 import { AzureReposMappedPlatform } from './azureRepos';
 import { BitbucketMappedPlatform } from './bitbucket';
+import { ForgejoMappedPlatform } from './forgejo';
 import { GithubMappedPlatform } from './github';
 import { GitlabMappedPlatform } from './gitlab';
 
@@ -13,6 +14,7 @@ const platformMaps = new Map<PlatformType, IMappedPlatform>([
     [PlatformType.GITLAB, new GitlabMappedPlatform()],
     [PlatformType.BITBUCKET, new BitbucketMappedPlatform()],
     [PlatformType.AZURE_REPOS, new AzureReposMappedPlatform()],
+    [PlatformType.FORGEJO, new ForgejoMappedPlatform()],
 ] as Iterable<readonly [PlatformType, IMappedPlatform]>);
 
 export const getMappedPlatform = (platformType: PlatformType) => {
