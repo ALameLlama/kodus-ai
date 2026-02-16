@@ -23,9 +23,31 @@ This automated script will:
 - 🔧 Create and configure your `.env` file
 - 🔐 Generate secure keys automatically
 - 🐳 Set up Docker networks
-- 🚀 Start all services
-- 📊 Run backend database migrations
-- 🌱 Seed initial data
+
+After setup, start the stack:
+
+```bash
+yarn docker:start
+```
+
+`yarn docker:start` already runs backend migrations and seed automatically during API startup.
+
+## Validate `.env` with Doctor
+
+After editing `.env`, run:
+
+```bash
+yarn env:doctor
+```
+
+Scope-specific checks:
+
+```bash
+yarn env:doctor:backend
+yarn env:doctor:web
+```
+
+The doctor validates required variables and shows warnings for optional OAuth fields used only when those integrations are enabled.
 
 ## Manual Configuration
 
@@ -51,10 +73,8 @@ If you prefer manual setup or need to customize settings:
    yarn docker:start
    ```
 
-5. **Run backend database migrations (web does not have migrations):**
-   ```bash
-   yarn migration:run
-   ```
+5. **Migrations + seed (automatic with `yarn docker:start`):**
+   no manual command needed in the default Docker flow.
 
 ### Conectar aos bancos de QA/Prod
 
@@ -89,6 +109,9 @@ If you prefer manual setup or need to customize settings:
 | Command | Description |
 |---------|-------------|
 | `yarn setup` | Complete first-time setup |
+| `yarn env:doctor` | Validate required `.env` variables (backend + web) |
+| `yarn env:doctor:backend` | Validate only backend required variables |
+| `yarn env:doctor:web` | Validate only web required variables |
 | `yarn dev:health-check` | Verify all services are running |
 | `yarn docker:start` | Start backend + web + local infrastructure |
 | `yarn dev:restart` | Restart all services |

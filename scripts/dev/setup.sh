@@ -33,6 +33,26 @@ generate_webhook_token() {
     openssl rand -base64 32 | tr -d '=' | tr '/+' '_-'
 }
 
+upsert_env_if_missing_or_empty() {
+    local key="$1"
+    local value="$2"
+    local quoted_value="\"$value\""
+    local current_value=""
+
+    if grep -q "^${key}=" .env; then
+        current_value=$(grep "^${key}=" .env | head -n 1 | cut -d'=' -f2- | tr -d '"' | tr -d "'")
+        if [ -z "$current_value" ]; then
+            if [[ "$OSTYPE" == "darwin"* ]]; then
+                sed -i '' "s|^${key}=.*|${key}=${quoted_value}|" .env
+            else
+                sed -i "s|^${key}=.*|${key}=${quoted_value}|" .env
+            fi
+        fi
+    else
+        echo "${key}=${quoted_value}" >> .env
+    fi
+}
+
 echo -e "${YELLOW}🔍 Checking dependencies...${NC}"
 check_dependency "node"
 check_dependency "yarn"
@@ -67,6 +87,7 @@ API_JWT_REFRESHSECRET=$(generate_security_key)
 CODE_MANAGEMENT_SECRET=$(generate_hex_key)
 CODE_MANAGEMENT_WEBHOOK_TOKEN=$(generate_webhook_token)
 API_CRYPTO_KEY=$(generate_hex_key)
+WEB_NEXTAUTH_SECRET=$(generate_security_key)
 
 # Escape special characters for sed
 JWT_SECRET_ESCAPED=$(echo "$JWT_SECRET" | sed 's/[[\.*^$()+?{|]/\\&/g')
@@ -101,6 +122,9 @@ else
     sed -i "s|API_PORT=.*|API_PORT=$API_PORT_ESCAPED|" .env
 fi
 
+upsert_env_if_missing_or_empty "WEB_NEXTAUTH_SECRET" "$WEB_NEXTAUTH_SECRET"
+upsert_env_if_missing_or_empty "NEXTAUTH_URL" "http://localhost:3000"
+
 echo -e "${GREEN}✅ Security keys generated and configured!${NC}"
 echo ""
 
@@ -124,18 +148,14 @@ echo -e "   ${YELLOW}yarn tunnel${NC}"
 echo -e "   ${YELLOW}   This will create a public URL and update your .env file${NC}"
 echo -e "   ${YELLOW}   Keep this running in a separate terminal${NC}"
 echo ""
-echo -e "${BLUE}4.${NC} Run backend database migrations (web has no migrations):"
-echo -e "   ${YELLOW}yarn migration:run${NC}"
+echo -e "${BLUE}4.${NC} Migrations + seed run automatically with docker:start"
 echo ""
-echo -e "${BLUE}5.${NC} Run database seed:"
-echo -e "   ${YELLOW}yarn seed${NC}"
-echo ""
-echo -e "${BLUE}6.${NC} To verify everything is working:"
+echo -e "${BLUE}5.${NC} To verify everything is working:"
 echo -e "   ${YELLOW}yarn dev:health-check${NC}"
 echo ""
-echo -e "${BLUE}7.${NC} To access the API:"
+echo -e "${BLUE}6.${NC} To access the API:"
 echo -e "   ${YELLOW}http://localhost:3001${NC}"
-echo -e "${BLUE}8.${NC} To access the Web app:"
+echo -e "${BLUE}7.${NC} To access the Web app:"
 echo -e "   ${YELLOW}http://localhost:3000${NC}"
 echo ""
 echo -e "${BLUE}💡 Pro tip:${NC}"

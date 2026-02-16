@@ -24,6 +24,10 @@ const providers = {
         readableName: "Bitbucket",
         segmentKey: "bitbucket",
     },
+    forgejo: {
+        readableName: "Forgejo",
+        segmentKey: "forgejo",
+    },
 } as const satisfies Record<
     string,
     { readableName: string; segmentKey: string }

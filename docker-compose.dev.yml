@@ -37,11 +37,15 @@ services:
                 reservations:
                     memory: 512M
         healthcheck:
-            test: ['CMD', 'node', '-e', 'process.exit(0)']
-            interval: 30s
+            test:
+                [
+                    'CMD-SHELL',
+                    "node -e \"const http=require('http'); const port=process.env.API_PORT||3001; const req=http.get({host:'127.0.0.1', port, path:'/health', timeout:2000}, (res)=>process.exit(res.statusCode===200?0:1)); req.on('error', ()=>process.exit(1)); req.on('timeout', ()=>{ req.destroy(); process.exit(1); });\"",
+                ]
+            interval: 20s
             timeout: 10s
-            retries: 3
-            start_period: 60s
+            retries: 8
+            start_period: 180s
         environment:
             - API_CLOUD_MODE=${API_CLOUD_MODE:-false}
             - NODE_OPTIONS=--max-old-space-size=1200 --max-semi-space-size=64
@@ -118,6 +122,9 @@ services:
             context: ./apps/web
             dockerfile: ../../docker/Dockerfile.web.dev
         container_name: kodus_web
+        depends_on:
+            kodus-api:
+                condition: service_healthy
         ports:
             - '${WEB_PORT:-3000}:3000'
         env_file:

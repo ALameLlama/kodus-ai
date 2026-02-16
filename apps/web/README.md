@@ -17,58 +17,83 @@
    <a href="../../license.md"><img src="https://img.shields.io/badge/license-AGPLv3-red" alt="License"></a>
 </p>
 
-<h3 align="center">A modern interface for managing Kodus code reviews.</h3>
+<h3 align="center">A modern, intuitive interface for managing your code reviews.</h3>
 
 <br/>
 
-## About
+## About Kodus Web
 
-Kodus Web is the Next.js frontend for Kodus. In this repository it lives in `apps/web` and is developed/deployed independently from backend pipelines.
+Kodus Web is the official web interface for Kodus, delivering a modern and intuitive experience for managing your code reviews.
 
-## Local Development (Monorepo)
+This app is part of the Kodus monorepo at `apps/web`.
+
+### Key Features
+
+- **Modern Interface** — Clean and intuitive design that makes navigation and review management a breeze
+- **Responsive Design** — Perfectly crafted for both desktop and mobile devices
+- **Dark Mode** — Eye-friendly dark theme for comfortable viewing
+- **API Integration** — Efficient communication with the Kodus backend
+
+## Getting Started
 
 ### Prerequisites
 
 - Node.js 22.x
-- Yarn 1.x
+- yarn
+- Docker
 
-### Run only web (without Docker)
+### Installation
 
-From repository root:
+1. Clone the monorepo:
 
 ```bash
-yarn web:install
-yarn web:dev
+git clone https://github.com/kodustech/kodus-ai.git
+cd kodus-ai
 ```
 
-Or from `apps/web`:
+2. Install dependencies:
 
 ```bash
 yarn install
-yarn start:dev
 ```
 
-### Run full stack with Docker (backend + web)
+3. Configure environment and generated secrets:
 
-From repository root:
+```bash
+yarn setup
+```
+
+4. Run web in development mode:
+
+```bash
+yarn web:dev
+```
+
+Optional: run full stack (backend + web + infra):
 
 ```bash
 yarn docker:start
 ```
 
-Web will be available at `http://localhost:3000`.
+## Tech Stack
 
-## Scripts (`apps/web/package.json`)
+- **Framework**: Next.js 15
+- **Language**: TypeScript
+- **Styling**:
+    - Tailwind CSS
+    - Radix UI
+    - Lucide React
+- **State Management**:
+    - React Query (TanStack Query)
+    - React Hook Form
+- **Authentication**: NextAuth.js
+- **Data Visualization**: Victory
+- **Development Tools**:
+    - ESLint
+    - Prettier
+    - TypeScript
+    - Docker
 
-- `yarn start:dev`: start Next.js in dev mode
-- `yarn build`: build production bundle
-- `yarn start`: run production server
-- `yarn lint`: run ESLint
-- `yarn check-types`: run TypeScript checks
+## Contributing
 
-## CI/CD
-
-- PR checks: `.github/workflows/web-tests.yml`
-- QA deploy: `.github/workflows/web-qa-deploy.yml`
-- Production image build/push: `.github/workflows/web-build-push-production.yml`
-- Manual production deploy: `.github/workflows/web-deploy-to-prod.yml`
+We welcome contributions!

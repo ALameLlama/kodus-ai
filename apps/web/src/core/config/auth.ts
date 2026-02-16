@@ -91,7 +91,13 @@ const authOptions: NextAuthConfig = {
         ssoProvider,
     ],
     session: { strategy: "jwt" },
-    secret: process.env.WEB_NEXTAUTH_SECRET,
+    secret:
+        process.env.WEB_NEXTAUTH_SECRET ??
+        process.env.NEXTAUTH_SECRET ??
+        process.env.AUTH_SECRET ??
+        (process.env.NODE_ENV !== "production"
+            ? "kodus-web-dev-insecure-secret"
+            : undefined),
     pages: { signIn: "/sign-in", error: "/error" },
     callbacks: {
         redirect: ({ url }) => url, // let middleware control redirects

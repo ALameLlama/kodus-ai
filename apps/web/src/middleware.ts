@@ -56,12 +56,13 @@ export default auth(async (req) => {
     const next = NextResponse.next({ request: { headers } });
 
     const session = req.auth;
-    const isAuthenticated = !!session;
+    const user = session?.user;
+    const isAuthenticated = !!user;
 
     // If the token was updated just now during middleware execution,
     // a redirect is performed so that server components receive the new cookies.
     // `next-auth 5.0.0-beta.29` cannot send cookies using NextResponse.next()
-    if (session?.user.reason === "expired-token") {
+    if (user?.reason === "expired-token") {
         return NextResponse.redirect(new URL(pathname, req.url));
     }
 
@@ -80,8 +81,8 @@ export default auth(async (req) => {
     }
 
     const isConfirmEmailPath = pathname.startsWith("/confirm-email");
-    const normalizedStatus = session.user.status
-        ? String(session.user.status).toLowerCase()
+    const normalizedStatus = user?.status
+        ? String(user.status).toLowerCase()
         : undefined;
     
     // Block removed or inactive users

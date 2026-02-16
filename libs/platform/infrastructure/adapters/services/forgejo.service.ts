@@ -136,7 +136,7 @@ export class ForgejoService implements Omit<
         private readonly authIntegrationService: IAuthIntegrationService,
 
         private readonly configService: ConfigService,
-    ) { }
+    ) {}
 
     private createForgejoClient(authDetail: ForgejoAuthDetail): Client {
         const token = decrypt(authDetail.accessToken);
@@ -992,9 +992,9 @@ export class ForgejoService implements Omit<
             let repositories = params.repository
                 ? [params.repository]
                 : await this.findOneByOrganizationAndTeamDataAndConfigKey(
-                    params.organizationAndTeamData,
-                    IntegrationConfigKey.REPOSITORIES,
-                );
+                      params.organizationAndTeamData,
+                      IntegrationConfigKey.REPOSITORIES,
+                  );
 
             if (!repositories || !Array.isArray(repositories)) {
                 repositories = [];
@@ -1194,9 +1194,9 @@ export class ForgejoService implements Omit<
             const repositories = params.repository
                 ? [params.repository]
                 : await this.findOneByOrganizationAndTeamDataAndConfigKey(
-                    params.organizationAndTeamData,
-                    IntegrationConfigKey.REPOSITORIES,
-                );
+                      params.organizationAndTeamData,
+                      IntegrationConfigKey.REPOSITORIES,
+                  );
 
             if (!repositories) return null;
 
@@ -1574,9 +1574,9 @@ export class ForgejoService implements Omit<
             const repositories = params.repository
                 ? [params.repository]
                 : await this.findOneByOrganizationAndTeamDataAndConfigKey(
-                    params.organizationAndTeamData,
-                    IntegrationConfigKey.REPOSITORIES,
-                );
+                      params.organizationAndTeamData,
+                      IntegrationConfigKey.REPOSITORIES,
+                  );
 
             if (!repositories) return [];
 
@@ -1623,7 +1623,7 @@ export class ForgejoService implements Omit<
                         if (
                             params.filters?.author &&
                             commit.commit?.author?.name !==
-                            params.filters.author
+                                params.filters.author
                         )
                             continue;
 
@@ -2432,7 +2432,7 @@ export class ForgejoService implements Omit<
             copyPrompt,
             formatSub(translations?.talkToKody || ''),
             formatSub(translations?.feedback || '') +
-            '<!-- kody-codereview -->&#8203;\n&#8203;',
+                '<!-- kody-codereview -->&#8203;\n&#8203;',
         ]
             .filter(Boolean)
             .join('\n')
@@ -2784,8 +2784,8 @@ export class ForgejoService implements Omit<
             const decodedContent =
                 content?.encoding === 'base64'
                     ? Buffer.from(content.content || '', 'base64').toString(
-                        'utf-8',
-                    )
+                          'utf-8',
+                      )
                     : content?.content;
 
             return {

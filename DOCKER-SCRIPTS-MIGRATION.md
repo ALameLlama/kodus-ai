@@ -1,76 +1,45 @@
-# 🔄 Docker Scripts Migration Guide
+# Docker Scripts (Current)
 
-This document explains the Docker scripts reorganization where "small" becomes the default and the previous default becomes "complete".
+This document reflects the current Docker workflow in the monorepo.
 
-## 📋 **Migration Summary**
+## Default Compose File
 
-| **OLD** | **NEW** | **Description** |
-|---------|---------|-----------------|
-| `yarn docker:*` | `yarn docker:*:complete` | Full/Heavy version |
-| `yarn docker:*:small` | `yarn docker:*` | Light/Default version |
+All root Docker scripts use:
 
-## 🚀 **New Script Structure**
+- `docker-compose.dev.yml`
 
-### **Default Scripts (Light/Fast)** 
-```bash
-yarn docker:build          # Uses docker-compose.dev.small.yml (NEW DEFAULT)
-yarn docker:up             # Uses docker-compose.dev.small.yml 
-yarn docker:down           # Uses docker-compose.dev.small.yml
-yarn docker:start          # Uses docker-compose.dev.small.yml
-yarn docker:watch          # Uses docker-compose.dev.small.yml
-yarn docker:clean          # Uses docker-compose.dev.small.yml
-yarn docker:up:watch       # Uses docker-compose.dev.small.yml
-```
+There is no active `docker-compose.dev.small.yml` split in the current setup.
 
-### **Complete Scripts (Full/Heavy)**
-```bash
-yarn docker:build:complete    # Uses docker-compose.dev.yml (OLD DEFAULT)
-yarn docker:up:complete       # Uses docker-compose.dev.yml
-yarn docker:down:complete     # Uses docker-compose.dev.yml  
-yarn docker:start:complete    # Uses docker-compose.dev.yml
-yarn docker:watch:complete    # Uses docker-compose.dev.yml
-```
-
-## 🎯 **Impact on Development**
-
-### **For Daily Development:**
-- **Faster startup** - `yarn docker:start` now uses the lightweight version
-- **Less resource usage** - Default scripts use fewer Docker resources
-- **Quicker builds** - Default build is optimized for speed
-
-### **For Full Testing:**
-- **Complete environment** - Use `:complete` scripts when you need everything
-- **Integration testing** - Use `:complete` for comprehensive testing
-- **Production-like** - `:complete` scripts mirror production more closely
-
-## 🔧 **Common Commands**
+## Main Commands
 
 ```bash
-# Quick development (NEW DEFAULT)
-yarn docker:start              # Fast startup
-yarn dev:health-check          # Verify it's working
-
-# Full development (when needed)
-yarn docker:start:complete     # Complete environment
-yarn dev:health-check          # Verify everything
-
-# Cleanup
-yarn docker:clean              # Clean restart (light)
-yarn dev:clean                 # Full cleanup + restart
+yarn docker:start      # down + up local profile (backend + web + local-db profile)
+yarn docker:start:fg   # same as above, foreground
+yarn docker:up         # docker compose --profile local-db up -d --build
+yarn docker:down       # stop/remove containers
+yarn docker:logs       # logs for api/worker/webhooks
+yarn docker:logs:all   # compose logs for all services
 ```
 
-## ⚠️ **Breaking Changes**
+## Environment-aware Start
 
-1. **Scripts without suffix** now use `docker-compose.dev.small.yml`
-2. **Scripts with `:complete`** now use `docker-compose.dev.yml` 
-3. **Removed `:small` suffix** from all scripts
+Use:
 
-## 🚀 **Setup Script Updated**
+```bash
+yarn docker:start:env local
+yarn docker:start:env qa
+yarn docker:start:env prod
+```
 
-The setup script (`yarn setup`) continues to work with the new default (light) Docker configuration.
+Script path: `scripts/docker/docker-start-env.sh`
 
-## 📝 **Notes**
+- `local` uses `--profile local-db` and `API_DATABASE_ENV=development`
+- `qa` uses `API_DATABASE_ENV=homolog`
+- `prod` uses `API_DATABASE_ENV=production`
 
-- This change makes development faster by default
-- Use `:complete` scripts only when you need the full environment
-- All existing functionality is preserved, just reorganized
+By default, all modes read `.env` (or `ENV_FILE` when provided).
+
+## Monorepo Note
+
+Web is in `apps/web` and is part of the same compose file.
+Deploys can still be separated by dedicated CI/CD workflows and tag conventions.
