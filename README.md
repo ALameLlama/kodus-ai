@@ -14,8 +14,8 @@
 
 <p align="center">
    <a href='http://makeapullrequest.com'><img alt='PRs Welcome' src='https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=shields'/></a>
-   <a href="https://github.com/" target="_blank"><img src="https://img.shields.io/github/stars/kodustech/kodus-ai" alt="Github Stars"></a>
-   <a href="https://github.com/briefercloud/briefer/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-AGPLv3-red" alt="License"></a>
+   <a href="https://github.com/kodustech/kodus-ai" target="_blank"><img src="https://img.shields.io/github/stars/kodustech/kodus-ai" alt="Github Stars"></a>
+   <a href="./license.md"><img src="https://img.shields.io/badge/license-AGPLv3-red" alt="License"></a>
 </p>
 
 <h3 align="center">Ship better code faster with personalized, context-aware code reviews.</h3>
@@ -77,6 +77,14 @@ These languages get everything above **plus** structural analysis via AST parsin
 **Configuration & Template Languages:** HCL, TOML, INI, Gradle DSL, custom build DSLs, Graph languages (DOT), Template languages (Handlebars, Liquid), Markup variants (AsciiDoc, reST), Query/Graph DSLs (Gremlin, Cypher).
 
 ## Getting Started
+
+### Monorepo Structure
+
+- Backend services: `apps/api`, `apps/webhooks`, `apps/worker`
+- Web frontend (Next.js): `apps/web`
+- Shared code: `libs`, `packages`
+
+For local environment setup, see `README-SETUP.md`.
 
 Kodus is available in two editions:
 

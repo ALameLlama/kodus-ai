@@ -12,8 +12,8 @@ import { MetricsCollectorService } from './metrics-collector.service';
 export class ReviewResponseMonitorService {
     private readonly logger = createLogger(ReviewResponseMonitorService.name);
 
-    private readonly p95ThresholdMs: number;
-    private readonly p95CriticalMs: number;
+    private readonly avgThresholdMs: number;
+    private readonly avgCriticalMs: number;
 
     constructor(
         @InjectModel(MetricsEventModel.name)
@@ -22,13 +22,22 @@ export class ReviewResponseMonitorService {
         private readonly metricsCollector: MetricsCollectorService,
         private readonly configService: ConfigService,
     ) {
-        this.p95ThresholdMs = this.configService.get<number>(
+        const legacyP95ThresholdMs = this.configService.get<number>(
             'REVIEW_RESPONSE_P95_THRESHOLD_MS',
-            600_000, // 10 minutes
+            600_000,
         );
-        this.p95CriticalMs = this.configService.get<number>(
+        const legacyP95CriticalMs = this.configService.get<number>(
             'REVIEW_RESPONSE_P95_CRITICAL_MS',
-            1_200_000, // 20 minutes
+            1_200_000,
+        );
+
+        this.avgThresholdMs = this.configService.get<number>(
+            'REVIEW_RESPONSE_AVG_THRESHOLD_MS',
+            legacyP95ThresholdMs,
+        );
+        this.avgCriticalMs = this.configService.get<number>(
+            'REVIEW_RESPONSE_AVG_CRITICAL_MS',
+            legacyP95CriticalMs,
         );
     }
 
@@ -75,10 +84,12 @@ export class ReviewResponseMonitorService {
                 {},
             );
 
-            if (p95 >= this.p95ThresholdMs) {
+            if (avg >= this.avgThresholdMs) {
+                const severity =
+                    avg >= this.avgCriticalMs ? 'critical' : 'warning';
                 await this.incidentManager.failHeartbeat(
                     'API_BETTERSTACK_HEARTBEAT_REVIEW_MONITOR_URL',
-                    `Code review p95 response time is ${this.formatDuration(p95)} (threshold: ${this.formatDuration(this.p95ThresholdMs)}). p50=${this.formatDuration(p50)}, avg=${this.formatDuration(avg)}, count=${values.length} in last 30 minutes.`,
+                    `Code review average response time is ${this.formatDuration(avg)} (${severity} threshold: ${this.formatDuration(this.avgThresholdMs)}, critical: ${this.formatDuration(this.avgCriticalMs)}). p50=${this.formatDuration(p50)}, p95=${this.formatDuration(p95)}, count=${values.length} in last 30 minutes.`,
                 );
             } else {
                 await this.incidentManager.pingHeartbeat(
@@ -91,7 +102,7 @@ export class ReviewResponseMonitorService {
                 context: ReviewResponseMonitorService.name,
                 error: error instanceof Error ? error : undefined,
                 metadata: {
-                    p95ThresholdMs: this.p95ThresholdMs,
+                    avgThresholdMs: this.avgThresholdMs,
                 },
             });
         }

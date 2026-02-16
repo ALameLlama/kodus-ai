@@ -1,10 +1,10 @@
 # 🚀 Kodus AI - Quick Setup Guide
 
-This guide will help you get Kodus AI running on your local machine in just a few minutes.
+This guide helps you run the Kodus monorepo locally (backend + web) in a few minutes.
 
 ## Prerequisites
 
-- Node.js (LTS version)
+- Node.js 22.x
 - Yarn or NPM
 - Docker
 - OpenSSL (usually pre-installed on macOS/Linux)
@@ -24,7 +24,7 @@ This automated script will:
 - 🔐 Generate secure keys automatically
 - 🐳 Set up Docker networks
 - 🚀 Start all services
-- 📊 Run database migrations
+- 📊 Run backend database migrations
 - 🌱 Seed initial data
 
 ## Manual Configuration
@@ -48,7 +48,12 @@ If you prefer manual setup or need to customize settings:
 
 4. **Start services:**
    ```bash
-   yarn dev:quick-start
+   yarn docker:start
+   ```
+
+5. **Run backend database migrations (web does not have migrations):**
+   ```bash
+   yarn migration:run
    ```
 
 ### Conectar aos bancos de QA/Prod
@@ -85,11 +90,12 @@ If you prefer manual setup or need to customize settings:
 |---------|-------------|
 | `yarn setup` | Complete first-time setup |
 | `yarn dev:health-check` | Verify all services are running |
-| `yarn dev:quick-start` | Start services and run health check |
+| `yarn docker:start` | Start backend + web + local infrastructure |
 | `yarn dev:restart` | Restart all services |
 | `yarn dev:stop` | Stop all services |
 | `yarn dev:logs` | View service logs |
 | `yarn dev:clean` | Clean restart (removes Docker cache) |
+| `yarn web:dev` | Run only web app locally (without Docker) |
 
 ## Health Check
 
@@ -103,8 +109,9 @@ yarn dev:health-check
 
 Once running, you can access:
 
-- **API Health:** http://localhost:3331/health
-- **API Base:** http://localhost:3331
+- **Web App:** http://localhost:3000
+- **API Health:** http://localhost:3001/health
+- **API Base:** http://localhost:3001
 - **RabbitMQ Management UI:** http://localhost:15672 (default user/pass: `dev` / `devpass`)
 
 ## Troubleshooting

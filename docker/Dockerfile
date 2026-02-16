@@ -84,7 +84,6 @@ COPY --from=build /usr/src/app/package.json ./package.json
 COPY --from=build /usr/src/app/default-kodus-config.yml ./default-kodus-config.yml
 COPY --from=build /usr/src/app/kodus-config.yml ./kodus-config.yml
 COPY --from=build /usr/src/app/scripts ./scripts
-COPY --from=build /usr/src/app/ecosystem.config.js ./ecosystem.config.js
 COPY --from=build /usr/src/app/tsconfig-paths-bootstrap.js ./tsconfig-paths-bootstrap.js
 
 COPY --chmod=0755 docker/prod-entrypoint.sh /usr/local/bin/prod-entrypoint

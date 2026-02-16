@@ -119,7 +119,7 @@ specs
 .eslintcache
 
 .worktrees
-
+.entire
 
 scripts/pr-creator/accounts.json
 scripts/pr-creator/package-lock.json
@@ -129,3 +129,24 @@ docs/openapi.postman_environment.json
 docs/openapi.newman.json
 docs/openapi.newman.responses.2xx.json
 docs/openapi.newman.responses.4xx-5xx.json
+
+# Web (Next.js)
+apps/web/.next/
+apps/web/out/
+apps/web/build/
+apps/web/coverage/
+apps/web/node_modules/
+apps/web/.pnp
+apps/web/.pnp.js
+apps/web/.vercel
+apps/web/.env
+apps/web/.env*.local
+apps/web/next-env.d.ts
+apps/web/.idea
+apps/web/.project
+apps/web/.classpath
+apps/web/.c9/
+apps/web/*.launch
+apps/web/.settings/
+apps/web/*.sublime-workspace
+apps/web/.vscode

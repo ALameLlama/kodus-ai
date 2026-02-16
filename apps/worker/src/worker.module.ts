@@ -1,5 +1,4 @@
 import { Module } from '@nestjs/common';
-import { DevtoolsModule } from '@nestjs/devtools-integration';
 import { SharedMongoModule } from '@libs/shared/database/shared-mongo.module';
 import { SharedPostgresModule } from '@libs/shared/database/shared-postgres.module';
 import { SharedConfigModule } from '@libs/shared/infrastructure/shared-config.module';
@@ -23,18 +22,8 @@ import { OutboxRelayService } from '@libs/core/workflow/infrastructure/outbox-re
 import { ScheduleModule } from '@nestjs/schedule';
 import { WorkerDrainService } from './worker-drain.service';
 
-import { ConfigService } from '@nestjs/config';
-
 @Module({
     imports: [
-        DevtoolsModule.registerAsync({
-            imports: [SharedConfigModule],
-            useFactory: (configService: ConfigService) => ({
-                http: configService.get('NODE_ENV') !== 'production',
-                port: 8001,
-            }),
-            inject: [ConfigService],
-        }),
         ScheduleModule.forRoot(),
         SharedConfigModule,
         SharedLogModule,

@@ -69,12 +69,15 @@ function omitDeletionHunks(patchLines: string[]): string {
  * @param file The file being processed.
  * @returns The converted patch.
  */
+// Maximum number of lines to process to prevent DoS attacks
+const MAX_PATCH_LINES = 50000;
+
 export function convertToHunksWithLinesNumbers(
     patch: string,
     file: { filename?: string },
 ): string {
     let patchWithLinesStr = `\n\n## file: '${file.filename.trim()}'\n`;
-    const patchLines = patch.split('\n');
+    const patchLines = patch.split('\n').slice(0, MAX_PATCH_LINES);
     const RE_HUNK_HEADER =
         /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@[ ]?(.*)/;
 

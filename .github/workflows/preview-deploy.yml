@@ -1,0 +1,225 @@
+name: "Preview: Deploy (Web + Backend)"
+
+# =============================================================================
+# Unified preview deploy for PRs.
+# - Web changes  → Vercel preview
+# - Backend changes → Railway preview (API only)
+# - Both → Vercel pointing to Railway
+#
+# Required secrets:
+#   VERCEL_TOKEN, VERCEL_ORG_ID, VERCEL_PROJECT_ID
+#   RAILWAY_TOKEN, RAILWAY_PROJECT_ID, RAILWAY_API_SERVICE_ID
+# =============================================================================
+
+permissions:
+    contents: read
+
+on:
+    pull_request:
+        types: [opened, synchronize, reopened]
+
+concurrency:
+    group: preview-${{ github.event.pull_request.number }}
+    cancel-in-progress: true
+
+jobs:
+    # ------------------------------------------------------------------
+    # 1. Detect what changed
+    # ------------------------------------------------------------------
+    detect-changes:
+        name: Detect changes
+        runs-on: ubuntu-latest
+        outputs:
+            web: ${{ steps.changes.outputs.web }}
+            backend: ${{ steps.changes.outputs.backend }}
+        steps:
+            - uses: actions/checkout@v4.2.2
+
+            - uses: dorny/paths-filter@v3
+              id: changes
+              with:
+                  filters: |
+                      web:
+                        - 'apps/web/**'
+                      backend:
+                        - 'apps/api/**'
+                        - 'apps/worker/**'
+                        - 'apps/webhooks/**'
+                        - 'libs/**'
+                        - 'packages/**'
+                        - 'package.json'
+                        - 'yarn.lock'
+                        - 'docker/Dockerfile'
+                        - 'docker-bake.hcl'
+
+    # ------------------------------------------------------------------
+    # 2. Backend preview on Railway (API service only)
+    # ------------------------------------------------------------------
+    deploy-backend:
+        name: Deploy backend preview
+        needs: detect-changes
+        if: needs.detect-changes.outputs.backend == 'true'
+        runs-on: ubuntu-latest
+        outputs:
+            api_url: ${{ steps.deploy.outputs.api_url }}
+        env:
+            RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+        steps:
+            - uses: actions/checkout@v4.2.2
+
+            - name: Install Railway CLI
+              run: npm install -g @railway/cli
+
+            - name: Create preview environment
+              run: |
+                  ENV_NAME="pr-${{ github.event.pull_request.number }}"
+                  railway environment create "$ENV_NAME" \
+                    --project ${{ secrets.RAILWAY_PROJECT_ID }} 2>/dev/null || true
+
+            - name: Deploy API service
+              id: deploy
+              run: |
+                  ENV_NAME="pr-${{ github.event.pull_request.number }}"
+
+                  railway up \
+                    --project ${{ secrets.RAILWAY_PROJECT_ID }} \
+                    --environment "$ENV_NAME" \
+                    --service ${{ secrets.RAILWAY_API_SERVICE_ID }} \
+                    --detach
+
+                  # Fetch the public domain assigned to this deployment
+                  API_URL=$(railway domain \
+                    --project ${{ secrets.RAILWAY_PROJECT_ID }} \
+                    --environment "$ENV_NAME" \
+                    --service ${{ secrets.RAILWAY_API_SERVICE_ID }} 2>/dev/null || echo "")
+
+                  if [ -n "$API_URL" ]; then
+                    echo "api_url=https://$API_URL" >> $GITHUB_OUTPUT
+                  fi
+
+    # ------------------------------------------------------------------
+    # 3. Web preview on Vercel
+    # ------------------------------------------------------------------
+    deploy-web:
+        name: Deploy web preview
+        needs: [detect-changes, deploy-backend]
+        if: |
+            always() &&
+            needs.detect-changes.outputs.web == 'true' &&
+            !cancelled()
+        runs-on: ubuntu-latest
+        outputs:
+            preview_url: ${{ steps.deploy.outputs.preview_url }}
+        env:
+            VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+            VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        steps:
+            - uses: actions/checkout@v4.2.2
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: 22
+
+            - name: Install Vercel CLI
+              run: npm install -g vercel
+
+            - name: Determine API URL
+              id: api-url
+              run: |
+                  RAILWAY_URL="${{ needs.deploy-backend.outputs.api_url }}"
+                  if [ -n "$RAILWAY_URL" ]; then
+                    echo "url=$RAILWAY_URL" >> $GITHUB_OUTPUT
+                    echo "Using Railway backend: $RAILWAY_URL"
+                  else
+                    echo "url=${{ vars.QA_API_URL }}" >> $GITHUB_OUTPUT
+                    echo "Using QA backend: ${{ vars.QA_API_URL }}"
+                  fi
+
+            - name: Pull Vercel environment
+              working-directory: apps/web
+              run: vercel pull --yes --environment=preview --token=${{ secrets.VERCEL_TOKEN }}
+
+            - name: Build project
+              working-directory: apps/web
+              run: vercel build --token=${{ secrets.VERCEL_TOKEN }}
+              env:
+                  WEB_HOSTNAME_API: ${{ steps.api-url.outputs.url }}
+
+            - name: Deploy preview
+              id: deploy
+              working-directory: apps/web
+              run: |
+                  URL=$(vercel deploy --prebuilt --token=${{ secrets.VERCEL_TOKEN }})
+                  echo "preview_url=$URL" >> $GITHUB_OUTPUT
+
+    # ------------------------------------------------------------------
+    # 4. Comment on PR with preview links
+    # ------------------------------------------------------------------
+    comment:
+        name: Comment preview URLs
+        needs: [detect-changes, deploy-backend, deploy-web]
+        if: always() && !cancelled()
+        runs-on: ubuntu-latest
+        permissions:
+            pull-requests: write
+        steps:
+            - name: Build comment body
+              id: body
+              run: |
+                  BODY="## Preview Environment\n\n"
+
+                  WEB_URL="${{ needs.deploy-web.outputs.preview_url }}"
+                  API_URL="${{ needs.deploy-backend.outputs.api_url }}"
+
+                  if [ -n "$WEB_URL" ]; then
+                    BODY+="**Web:** $WEB_URL\n"
+                  fi
+
+                  if [ -n "$API_URL" ]; then
+                    BODY+="**API:** $API_URL\n"
+                  fi
+
+                  if [ -z "$WEB_URL" ] && [ -z "$API_URL" ]; then
+                    echo "skip=true" >> $GITHUB_OUTPUT
+                    exit 0
+                  fi
+
+                  BODY+="\n---\n_Updated at $(date -u '+%Y-%m-%d %H:%M UTC')_"
+
+                  # Use delimiter for multiline output
+                  echo "comment<<EOF" >> $GITHUB_OUTPUT
+                  echo -e "$BODY" >> $GITHUB_OUTPUT
+                  echo "EOF" >> $GITHUB_OUTPUT
+
+            - name: Create or update PR comment
+              if: steps.body.outputs.skip != 'true'
+              uses: actions/github-script@v7
+              with:
+                  script: |
+                      const body = `${{ steps.body.outputs.comment }}`;
+                      const marker = '## Preview Environment';
+
+                      const { data: comments } = await github.rest.issues.listComments({
+                        owner: context.repo.owner,
+                        repo: context.repo.repo,
+                        issue_number: context.issue.number,
+                      });
+
+                      const existing = comments.find(c => c.body.includes(marker));
+
+                      if (existing) {
+                        await github.rest.issues.updateComment({
+                          owner: context.repo.owner,
+                          repo: context.repo.repo,
+                          comment_id: existing.id,
+                          body,
+                        });
+                      } else {
+                        await github.rest.issues.createComment({
+                          owner: context.repo.owner,
+                          repo: context.repo.repo,
+                          issue_number: context.issue.number,
+                          body,
+                        });
+                      }

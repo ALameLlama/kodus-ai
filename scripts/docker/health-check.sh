@@ -27,11 +27,18 @@ if [ -f .env ]; then
     else
         API_PG_DB_DATABASE=kodus_db
     fi
+
+    if grep -q "^WEB_PORT=" .env; then
+        WEB_PORT=$(grep "^WEB_PORT=" .env | cut -d'=' -f2 | tr -d '"' | tr -d "'")
+    else
+        WEB_PORT=3000
+    fi
 else
     # Default values if .env doesn't exist
     API_PORT=3001
     API_PG_DB_USERNAME=kodusdev
     API_PG_DB_DATABASE=kodus_db
+    WEB_PORT=3000
 fi
 
 echo -e "${BLUE}🔍 Kodus AI - Health Check${NC}"
@@ -65,19 +72,24 @@ check_service() {
     fi
 }
 
-check_docker_service() {
+check_any_container() {
     local service_name=$1
-    local container_name=$2
-    
+    shift
+    local candidates=("$@")
+
     echo -n "Checking container $service_name... "
-    
-    if docker ps --format "table {{.Names}}" | grep -q "$container_name"; then
-        echo -e "${GREEN}✅ RUNNING${NC}"
-        return 0
-    else
-        echo -e "${RED}❌ NOT RUNNING${NC}"
-        return 1
-    fi
+
+    local running_names
+    running_names=$(docker ps --format "{{.Names}}")
+    for container_name in "${candidates[@]}"; do
+        if echo "$running_names" | grep -qx "$container_name"; then
+            echo -e "${GREEN}✅ RUNNING ($container_name)${NC}"
+            return 0
+        fi
+    done
+
+    echo -e "${RED}❌ NOT RUNNING${NC}"
+    return 1
 }
 
 check_port() {
@@ -98,15 +110,21 @@ check_port() {
 all_good=true
 
 echo -e "${YELLOW}🐳 Checking Docker containers...${NC}"
-check_docker_service "Kodus API" "kodus-orchestrator" || all_good=false
-check_docker_service "PostgreSQL" "postgres" || all_good=false
-check_docker_service "MongoDB" "mongo" || all_good=false
+check_any_container "Kodus API" "kodus_api" "kodus-orchestrator" || all_good=false
+check_any_container "Kodus Worker" "kodus_worker" || all_good=false
+check_any_container "Kodus Webhooks" "kodus_webhooks" || all_good=false
+check_any_container "Kodus Web" "kodus_web" || all_good=false
+check_any_container "PostgreSQL" "db_postgres" "postgres" || all_good=false
+check_any_container "MongoDB" "mongodb" "mongo" || all_good=false
+check_any_container "RabbitMQ" "rabbitmq" || all_good=false
 echo ""
 
 echo -e "${YELLOW}🔌 Checking ports...${NC}"
 check_port "Kodus API" $API_PORT || all_good=false
+check_port "Kodus Web" $WEB_PORT || all_good=false
 check_port "PostgreSQL" 5432 || all_good=false
 check_port "MongoDB" 27017 || all_good=false
+check_port "RabbitMQ" 5672 || all_good=false
 echo ""
 
 echo -e "${YELLOW}🗄️ Checking database setup...${NC}"
@@ -167,6 +185,7 @@ if [ "$all_good" = true ]; then
     echo -e "${GREEN}🎉 All services are working correctly!${NC}"
     echo -e "   ${YELLOW}API Health: http://localhost:$API_PORT/health${NC}"
     echo -e "   ${YELLOW}API Simple: http://localhost:$API_PORT/health/simple${NC}"
+    echo -e "   ${YELLOW}Web App: http://localhost:$WEB_PORT${NC}"
     echo ""
     exit 0
 else
@@ -177,8 +196,8 @@ else
     echo -e "   ${GREEN}✅ Databases: Connected${NC}"
     
     # Check which specific things are missing
-    local migrations_ok=false
-    local seed_ok=false
+    migrations_ok=false
+    seed_ok=false
     
     if check_migrations >/dev/null 2>&1; then
         echo -e "   ${GREEN}✅ Migrations: Ready${NC}"
@@ -199,7 +218,7 @@ else
     
     echo -e "${BLUE}💡 Next steps:${NC}"
     if [ "$migrations_ok" = false ]; then
-        echo -e "   ${YELLOW}yarn migrate:dev     # Run database migrations${NC}"
+        echo -e "   ${YELLOW}yarn migration:run   # Run database migrations${NC}"
     fi
     if [ "$seed_ok" = false ]; then
         echo -e "   ${YELLOW}yarn seed           # Load initial data${NC}"

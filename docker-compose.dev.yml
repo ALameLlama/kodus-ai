@@ -111,6 +111,43 @@ services:
             - PYROSCOPE_HEAP_PROFILING=${PYROSCOPE_HEAP_PROFILING:-true}
 
     #----------------------------------------------------------------
+    # Web Frontend
+    #----------------------------------------------------------------
+    web:
+        build:
+            context: ./apps/web
+            dockerfile: ../../docker/Dockerfile.web.dev
+        container_name: kodus_web
+        ports:
+            - '${WEB_PORT:-3000}:3000'
+        env_file:
+            - ${ENV_FILE:-.env}
+        volumes:
+            - ./apps/web:/usr/src/app:delegated
+            - web_node_modules_cache:/usr/src/app/node_modules
+            - web_next_cache:/usr/src/app/.next
+        restart: unless-stopped
+        healthcheck:
+            test: ['CMD', 'curl', '-f', 'http://localhost:3000']
+            interval: 30s
+            timeout: 10s
+            retries: 3
+            start_period: 30s
+        networks:
+            - kodus-backend-services
+            - shared-network
+        environment:
+            - CHOKIDAR_USEPOLLING=false
+            - NODE_ENV=development
+            - NEXT_TELEMETRY_DISABLED=1
+        deploy:
+            resources:
+                limits:
+                    memory: 2G
+                reservations:
+                    memory: 512M
+
+    #----------------------------------------------------------------
     # Observability & Profiling
     #----------------------------------------------------------------
     pyroscope:
@@ -231,6 +268,8 @@ services:
 volumes:
     yalc_store:
     node_modules_cache:
+    web_node_modules_cache:
+    web_next_cache:
     pgdata:
     mongodbdata:
     pyroscope-data:
