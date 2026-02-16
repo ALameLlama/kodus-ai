@@ -1,12 +1,27 @@
-name: Run Tests
+name: "Backend: PR Tests"
 
 on:
     pull_request:
         branches:
             - main
+        paths:
+            - "apps/api/**"
+            - "apps/worker/**"
+            - "apps/webhooks/**"
+            - "libs/**"
+            - "packages/**"
+            - "test/**"
+            - "scripts/**"
+            - "docker-compose.test.yml"
+            - "docker/Dockerfile"
+            - "jest.config.ts"
+            - "tsconfig*.json"
+            - "package.json"
+            - "yarn.lock"
 
 jobs:
     test:
+        name: Backend unit/integration tests
         runs-on: ubuntu-latest
         environment: ci
         permissions:

@@ -1,4 +1,4 @@
-name: Build and Publish Docker Images for Self-Hosted
+name: "Self-Hosted: Build and Publish Images"
 
 on:
     release:
@@ -40,13 +40,14 @@ jobs:
                   username: ${{ github.actor }}
                   password: ${{ secrets.GITHUB_TOKEN }}
 
-            - name: Build and Push Docker Images (API, Webhook, Worker)
+            - name: Build and Push Docker Images (API, Webhook, Worker, Web)
               env:
                   REGISTRY: ghcr.io/${{ github.repository_owner }}
                   TAG: ${{ env.RELEASE_VERSION }}
                   API_TAGS: ghcr.io/${{ github.repository_owner }}/kodus-ai-api:${{ env.RELEASE_VERSION }},ghcr.io/${{ github.repository_owner }}/kodus-ai-api:latest
                   WEBHOOKS_TAGS: ghcr.io/${{ github.repository_owner }}/kodus-ai-webhook:${{ env.RELEASE_VERSION }},ghcr.io/${{ github.repository_owner }}/kodus-ai-webhook:latest
                   WORKER_TAGS: ghcr.io/${{ github.repository_owner }}/kodus-ai-worker:${{ env.RELEASE_VERSION }},ghcr.io/${{ github.repository_owner }}/kodus-ai-worker:latest
+                  WEB_TAGS: ghcr.io/${{ github.repository_owner }}/kodus-web:${{ env.RELEASE_VERSION }},ghcr.io/${{ github.repository_owner }}/kodus-web:latest
               run: |
                   set -euo pipefail
 
@@ -65,7 +66,7 @@ jobs:
                   webhook: ${{ secrets.DISCORD_WEBHOOK }}
                   content: ":tada: The Docker image version `${{ env.RELEASE_VERSION }}` was successfully built and pushed to GHCR."
                   title: "Build and Push: kodus-ai (Self-Hosted)"
-                  description: "New version `${{ env.RELEASE_VERSION }}` is now available for all services (api, webhook, worker)."
+                  description: "New version `${{ env.RELEASE_VERSION }}` is now available for all services (api, webhook, worker, web)."
                   username: "GitHub Actions"
                   color: 0x00FF00
 

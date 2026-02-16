@@ -1,8 +1,21 @@
-name: QA (GitOps) - Build/Push images + PR (deploy)
+name: "Backend: QA GitOps Deploy"
+
+# Scope: backend services only (api/webhooks/worker). Web has dedicated workflows.
 
 on:
     push:
         branches: [main]
+        paths:
+            - "apps/api/**"
+            - "apps/worker/**"
+            - "apps/webhooks/**"
+            - "libs/**"
+            - "packages/**"
+            - "scripts/gitops/**"
+            - "docker/Dockerfile"
+            - "docker-bake.hcl"
+            - "package.json"
+            - "yarn.lock"
     workflow_dispatch:
         inputs:
             image_tag:
@@ -34,6 +47,7 @@ env:
 
 jobs:
     build_push_and_open_pr:
+        name: Build/push backend images and open infra PR
         runs-on: ubuntu-latest
         if: github.ref == 'refs/heads/main'
         environment: qa
@@ -115,7 +129,8 @@ jobs:
                     --set base.cache-from=type=gha,scope=${{ env.BUILDX_CACHE_SCOPE }} \
                     --set base.cache-to=type=gha,scope=${{ env.BUILDX_CACHE_SCOPE }},mode=max \
                     --set *.platform=${{ env.BUILDX_PLATFORMS }} \
-                    --push
+                    --push \
+                    api webhooks worker
 
                   docker buildx imagetools create \
                     -t "$ECR_REGISTRY/${{ env.ECR_REPOSITORY_API }}:qa-latest" \
