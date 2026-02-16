@@ -29,6 +29,7 @@ packages/**/*.js
 .env.prod
 .env.local
 _*
+!apps/web/src/**/_*
 !test/__mocks__/
 
 # Logs

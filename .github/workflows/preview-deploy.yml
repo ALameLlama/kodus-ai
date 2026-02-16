@@ -1,10 +1,11 @@
 name: "Preview: Deploy (Web + Backend)"
 
 # =============================================================================
-# Unified preview deploy for PRs.
-# - Web changes  → Vercel preview
-# - Backend changes → Railway preview (API only)
-# - Both → Vercel pointing to Railway
+# Preview deploy for PRs.
+# - Railway handles backend deploys automatically (native PR environments)
+# - This workflow only handles Vercel (web) and PR comments
+# - When backend changes: Vercel points to Railway PR environment
+# - When only web changes: Vercel points to QA API
 #
 # Required secrets:
 #   VERCEL_TOKEN, VERCEL_ORG_ID, VERCEL_PROJECT_ID
@@ -53,41 +54,49 @@ jobs:
                         - 'docker-bake.hcl'
 
     # ------------------------------------------------------------------
-    # 2. Backend preview on Railway (API service only)
+    # 2. Resolve Railway API URL (if backend changed)
+    #    Railway deploys automatically via native PR environments.
+    #    This job just fetches the URL to pass to Vercel.
     # ------------------------------------------------------------------
-    deploy-backend:
-        name: Deploy backend preview
+    resolve-backend-url:
+        name: Resolve backend URL
         needs: detect-changes
         if: needs.detect-changes.outputs.backend == 'true'
         runs-on: ubuntu-latest
         outputs:
-            api_url: ${{ steps.deploy.outputs.api_url }}
+            api_url: ${{ steps.url.outputs.api_url }}
         env:
             RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
         steps:
-            - uses: actions/checkout@v4.2.2
-
             - name: Install Railway CLI
               run: npm install -g @railway/cli
 
-            - name: Create preview environment
+            - name: Wait for Railway deployment
               run: |
                   ENV_NAME="pr-${{ github.event.pull_request.number }}"
-                  railway environment create "$ENV_NAME" \
-                    --project ${{ secrets.RAILWAY_PROJECT_ID }} 2>/dev/null || true
+                  echo "Waiting for Railway PR environment to be ready..."
 
-            - name: Deploy API service
-              id: deploy
+                  # Railway native PR environments may take a moment to provision
+                  for i in $(seq 1 30); do
+                    API_URL=$(railway domain \
+                      --project ${{ secrets.RAILWAY_PROJECT_ID }} \
+                      --environment "$ENV_NAME" \
+                      --service ${{ secrets.RAILWAY_API_SERVICE_ID }} 2>/dev/null || echo "")
+
+                    if [ -n "$API_URL" ]; then
+                      echo "Railway environment ready: $API_URL"
+                      break
+                    fi
+
+                    echo "Attempt $i/30 - environment not ready yet..."
+                    sleep 20
+                  done
+
+            - name: Get Railway domain
+              id: url
               run: |
                   ENV_NAME="pr-${{ github.event.pull_request.number }}"
 
-                  railway up \
-                    --project ${{ secrets.RAILWAY_PROJECT_ID }} \
-                    --environment "$ENV_NAME" \
-                    --service ${{ secrets.RAILWAY_API_SERVICE_ID }} \
-                    --detach
-
-                  # Fetch the public domain assigned to this deployment
                   API_URL=$(railway domain \
                     --project ${{ secrets.RAILWAY_PROJECT_ID }} \
                     --environment "$ENV_NAME" \
@@ -95,6 +104,9 @@ jobs:
 
                   if [ -n "$API_URL" ]; then
                     echo "api_url=https://$API_URL" >> $GITHUB_OUTPUT
+                    echo "Backend URL: https://$API_URL"
+                  else
+                    echo "Could not resolve Railway domain"
                   fi
 
     # ------------------------------------------------------------------
@@ -102,7 +114,7 @@ jobs:
     # ------------------------------------------------------------------
     deploy-web:
         name: Deploy web preview
-        needs: [detect-changes, deploy-backend]
+        needs: [detect-changes, resolve-backend-url]
         if: |
             always() &&
             needs.detect-changes.outputs.web == 'true' &&
@@ -127,7 +139,7 @@ jobs:
             - name: Determine API URL
               id: api-url
               run: |
-                  RAILWAY_URL="${{ needs.deploy-backend.outputs.api_url }}"
+                  RAILWAY_URL="${{ needs.resolve-backend-url.outputs.api_url }}"
                   if [ -n "$RAILWAY_URL" ]; then
                     echo "url=$RAILWAY_URL" >> $GITHUB_OUTPUT
                     echo "Using Railway backend: $RAILWAY_URL"
@@ -158,7 +170,7 @@ jobs:
     # ------------------------------------------------------------------
     comment:
         name: Comment preview URLs
-        needs: [detect-changes, deploy-backend, deploy-web]
+        needs: [detect-changes, resolve-backend-url, deploy-web]
         if: always() && !cancelled()
         runs-on: ubuntu-latest
         permissions:
@@ -170,7 +182,7 @@ jobs:
                   BODY="## Preview Environment\n\n"
 
                   WEB_URL="${{ needs.deploy-web.outputs.preview_url }}"
-                  API_URL="${{ needs.deploy-backend.outputs.api_url }}"
+                  API_URL="${{ needs.resolve-backend-url.outputs.api_url }}"
 
                   if [ -n "$WEB_URL" ]; then
                     BODY+="**Web:** $WEB_URL\n"
@@ -178,9 +190,11 @@ jobs:
 
                   if [ -n "$API_URL" ]; then
                     BODY+="**API:** $API_URL\n"
+                  elif [ "${{ needs.detect-changes.outputs.backend }}" == "true" ]; then
+                    BODY+="**API:** Railway deploying... (check Railway dashboard)\n"
                   fi
 
-                  if [ -z "$WEB_URL" ] && [ -z "$API_URL" ]; then
+                  if [ -z "$WEB_URL" ] && [ -z "$API_URL" ] && [ "${{ needs.detect-changes.outputs.backend }}" != "true" ]; then
                     echo "skip=true" >> $GITHUB_OUTPUT
                     exit 0
                   fi

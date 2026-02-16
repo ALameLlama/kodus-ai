@@ -8,6 +8,7 @@ export class AddTableSuggestionEmbedded1766026227000 implements MigrationInterfa
         if (tableExists) {
             return;
         }
+        await queryRunner.query(`CREATE EXTENSION IF NOT EXISTS vector`);
         await queryRunner.query(`
             CREATE TABLE "suggestion_embedded" (
                 "uuid" uuid NOT NULL DEFAULT uuid_generate_v4(),
