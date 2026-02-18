@@ -3,7 +3,10 @@ import { AutomationStatus } from '@libs/automation/domain/automation/enum/automa
 import { MetricsCollectorService } from '@libs/core/infrastructure/metrics/metrics-collector.service';
 import { produce } from 'immer';
 import { v4 as uuid } from 'uuid';
-import { PipelineContext } from '../interfaces/pipeline-context.interface';
+import {
+    PipelineContext,
+    PipelineError,
+} from '../interfaces/pipeline-context.interface';
 import {
     IPipelineObserver,
     PipelineObserverContext,
@@ -16,6 +19,47 @@ export class PipelineExecutor<TContext extends PipelineContext> {
     private readonly logger = createLogger(PipelineExecutor.name);
 
     constructor(private readonly metricsCollector?: MetricsCollectorService) {}
+
+    private toError(error: unknown): Error {
+        return error instanceof Error ? error : new Error(String(error));
+    }
+
+    private appendStageExecutionError(
+        context: TContext,
+        stageName: string,
+        pipelineName: string,
+        pipelineId: string,
+        error: unknown,
+        processedErrors: Set<string>,
+    ): TContext {
+        const parsedError = this.toError(error);
+        const errorKey = `${stageName}:StageExecution:${parsedError.message}`;
+
+        if (processedErrors.has(errorKey)) {
+            return context;
+        }
+
+        processedErrors.add(errorKey);
+
+        return produce(context, (draft) => {
+            if (!Array.isArray(draft.errors)) {
+                draft.errors = [];
+            }
+
+            const pipelineError: PipelineError = {
+                pipelineId,
+                stage: stageName,
+                substage: 'StageExecution',
+                error: parsedError,
+                metadata: {
+                    nonBlocking: true,
+                    pipelineName,
+                },
+            };
+
+            draft.errors.push(pipelineError);
+        });
+    }
 
     async execute(
         context: TContext,
@@ -55,6 +99,17 @@ export class PipelineExecutor<TContext extends PipelineContext> {
             (obs) => obs.onPipelineStart(context, observersContext),
             'onPipelineStart',
         );
+
+        const processedErrors = new Set<string>();
+        if (context.errors && Array.isArray(context.errors)) {
+            context.errors.forEach((e) => {
+                if (e.error?.message) {
+                    processedErrors.add(
+                        `${e.stage}:${e.substage}:${e.error.message}`,
+                    );
+                }
+            });
+        }
 
         for (const stage of stages) {
             // Check if we need to handle skip/jump logic
@@ -126,6 +181,8 @@ export class PipelineExecutor<TContext extends PipelineContext> {
                     },
                 });
             } catch (error) {
+                const parsedError = this.toError(error);
+
                 await this.notifyObservers(
                     observers,
                     (obs) =>
@@ -149,7 +206,7 @@ export class PipelineExecutor<TContext extends PipelineContext> {
                 );
 
                 this.logger.error({
-                    message: `Stage '${stage.stageName}' failed: ${error.message}`,
+                    message: `Stage '${stage.stageName}' failed: ${parsedError.message}`,
                     context: PipelineExecutor.name,
                     serviceName: PipelineExecutor.name,
                     error: error,
@@ -162,6 +219,15 @@ export class PipelineExecutor<TContext extends PipelineContext> {
                         status: context.statusInfo,
                     },
                 });
+
+                context = this.appendStageExecutionError(
+                    context,
+                    stage.stageName,
+                    pipelineName,
+                    pipelineId,
+                    parsedError,
+                    processedErrors,
+                );
 
                 this.logger.warn({
                     message: `Pipeline '${pipelineName}:${pipelineId}' continuing despite error in stage '${stage.stageName}'`,

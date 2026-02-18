@@ -198,8 +198,14 @@ export class CodeReviewHandlerService {
         const status = result.statusInfo?.status;
 
         if (status === AutomationStatus.SKIPPED) {
+            if (this.shouldSuppressSkipFeedback(result)) {
+                await this.removeCurrentReaction(context);
+                return;
+            }
+
             // If the specific stage already handled the notification (e.g. License check on Azure/BB), don't post a generic skip message.
             if (result.pipelineMetadata?.notificationHandled) {
+                await this.removeCurrentReaction(context);
                 this.logger.log({
                     message: `Review skipped for PR#${context.pullRequest.number} - notification already handled`,
                     context: CodeReviewHandlerService.name,
@@ -249,6 +255,24 @@ export class CodeReviewHandlerService {
             await this.addStatusReaction(result, ReviewStatusReaction.SUCCESS);
             return;
         }
+    }
+
+    private shouldSuppressSkipFeedback(
+        context: CodeReviewPipelineContext,
+    ): boolean {
+        if (context.codeReviewConfig?.automatedReviewActive === false) {
+            return true;
+        }
+
+        if (context.codeReviewConfig?.showStatusFeedback === false) {
+            return true;
+        }
+
+        if (context.pipelineMetadata?.showStatusFeedback === false) {
+            return true;
+        }
+
+        return false;
     }
 
     private async addStatusReaction(
@@ -369,7 +393,9 @@ export class CodeReviewHandlerService {
                 return;
             }
 
-            const reactionsToRemove = Object.values(platformReactions) as Reaction[];
+            const reactionsToRemove = Object.values(
+                platformReactions,
+            ) as Reaction[];
 
             if (triggerCommentId) {
                 await this.codeManagement.removeReactionsFromComment({

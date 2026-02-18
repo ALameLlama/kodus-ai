@@ -154,9 +154,7 @@ export class CrossFileAnalysisService {
                 error,
                 metadata: { organizationAndTeamData, prNumber },
             });
-            return {
-                codeSuggestions: [],
-            };
+            throw error;
         }
     }
     //#endregion
@@ -226,6 +224,8 @@ export class CrossFileAnalysisService {
         batchConfig: BatchProcessingConfig,
     ): Promise<CodeSuggestion[]> {
         const allSuggestions: CodeSuggestion[] = [];
+        let failedChunks = 0;
+        let firstChunkError: Error | undefined;
         const totalChunks = chunks.length;
         const { maxConcurrentChunks, batchDelay } = batchConfig;
 
@@ -261,6 +261,10 @@ export class CrossFileAnalysisService {
 
             batchResults.forEach(({ result, error, chunkIndex }) => {
                 if (error) {
+                    failedChunks++;
+                    if (!firstChunkError) {
+                        firstChunkError = error;
+                    }
                     this.logger.error({
                         message: `Error in prepared files batch ${batchNumber}, chunk ${chunkIndex} for ${analysisType}`,
                         context: CrossFileAnalysisService.name,
@@ -281,6 +285,13 @@ export class CrossFileAnalysisService {
             if (i + maxConcurrentChunks < totalChunks && batchDelay > 0) {
                 await this.delay(batchDelay);
             }
+        }
+
+        if (failedChunks === totalChunks && totalChunks > 0) {
+            const errorMessage = firstChunkError?.message || 'Unknown error';
+            throw new Error(
+                `Cross-file analysis failed in ${failedChunks}/${totalChunks} chunks: ${errorMessage}`,
+            );
         }
 
         return allSuggestions;

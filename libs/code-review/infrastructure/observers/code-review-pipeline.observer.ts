@@ -62,11 +62,13 @@ export class CodeReviewPipelineObserver implements IPipelineObserver {
             context.statusInfo.status === AutomationStatus.ERROR ||
             (context.errors && context.errors.length > 0)
         ) {
+            const failureReason = this.buildPipelineFailureReason(context);
             await this.pipelineChecksService.finalizeCheck(
                 observerContext,
                 context,
                 CheckConclusion.FAILURE,
                 CheckStageNames._pipelineEndFailure,
+                failureReason,
             );
         } else {
             await this.pipelineChecksService.finalizeCheck(
@@ -76,6 +78,61 @@ export class CodeReviewPipelineObserver implements IPipelineObserver {
                 CheckStageNames._pipelineEndSuccess,
             );
         }
+    }
+
+    private buildPipelineFailureReason(
+        context: CodeReviewPipelineContext,
+    ): string | undefined {
+        const statusMessage = context.statusInfo?.message?.trim();
+        const genericMessages = [
+            'pipeline started',
+            'code review started',
+            'code review failed',
+            'reviewing file level',
+        ];
+
+        const parts: string[] = [];
+
+        if (
+            statusMessage &&
+            statusMessage.length > 0 &&
+            !genericMessages.some((m) =>
+                statusMessage.toLowerCase().includes(m),
+            )
+        ) {
+            parts.push(statusMessage);
+        }
+
+        const errorsByMessage = new Map<string, number>();
+
+        (context.errors || []).forEach((item) => {
+            const message = item.error?.message?.trim();
+            if (message) {
+                errorsByMessage.set(
+                    message,
+                    (errorsByMessage.get(message) || 0) + 1,
+                );
+            }
+        });
+
+        if (errorsByMessage.size > 0) {
+            const summaryParts: string[] = [];
+            errorsByMessage.forEach((count, message) => {
+                const countStr = count > 1 ? ` (${count} files/stages)` : '';
+                summaryParts.push(`${message}${countStr}`);
+            });
+            // Limit to top 2 distinct error messages to avoid huge titles
+            parts.push(...summaryParts.slice(0, 2));
+            if (summaryParts.length > 2) {
+                parts.push(`+${summaryParts.length - 2} more errors`);
+            }
+        }
+
+        if (parts.length === 0) {
+            return undefined;
+        }
+
+        return parts.join(' | ');
     }
 
     async onStageStart(

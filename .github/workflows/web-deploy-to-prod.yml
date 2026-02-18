@@ -1,18 +1,17 @@
-name: "Web: Manual Production Deploy"
-
-permissions:
-    contents: read
+name: Deploy Manual to Production Server
 
 on:
     workflow_dispatch:
         inputs:
             image_tag:
-                description: "Docker image tag to deploy. If empty, the latest tag from ECR will be used."
+                description: 'Tag da imagem Docker para deploy. Se vazio, será usada a última publicada no ECR.'
                 required: false
+
+permissions: {}
 
 jobs:
     deploy:
-        name: Deploy Web to Server
+        name: Deploy to Server
         runs-on: ubuntu-latest
         environment: PRODUCTION
         steps:
@@ -25,30 +24,41 @@ jobs:
               run: |
                   IMAGE_TAG_INPUT="${{ github.event.inputs.image_tag }}"
                   if [ -n "$IMAGE_TAG_INPUT" ]; then
-                    echo "Checking if image with tag '$IMAGE_TAG_INPUT' exists in ECR..."
+                    
+                    # Se a tag não começar com 'web-', adiciona automaticamente
+                    if [[ "$IMAGE_TAG_INPUT" != web-* ]]; then
+                        echo "Adicionando prefixo 'web-' à tag fornecida..."
+                        IMAGE_TAG_INPUT="web-$IMAGE_TAG_INPUT"
+                    fi
+
+                    echo "Verificando se a imagem com tag '$IMAGE_TAG_INPUT' existe no ECR..."
+                    
+                    # Check usando query segura para imageTags nulos
                     IMAGE_EXISTS=$(aws ecr describe-images \
                       --repository-name kodus-web-prod \
                       --region $AWS_REGION \
-                      --query "imageDetails[?contains(imageTags, '$IMAGE_TAG_INPUT')]" \
+                      --query "imageDetails[?imageTags && contains(imageTags, '$IMAGE_TAG_INPUT')]" \
                       --output text)
+
                     if [ -z "$IMAGE_EXISTS" ]; then
-                      echo "Image with tag '$IMAGE_TAG_INPUT' not found in ECR."
+                      echo "Imagem com a tag '$IMAGE_TAG_INPUT' não encontrada no ECR."
                       exit 1
                     fi
-                    echo "Using tag: $IMAGE_TAG_INPUT"
+                    
+                    echo "Imagem encontrada! Usando tag: $IMAGE_TAG_INPUT"
                     echo "IMAGE_TAG=$IMAGE_TAG_INPUT" >> $GITHUB_ENV
                   else
-                    echo "Fetching the latest tag from ECR..."
+                    echo "Buscando a tag mais recente no ECR..."
                     LAST_TAG=$(aws ecr describe-images \
                       --repository-name kodus-web-prod \
                       --region $AWS_REGION \
                       --query "sort_by(imageDetails, &imagePushedAt)[-1].imageTags[0]" \
                       --output text)
                     if [ -z "$LAST_TAG" ]; then
-                      echo "No image found in ECR."
+                      echo "Nenhuma imagem encontrada no ECR."
                       exit 1
                     fi
-                    echo "Latest tag found: $LAST_TAG"
+                    echo "Última tag encontrada: $LAST_TAG"
                     echo "IMAGE_TAG=$LAST_TAG" >> $GITHUB_ENV
                   fi
 
@@ -70,7 +80,7 @@ jobs:
                   AWS_DEFAULT_REGION: ${{ secrets.AWS_REGION }}
 
             - name: Deploy Application on EC2
-              uses: appleboy/ssh-action@v1.2.2
+              uses: appleboy/ssh-action@v1.2.5
               with:
                   host: ${{ secrets.AWS_PROD_HOST }}
                   username: ${{ secrets.AWS_PROD_USERNAME }}
@@ -93,10 +103,9 @@ jobs:
 
             - name: Notify Discord on Success
               if: success()
-              uses: sarisia/actions-status-discord@v1.15.3
+              uses: sarisia/actions-status-discord@v1.13.0
               with:
                   webhook: ${{ secrets.DISCORD_WEBHOOK }}
                   status: ${{ job.status }}
-                  content: ":tada: Deploy successful with image `${{ env.IMAGE_TAG }}`!"
-                  title: "Deploy Prod: kodus-web"
-                  username: GitHub Actions
+                  content: ':tada: Deploy realizado com sucesso com a imagem `${{ env.IMAGE_TAG }}`!'
+                  title: 'Deploy Prod:'

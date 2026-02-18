@@ -38,7 +38,7 @@ export default [
         "standard",
         "plugin:@typescript-eslint/recommended",
         "plugin:prettier/recommended",
-        "plugin:tailwindcss/recommended",
+        // "plugin:tailwindcss/recommended",
         "next/core-web-vitals",
     ),
     {

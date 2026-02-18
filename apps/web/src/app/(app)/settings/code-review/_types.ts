@@ -82,6 +82,7 @@ export type CodeReviewGlobalConfig = {
     reviewOptions: CodeReviewOptions;
     ignoredTitleKeywords: string[];
     automatedReviewActive: boolean;
+    showStatusFeedback: boolean;
     reviewCadence?: ReviewCadence;
     summary: CodeReviewSummary;
     suggestionControl?: SuggestionControlConfig;

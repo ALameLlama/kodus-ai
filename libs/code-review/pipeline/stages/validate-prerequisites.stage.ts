@@ -12,6 +12,7 @@ import {
     OrganizationParametersKey,
     PlatformType,
 } from '@libs/core/domain/enums';
+import { ParametersKey } from '@libs/core/domain/enums/parameters-key.enum';
 import { OrganizationAndTeamData } from '@libs/core/infrastructure/config/types/general/organizationAndTeamData';
 import { BasePipelineStage } from '@libs/core/infrastructure/pipeline/abstracts/base-stage.abstract';
 import { PipelineReasons } from '@libs/core/infrastructure/pipeline/constants/pipeline-reasons.const';
@@ -29,6 +30,10 @@ import {
     ORGANIZATION_PARAMETERS_SERVICE_TOKEN,
 } from '@libs/organization/domain/organizationParameters/contracts/organizationParameters.service.contract';
 import { OrganizationParametersAutoAssignConfig } from '@libs/organization/domain/organizationParameters/types/organizationParameters.types';
+import {
+    IParametersService,
+    PARAMETERS_SERVICE_TOKEN,
+} from '@libs/organization/domain/parameters/contracts/parameters.service.contract';
 import { CodeManagementService } from '@libs/platform/infrastructure/adapters/services/codeManagement.service';
 import {
     IPullRequestsService,
@@ -68,6 +73,8 @@ export class ValidatePrerequisitesStage extends BasePipelineStage<CodeReviewPipe
         private readonly organizationParametersService: IOrganizationParametersService,
         @Inject(PULL_REQUESTS_SERVICE_TOKEN)
         private readonly pullRequestsService: IPullRequestsService,
+        @Inject(PARAMETERS_SERVICE_TOKEN)
+        private readonly parametersService: IParametersService,
         private readonly codeManagementService: CodeManagementService,
     ) {
         super();
@@ -77,6 +84,22 @@ export class ValidatePrerequisitesStage extends BasePipelineStage<CodeReviewPipe
         context: CodeReviewPipelineContext,
     ): Promise<CodeReviewPipelineContext> {
         const { organizationAndTeamData, userGitId, pullRequest } = context;
+        const showStatusFeedback =
+            await this.isShowStatusFeedbackEnabled(context);
+        const applyShowStatusFeedbackMetadata = (
+            draft: CodeReviewPipelineContext,
+        ) => {
+            if (!draft.pipelineMetadata) {
+                draft.pipelineMetadata = {};
+            }
+
+            draft.pipelineMetadata.showStatusFeedback =
+                showStatusFeedback;
+
+            if (!showStatusFeedback) {
+                draft.pipelineMetadata.notificationHandled = true;
+            }
+        };
 
         const prerequisitesResult = this.validatePrerequisites(context);
 
@@ -91,6 +114,7 @@ export class ValidatePrerequisitesStage extends BasePipelineStage<CodeReviewPipe
             });
 
             return this.updateContext(context, (draft) => {
+                applyShowStatusFeedbackMetadata(draft);
                 draft.statusInfo = {
                     status: AutomationStatus.SKIPPED,
                     message:
@@ -118,6 +142,7 @@ export class ValidatePrerequisitesStage extends BasePipelineStage<CodeReviewPipe
             });
 
             return this.updateContext(context, (draft) => {
+                applyShowStatusFeedbackMetadata(draft);
                 draft.statusInfo = {
                     status: AutomationStatus.SKIPPED,
                     message: AutomationMessage.USER_IGNORED,
@@ -139,6 +164,7 @@ export class ValidatePrerequisitesStage extends BasePipelineStage<CodeReviewPipe
         ) {
             // Validation passed
             return this.updateContext(context, (draft) => {
+                applyShowStatusFeedbackMetadata(draft);
                 if (validationResult.byokConfig) {
                     if (!draft.codeReviewConfig) {
                         draft.codeReviewConfig = {} as any;
@@ -153,13 +179,17 @@ export class ValidatePrerequisitesStage extends BasePipelineStage<CodeReviewPipe
         const failureHandled = await this.handleValidationFailure(
             context,
             validationResult,
+            showStatusFeedback,
         );
 
         if (failureHandled === 'auto_assigned') {
-            return context;
+            return this.updateContext(context, (draft) => {
+                applyShowStatusFeedbackMetadata(draft);
+            });
         }
 
         return this.updateContext(context, (draft) => {
+            applyShowStatusFeedbackMetadata(draft);
             draft.statusInfo = {
                 status: AutomationStatus.SKIPPED, // Or FAILED? Usually SKIPPED if business logic prevents it.
                 message: StageMessageHelper.skippedWithReason(
@@ -171,7 +201,8 @@ export class ValidatePrerequisitesStage extends BasePipelineStage<CodeReviewPipe
             // Mark it so the handler doesn't send a generic "Skipped" message on top.
             if (
                 context.platformType === PlatformType.AZURE_REPOS ||
-                context.platformType === PlatformType.BITBUCKET
+                context.platformType === PlatformType.BITBUCKET ||
+                !showStatusFeedback
             ) {
                 if (!draft.pipelineMetadata) {
                     draft.pipelineMetadata = {};
@@ -200,6 +231,7 @@ export class ValidatePrerequisitesStage extends BasePipelineStage<CodeReviewPipe
     private async handleValidationFailure(
         context: CodeReviewPipelineContext,
         validationResult: any,
+        showStatusFeedback: boolean,
     ): Promise<'auto_assigned' | 'failed'> {
         const {
             organizationAndTeamData,
@@ -257,7 +289,7 @@ export class ValidatePrerequisitesStage extends BasePipelineStage<CodeReviewPipe
                 autoAssignResult.reason !== 'IGNORED_USER' &&
                 autoAssignResult.reason !== 'NOT_ALLOWED_USER';
 
-            if (shouldAddReaction) {
+            if (shouldAddReaction && showStatusFeedback) {
                 await this.addNoLicenseReaction({
                     organizationAndTeamData,
                     repository,
@@ -271,12 +303,14 @@ export class ValidatePrerequisitesStage extends BasePipelineStage<CodeReviewPipe
                 ? ERROR_TO_MESSAGE_TYPE[validationResult.errorType]
                 : 'general';
 
-            await this.createNoActiveSubscriptionComment({
-                organizationAndTeamData,
-                repository,
-                prNumber: pullRequest.number,
-                noActiveSubscriptionType,
-            });
+            if (showStatusFeedback) {
+                await this.createNoActiveSubscriptionComment({
+                    organizationAndTeamData,
+                    repository,
+                    prNumber: pullRequest.number,
+                    noActiveSubscriptionType,
+                });
+            }
 
             this.logger.warn({
                 message: 'No active subscription found',
@@ -291,6 +325,56 @@ export class ValidatePrerequisitesStage extends BasePipelineStage<CodeReviewPipe
         }
 
         return 'failed';
+    }
+
+    private async isShowStatusFeedbackEnabled(
+        context: CodeReviewPipelineContext,
+    ): Promise<boolean> {
+        if (
+            typeof context.codeReviewConfig?.showStatusFeedback ===
+            'boolean'
+        ) {
+            return context.codeReviewConfig.showStatusFeedback;
+        }
+
+        try {
+            const parameter = await this.parametersService.findByKey(
+                ParametersKey.CODE_REVIEW_CONFIG,
+                context.organizationAndTeamData,
+            );
+
+            const parameterConfig = parameter?.configValue as any;
+            const repositoryConfig = parameterConfig?.repositories?.find(
+                (repositoryConfig: any) =>
+                    repositoryConfig?.id === context.repository?.id,
+            );
+
+            if (
+                typeof repositoryConfig?.configs?.showStatusFeedback ===
+                'boolean'
+            ) {
+                return repositoryConfig.configs.showStatusFeedback;
+            }
+
+            if (
+                typeof parameterConfig?.configs?.showStatusFeedback ===
+                'boolean'
+            ) {
+                return parameterConfig.configs.showStatusFeedback;
+            }
+        } catch (error) {
+            this.logger.warn({
+                message: 'Error resolving show status feedback config',
+                context: this.stageName,
+                error,
+                metadata: {
+                    organizationAndTeamData: context.organizationAndTeamData,
+                    repositoryId: context.repository?.id,
+                },
+            });
+        }
+
+        return true;
     }
 
     private async isUserIgnored(

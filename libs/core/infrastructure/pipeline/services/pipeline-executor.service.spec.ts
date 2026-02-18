@@ -28,6 +28,7 @@ describe('PipelineExecutor', () => {
     it('should notify observer on stage start and finish', async () => {
         const context: PipelineContext = {
             statusInfo: { status: AutomationStatus.IN_PROGRESS },
+            errors: [],
         } as any;
 
         mockStage.execute.mockResolvedValue(context);
@@ -58,12 +59,13 @@ describe('PipelineExecutor', () => {
     it('should notify observer on stage error', async () => {
         const context: PipelineContext = {
             statusInfo: { status: AutomationStatus.IN_PROGRESS },
+            errors: [],
         } as any;
 
         const error = new Error('Stage Failed');
         mockStage.execute.mockRejectedValue(error);
 
-        await executor.execute(
+        const result = await executor.execute(
             context,
             [mockStage],
             'TestPipeline',
@@ -80,6 +82,14 @@ describe('PipelineExecutor', () => {
             expect.anything(),
             expect.anything(),
         );
+        expect(result.errors).toHaveLength(1);
+        expect(result.errors[0]).toEqual(
+            expect.objectContaining({
+                stage: 'TestStage',
+                substage: 'StageExecution',
+                error,
+            }),
+        );
     });
 
     it('should notify observer on stage skipped', async () => {
@@ -88,6 +98,7 @@ describe('PipelineExecutor', () => {
                 status: AutomationStatus.SKIPPED,
                 jumpToStage: 'AnotherStage',
             },
+            errors: [],
         } as any;
 
         mockStage.stageName = 'TestStage'; // Not the target

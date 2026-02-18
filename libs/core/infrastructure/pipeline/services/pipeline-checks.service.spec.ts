@@ -280,6 +280,46 @@ describe('PipelineChecksService', () => {
             mockObserverContext.checkRunId = '123';
         });
 
+        it('should include failure details from pipeline errors when finishing with _pipelineEndFailure', async () => {
+            const contextWithFailureDetails = {
+                ...mockContext,
+                statusInfo: {
+                    status: 'ERROR',
+                    message: 'Code review failed',
+                },
+                errors: [
+                    {
+                        stage: 'FileAnalysisStage',
+                        substage: 'src/app/service.ts',
+                        error: new Error(
+                            'MODEL_NOT_FOUND: hf:zai-org/GLM-4.6 is no longer supported',
+                        ),
+                    },
+                ],
+            };
+
+            await service.finalizeCheck(
+                mockObserverContext,
+                contextWithFailureDetails,
+                CheckConclusion.FAILURE,
+                '_pipelineEndFailure',
+            );
+
+            expect(checksAdapter.updateCheckRun).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    checkRunId: '123',
+                    status: CheckStatus.COMPLETED,
+                    conclusion: CheckConclusion.FAILURE,
+                    output: expect.objectContaining({
+                        title: 'Code Review Failed',
+                        summary: expect.stringContaining(
+                            'MODEL_NOT_FOUND: hf:zai-org/GLM-4.6 is no longer supported',
+                        ),
+                    }),
+                }),
+            );
+        });
+
         it('should call updateCheckRun with COMPLETED status and clear checkRunId', async () => {
             await service.finalizeCheck(
                 mockObserverContext,

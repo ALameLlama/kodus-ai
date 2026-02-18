@@ -27,7 +27,7 @@ variable "WORKER_TAGS" {
 }
 
 variable "WEB_TAGS" {
-  default = "kodus-web:local"
+  default = "kodus-ai-web:local"
 }
 
 target "base" {

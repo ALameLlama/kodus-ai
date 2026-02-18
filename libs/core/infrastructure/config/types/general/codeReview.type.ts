@@ -321,6 +321,7 @@ export type CodeReviewConfig = {
     ignoredTitleKeywords: string[];
     baseBranches: string[];
     automatedReviewActive: boolean;
+    showStatusFeedback?: boolean;
     reviewCadence: ReviewCadence;
     summary: SummaryConfig;
     languageResultPrompt: string;

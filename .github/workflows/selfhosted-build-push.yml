@@ -1,13 +1,101 @@
-name: "Self-Hosted: Build and Publish Images"
+name: 'Self-Hosted: Release, Build and Publish'
 
 on:
-    release:
-        types: [published]
-    workflow_dispatch: # Allows manual run
+    workflow_dispatch:
+        inputs:
+            version_type:
+                description: 'Release type (semver)'
+                required: true
+                default: 'patch'
+                type: choice
+                options:
+                    - patch
+                    - minor
+                    - major
+                    - custom
+            custom_version:
+                description: 'Custom version (e.g. 2.1.0) - required if type is custom'
+                required: false
 
 jobs:
+    create-release:
+        name: Create Release and Tag
+        runs-on: ubuntu-latest
+        outputs:
+            new_version: ${{ steps.bump.outputs.new_version }}
+        permissions:
+            contents: write
+        steps:
+            - name: Checkout Repository
+              uses: actions/checkout@v4.2.2
+              with:
+                  fetch-depth: 0
+
+            - name: Get Latest Release
+              id: get_latest
+              run: |
+                  # Get latest tag that looks like a version (ignore web-*, etc)
+                  LATEST_TAG=$(git tag -l "v*" --sort=-v:refname | grep -v "web-" | head -n 1 || echo "v0.0.0")
+                  echo "Latest version: $LATEST_TAG"
+                  echo "latest_tag=$LATEST_TAG" >> $GITHUB_OUTPUT
+
+            - name: Bump Version
+              id: bump
+              run: |
+                  LATEST="${{ steps.get_latest.outputs.latest_tag }}"
+                  # Remove 'v' prefix for calculation
+                  VERSION=${LATEST#v}
+
+                  IFS='.' read -r -a parts <<< "$VERSION"
+                  MAJOR=${parts[0]}
+                  MINOR=${parts[1]}
+                  PATCH=${parts[2]}
+
+                  TYPE="${{ github.event.inputs.version_type }}"
+
+                  if [ "$TYPE" == "custom" ]; then
+                    NEW_VERSION="${{ github.event.inputs.custom_version }}"
+                    # Ensure it has v prefix if missing
+                    if [[ "$NEW_VERSION" != v* ]]; then
+                        NEW_VERSION="v$NEW_VERSION"
+                    fi
+                  elif [ "$TYPE" == "major" ]; then
+                    MAJOR=$((MAJOR + 1))
+                    MINOR=0
+                    PATCH=0
+                    NEW_VERSION="v$MAJOR.$MINOR.$PATCH"
+                  elif [ "$TYPE" == "minor" ]; then
+                    MINOR=$((MINOR + 1))
+                    PATCH=0
+                    NEW_VERSION="v$MAJOR.$MINOR.$PATCH"
+                  else
+                    PATCH=$((PATCH + 1))
+                    NEW_VERSION="v$MAJOR.$MINOR.$PATCH"
+                  fi
+
+                  echo "New version: $NEW_VERSION"
+                  echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
+
+            - name: Create Git Tag
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+              run: |
+                  git config user.name "GitHub Actions"
+                  git config user.email "actions@github.com"
+                  git tag ${{ steps.bump.outputs.new_version }}
+                  git push origin ${{ steps.bump.outputs.new_version }}
+
+            - name: Create GitHub Release
+              uses: softprops/action-gh-release@v2.0.4
+              with:
+                  tag_name: ${{ steps.bump.outputs.new_version }}
+                  name: 'Self-Hosted Release ${{ steps.bump.outputs.new_version }}'
+                  generate_release_notes: true
+                  prerelease: false
+
     build-and-push:
-        name: Build and Push Docker Images for Self-Hosted
+        name: Build and Push Docker Images
+        needs: create-release
         runs-on: ubuntu-latest
         permissions:
             contents: read
@@ -15,15 +103,8 @@ jobs:
         steps:
             - name: Checkout Repository
               uses: actions/checkout@v4.2.2
-
-            - name: Capture release version
-              run: |
-                  TAG="${{ github.event.release.tag_name || github.ref_name }}"
-                  # If the tag is something like 'main', 'master' or similar (not a real tag), use 'manual'
-                  if [[ "$TAG" == "main" || "$TAG" == "master" ]]; then
-                    TAG="manual"
-                  fi
-                  echo "RELEASE_VERSION=$TAG" >> $GITHUB_ENV
+              with:
+                  ref: ${{ needs.create-release.outputs.new_version }}
 
             - name: Set up QEMU
               uses: docker/setup-qemu-action@v3.2.0
@@ -40,14 +121,13 @@ jobs:
                   username: ${{ github.actor }}
                   password: ${{ secrets.GITHUB_TOKEN }}
 
-            - name: Build and Push Docker Images (API, Webhook, Worker, Web)
+            - name: Build and Push Docker Images
               env:
-                  REGISTRY: ghcr.io/${{ github.repository_owner }}
-                  TAG: ${{ env.RELEASE_VERSION }}
-                  API_TAGS: ghcr.io/${{ github.repository_owner }}/kodus-ai-api:${{ env.RELEASE_VERSION }},ghcr.io/${{ github.repository_owner }}/kodus-ai-api:latest
-                  WEBHOOKS_TAGS: ghcr.io/${{ github.repository_owner }}/kodus-ai-webhook:${{ env.RELEASE_VERSION }},ghcr.io/${{ github.repository_owner }}/kodus-ai-webhook:latest
-                  WORKER_TAGS: ghcr.io/${{ github.repository_owner }}/kodus-ai-worker:${{ env.RELEASE_VERSION }},ghcr.io/${{ github.repository_owner }}/kodus-ai-worker:latest
-                  WEB_TAGS: ghcr.io/${{ github.repository_owner }}/kodus-web:${{ env.RELEASE_VERSION }},ghcr.io/${{ github.repository_owner }}/kodus-web:latest
+                  TAG: ${{ needs.create-release.outputs.new_version }}
+                  API_TAGS: ghcr.io/${{ github.repository_owner }}/kodus-ai-api:${{ needs.create-release.outputs.new_version }},ghcr.io/${{ github.repository_owner }}/kodus-ai-api:latest
+                  WEBHOOKS_TAGS: ghcr.io/${{ github.repository_owner }}/kodus-ai-webhook:${{ needs.create-release.outputs.new_version }},ghcr.io/${{ github.repository_owner }}/kodus-ai-webhook:latest
+                  WORKER_TAGS: ghcr.io/${{ github.repository_owner }}/kodus-ai-worker:${{ needs.create-release.outputs.new_version }},ghcr.io/${{ github.repository_owner }}/kodus-ai-worker:latest
+                  WEB_TAGS: ghcr.io/${{ github.repository_owner }}/kodus-ai-web:${{ needs.create-release.outputs.new_version }},ghcr.io/${{ github.repository_owner }}/kodus-ai-web:latest
               run: |
                   set -euo pipefail
 
@@ -64,10 +144,10 @@ jobs:
               uses: sarisia/actions-status-discord@v1.15.3
               with:
                   webhook: ${{ secrets.DISCORD_WEBHOOK }}
-                  content: ":tada: The Docker image version `${{ env.RELEASE_VERSION }}` was successfully built and pushed to GHCR."
-                  title: "Build and Push: kodus-ai (Self-Hosted)"
-                  description: "New version `${{ env.RELEASE_VERSION }}` is now available for all services (api, webhook, worker, web)."
-                  username: "GitHub Actions"
+                  content: ':tada: New Release `${{ needs.create-release.outputs.new_version }}` published!'
+                  title: 'Self-Hosted Release'
+                  description: 'Docker images built and pushed to GHCR. Tag created on GitHub.'
+                  username: 'GitHub Actions'
                   color: 0x00FF00
 
             - name: Notify Discord on Failure
@@ -75,7 +155,7 @@ jobs:
               uses: sarisia/actions-status-discord@v1.15.3
               with:
                   webhook: ${{ secrets.DISCORD_WEBHOOK }}
-                  content: ":x: Failed to build or push Docker image version `${{ env.RELEASE_VERSION }}` to the GitHub Container Registry. Check logs for details."
-                  title: "Build and Push: kodus-ai (Self-Hosted)"
-                  username: "GitHub Actions"
+                  content: ':x: Failed to publish release `${{ needs.create-release.outputs.new_version }}`.'
+                  title: 'Self-Hosted Release Failed'
+                  username: 'GitHub Actions'
                   color: 0xFF0000

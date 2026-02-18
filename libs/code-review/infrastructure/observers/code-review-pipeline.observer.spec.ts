@@ -99,6 +99,15 @@ describe('CodeReviewPipelineObserver', () => {
 
     it('should finalize pipeline check on pipeline finish (failure)', async () => {
         context.statusInfo = { status: AutomationStatus.ERROR } as any;
+        context.errors = [
+            {
+                stage: 'FileAnalysisStage',
+                substage: 'src/app.ts',
+                error: new Error(
+                    'MODEL_NOT_FOUND: hf:zai-org/GLM-4.6 is no longer supported',
+                ),
+            } as any,
+        ];
 
         await observer.onPipelineFinish(
             context as CodeReviewPipelineContext,
@@ -110,6 +119,9 @@ describe('CodeReviewPipelineObserver', () => {
             context,
             CheckConclusion.FAILURE,
             CheckStageNames._pipelineEndFailure,
+            expect.stringContaining(
+                'MODEL_NOT_FOUND: hf:zai-org/GLM-4.6 is no longer supported',
+            ),
         );
     });
 
