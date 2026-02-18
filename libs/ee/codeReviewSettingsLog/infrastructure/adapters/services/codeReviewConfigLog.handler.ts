@@ -79,6 +79,9 @@ const PROPERTY_CONFIGS: Record<string, PropertyConfig> = {
     'runOnDraft': {
         actionDescription: 'Run on Draft',
     },
+    'showStatusFeedback': {
+        actionDescription: 'Show Status Feedback',
+    },
     //#endregion
 
     //#region Suggestion Control

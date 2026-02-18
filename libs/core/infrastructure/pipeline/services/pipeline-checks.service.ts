@@ -105,24 +105,82 @@ export class PipelineChecksService implements IPipelineChecksService {
         context: CodeReviewPipelineContext,
     ): string | undefined {
         const statusMessage = context.statusInfo?.message?.trim();
-        const detailedErrors = (context.errors || [])
-            .map((item) => this.formatPipelineErrorDetail(item))
-            .filter((item): item is string => Boolean(item));
+        const genericMessages = [
+            'pipeline started',
+            'code review started',
+            'code review failed',
+            'reviewing file level',
+        ];
 
         const parts: string[] = [];
 
-        if (statusMessage && !this.isGenericFailureMessage(statusMessage)) {
-            parts.push(statusMessage);
+        // 1. Status Message (if not generic)
+        if (
+            statusMessage &&
+            statusMessage.length > 0 &&
+            !genericMessages.some((m) =>
+                statusMessage.toLowerCase().includes(m),
+            )
+        ) {
+            parts.push(`### Status\n${statusMessage}`);
         }
 
-        parts.push(...detailedErrors);
+        // 2. Group Errors by Message
+        const errorsByMessage = new Map<string, string[]>();
+
+        (context.errors || []).forEach((item) => {
+            const message = item.error?.message?.trim();
+            if (!message) return;
+
+            let stage = item.stage;
+            if (stage === 'PRLevelReviewStage') stage = 'PR Analysis';
+            if (stage === 'FileAnalysisStage') stage = 'File Analysis';
+            if (stage === 'FetchChangedFilesStage') stage = 'Fetch Files';
+
+            let substage = item.substage;
+            if (
+                substage === 'executeStage' ||
+                substage === 'AnalyzeChangedFilesInBatches'
+            ) {
+                substage = undefined;
+            }
+
+            const location = [stage, substage].filter(Boolean).join(': ');
+            const existing = errorsByMessage.get(message) || [];
+            if (location) {
+                existing.push(location);
+            }
+            errorsByMessage.set(message, existing);
+        });
+
+        if (errorsByMessage.size > 0) {
+            parts.push(`### Errors`);
+            const errorList: string[] = [];
+
+            errorsByMessage.forEach((locations, message) => {
+                let errorEntry = `- **${message}**`;
+                if (locations.length > 0) {
+                    const uniqueLocations = [...new Set(locations)];
+                    const limit = 5;
+                    const displayLocs = uniqueLocations.slice(0, limit);
+                    const remaining = uniqueLocations.length - limit;
+
+                    errorEntry += `\n  - Context: ${displayLocs.join(', ')}`;
+                    if (remaining > 0) {
+                        errorEntry += ` (+${remaining} more)`;
+                    }
+                }
+                errorList.push(errorEntry);
+            });
+
+            parts.push(errorList.join('\n'));
+        }
 
         if (parts.length === 0) {
             return undefined;
         }
 
-        const uniqueParts = [...new Set(parts)];
-        return uniqueParts.slice(0, 3).join(' | ');
+        return parts.join('\n\n');
     }
 
     private getContextData(

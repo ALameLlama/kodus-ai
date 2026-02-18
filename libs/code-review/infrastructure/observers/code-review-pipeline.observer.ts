@@ -103,40 +103,36 @@ export class CodeReviewPipelineObserver implements IPipelineObserver {
             parts.push(statusMessage);
         }
 
-        const errorMessages = (context.errors || [])
-            .map((item) => {
-                const message = item.error?.message?.trim();
-                if (!message) {
-                    return undefined;
-                }
+        const errorsByMessage = new Map<string, number>();
 
-                let stage = item.stage;
-                if (stage === 'PRLevelReviewStage') stage = 'PR Analysis';
-                if (stage === 'FileAnalysisStage') stage = 'File Analysis';
-                if (stage === 'FetchChangedFilesStage') stage = 'Fetch Files';
+        (context.errors || []).forEach((item) => {
+            const message = item.error?.message?.trim();
+            if (message) {
+                errorsByMessage.set(
+                    message,
+                    (errorsByMessage.get(message) || 0) + 1,
+                );
+            }
+        });
 
-                // Clean up technical substages if they are just method names like 'executeStage'
-                let substage = item.substage;
-                if (
-                    substage === 'executeStage' ||
-                    substage === 'AnalyzeChangedFilesInBatches'
-                ) {
-                    substage = undefined;
-                }
-
-                const location = [stage, substage].filter(Boolean).join(': ');
-                return location ? `[${location}] ${message}` : message;
-            })
-            .filter((item): item is string => Boolean(item));
-
-        parts.push(...errorMessages);
+        if (errorsByMessage.size > 0) {
+            const summaryParts: string[] = [];
+            errorsByMessage.forEach((count, message) => {
+                const countStr = count > 1 ? ` (${count} files/stages)` : '';
+                summaryParts.push(`${message}${countStr}`);
+            });
+            // Limit to top 2 distinct error messages to avoid huge titles
+            parts.push(...summaryParts.slice(0, 2));
+            if (summaryParts.length > 2) {
+                parts.push(`+${summaryParts.length - 2} more errors`);
+            }
+        }
 
         if (parts.length === 0) {
             return undefined;
         }
 
-        const uniqueParts = [...new Set(parts)];
-        return uniqueParts.slice(0, 3).join(' | ');
+        return parts.join(' | ');
     }
 
     async onStageStart(

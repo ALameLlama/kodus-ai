@@ -332,6 +332,10 @@ class CodeReviewConfigWithoutLLMProviderDto {
     automatedReviewActive?: boolean;
 
     @IsOptional()
+    @IsBoolean()
+    showStatusFeedback?: boolean;
+
+    @IsOptional()
     @ValidateNested()
     @Type(() => SummaryConfigDto)
     summary?: SummaryConfigDto;

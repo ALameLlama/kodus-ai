@@ -2,6 +2,7 @@ version: 2.0
 
 # general
 automatedReviewActive: true
+showStatusFeedback: true
 kodusConfigFileOverridesWebPreferences: false
 reviewCadence:
     type: 'automatic' # automatic | auto_pause | manual

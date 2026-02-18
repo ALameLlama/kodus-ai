@@ -187,10 +187,11 @@ export class ProcessFilesReview extends BasePipelineStage<CodeReviewPipelineCont
 
             const batches = this.createOptimizedBatches(changedFiles);
 
-            const { results, tasks, errors: batchErrors } = await this.runBatches(
-                batches,
-                analysisContext,
-            );
+            const {
+                results,
+                tasks,
+                errors: batchErrors,
+            } = await this.runBatches(batches, analysisContext);
 
             // Create collections
             const validSuggestions: Partial<CodeSuggestion>[] = [];
@@ -250,7 +251,8 @@ export class ProcessFilesReview extends BasePipelineStage<CodeReviewPipelineCont
                         'AnalyzeChangedFilesInBatches',
                         error,
                         {
-                            organizationId: organizationAndTeamData.organizationId,
+                            organizationId:
+                                organizationAndTeamData.organizationId,
                             teamId: organizationAndTeamData.teamId,
                             pullRequestNumber: pullRequest.number,
                         },
@@ -591,6 +593,12 @@ export class ProcessFilesReview extends BasePipelineStage<CodeReviewPipelineCont
                 },
             });
 
+            const errorMessage =
+                error instanceof Error ? error.message : String(error);
+            const enrichedError = new Error(
+                `[Check model config] ${errorMessage}`,
+            );
+
             return {
                 validSuggestionsToAnalyze: [],
                 discardedSuggestionsBySafeGuard: [],
@@ -598,10 +606,7 @@ export class ProcessFilesReview extends BasePipelineStage<CodeReviewPipelineCont
                 error: {
                     stage: this.stageName,
                     substage: file.filename,
-                    error:
-                        error instanceof Error
-                            ? error
-                            : new Error(String(error)),
+                    error: enrichedError,
                     metadata: {
                         filename: file.filename,
                     },

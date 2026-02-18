@@ -259,6 +259,11 @@
             "default": true,
             "description": "Indicates whether automated review processes are currently active. A value of true means that automated reviews are enabled, while false means they are disabled."
         },
+        "showStatusFeedback": {
+            "type": "boolean",
+            "default": true,
+            "description": "Indicates whether Kody should send skip/error status feedback using emoji reactions or comments."
+        },
         "pullRequestApprovalActive": {
             "type": "boolean",
             "default": false,

@@ -127,6 +127,9 @@ export class CodeReviewConfigDataDto {
     automatedReviewActive: boolean;
 
     @ApiProperty()
+    showStatusFeedback: boolean;
+
+    @ApiProperty()
     kodusConfigFileOverridesWebPreferences: boolean;
 
     @ApiProperty({ type: CodeReviewCadenceDto })

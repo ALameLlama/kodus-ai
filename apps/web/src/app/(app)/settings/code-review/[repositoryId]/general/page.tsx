@@ -41,6 +41,7 @@ import { KodusConfigFileOverridesWebPreferences } from "./_components/kodus-conf
 import { LanguageSelector } from "./_components/language-selector";
 import { PullRequestApprovalActive } from "./_components/pull-request-approval-active";
 import { RunOnDraft } from "./_components/run-on-draft";
+import { ShowStatusFeedback } from "./_components/show-status-feedback";
 
 export default function General() {
     const platformConfig = usePlatformConfig();
@@ -225,6 +226,7 @@ export default function General() {
                     <IsRequestChangesActive />
                 </AsyncBoundary>
                 <RunOnDraft />
+                <ShowStatusFeedback />
                 <AsyncBoundary errorVariant="minimal">
                     <EnableCommittableSuggestions />
                 </AsyncBoundary>
