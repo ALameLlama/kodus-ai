@@ -34,15 +34,25 @@ jobs:
             - name: Get Latest Release
               id: get_latest
               run: |
+                  set -euo pipefail
                   # Get latest tag that looks like a version (ignore web-*, etc)
-                  LATEST_TAG=$(git tag -l "v*" --sort=-v:refname | grep -v "web-" | head -n 1 || echo "v0.0.0")
+                  LATEST_TAG=$(git tag -l "v*" --sort=-v:refname | awk '!/^web-/{print; exit}')
+                  if [ -z "${LATEST_TAG}" ]; then
+                    LATEST_TAG="v0.0.0"
+                  fi
                   echo "Latest version: $LATEST_TAG"
                   echo "latest_tag=$LATEST_TAG" >> $GITHUB_OUTPUT
 
             - name: Bump Version
               id: bump
               run: |
+                  set -euo pipefail
                   LATEST="${{ steps.get_latest.outputs.latest_tag }}"
+                  if [[ ! "$LATEST" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+                    echo "Invalid latest tag format: $LATEST (expected vMAJOR.MINOR.PATCH)"
+                    exit 1
+                  fi
+
                   # Remove 'v' prefix for calculation
                   VERSION=${LATEST#v}
 
@@ -58,6 +68,10 @@ jobs:
                     # Ensure it has v prefix if missing
                     if [[ "$NEW_VERSION" != v* ]]; then
                         NEW_VERSION="v$NEW_VERSION"
+                    fi
+                    if [[ ! "$NEW_VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+                      echo "Invalid custom version: $NEW_VERSION (expected vMAJOR.MINOR.PATCH)"
+                      exit 1
                     fi
                   elif [ "$TYPE" == "major" ]; then
                     MAJOR=$((MAJOR + 1))
