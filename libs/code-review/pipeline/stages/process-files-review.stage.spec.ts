@@ -127,7 +127,9 @@ describe('ProcessFilesReview', () => {
             expect.objectContaining({
                 stage: 'FileAnalysisStage',
                 substage: 'test-file.ts',
-                error: error,
+                error: expect.objectContaining({
+                    message: '[Check model config] Analysis failed',
+                }),
                 metadata: {
                     filename: 'test-file.ts',
                 },
