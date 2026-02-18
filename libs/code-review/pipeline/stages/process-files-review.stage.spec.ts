@@ -134,4 +134,23 @@ describe('ProcessFilesReview', () => {
             }),
         );
     });
+
+    it('should keep non-blocking behavior and append pipeline error when batch analysis crashes', async () => {
+        const error = new Error('Batch analysis crashed');
+        jest.spyOn(stage as any, 'analyzeChangedFilesInBatches').mockRejectedValue(error);
+
+        const result = await stage.execute(context);
+
+        expect(result.validSuggestions).toEqual([]);
+        expect(result.discardedSuggestions).toEqual([]);
+        expect(result.fileMetadata).toBeInstanceOf(Map);
+        expect(result.errors).toHaveLength(1);
+        expect(result.errors[0]).toEqual(
+            expect.objectContaining({
+                stage: 'FileAnalysisStage',
+                substage: 'executeStage',
+                error,
+            }),
+        );
+    });
 });

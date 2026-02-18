@@ -62,11 +62,13 @@ export class CodeReviewPipelineObserver implements IPipelineObserver {
             context.statusInfo.status === AutomationStatus.ERROR ||
             (context.errors && context.errors.length > 0)
         ) {
+            const failureReason = this.buildPipelineFailureReason(context);
             await this.pipelineChecksService.finalizeCheck(
                 observerContext,
                 context,
                 CheckConclusion.FAILURE,
                 CheckStageNames._pipelineEndFailure,
+                failureReason,
             );
         } else {
             await this.pipelineChecksService.finalizeCheck(
@@ -76,6 +78,65 @@ export class CodeReviewPipelineObserver implements IPipelineObserver {
                 CheckStageNames._pipelineEndSuccess,
             );
         }
+    }
+
+    private buildPipelineFailureReason(
+        context: CodeReviewPipelineContext,
+    ): string | undefined {
+        const statusMessage = context.statusInfo?.message?.trim();
+        const genericMessages = [
+            'pipeline started',
+            'code review started',
+            'code review failed',
+            'reviewing file level',
+        ];
+
+        const parts: string[] = [];
+
+        if (
+            statusMessage &&
+            statusMessage.length > 0 &&
+            !genericMessages.some((m) =>
+                statusMessage.toLowerCase().includes(m),
+            )
+        ) {
+            parts.push(statusMessage);
+        }
+
+        const errorMessages = (context.errors || [])
+            .map((item) => {
+                const message = item.error?.message?.trim();
+                if (!message) {
+                    return undefined;
+                }
+
+                let stage = item.stage;
+                if (stage === 'PRLevelReviewStage') stage = 'PR Analysis';
+                if (stage === 'FileAnalysisStage') stage = 'File Analysis';
+                if (stage === 'FetchChangedFilesStage') stage = 'Fetch Files';
+
+                // Clean up technical substages if they are just method names like 'executeStage'
+                let substage = item.substage;
+                if (
+                    substage === 'executeStage' ||
+                    substage === 'AnalyzeChangedFilesInBatches'
+                ) {
+                    substage = undefined;
+                }
+
+                const location = [stage, substage].filter(Boolean).join(': ');
+                return location ? `[${location}] ${message}` : message;
+            })
+            .filter((item): item is string => Boolean(item));
+
+        parts.push(...errorMessages);
+
+        if (parts.length === 0) {
+            return undefined;
+        }
+
+        const uniqueParts = [...new Set(parts)];
+        return uniqueParts.slice(0, 3).join(' | ');
     }
 
     async onStageStart(

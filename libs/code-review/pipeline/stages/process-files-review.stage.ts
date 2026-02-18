@@ -84,6 +84,26 @@ export class ProcessFilesReview extends BasePipelineStage<CodeReviewPipelineCont
         super();
     }
 
+    private toError(error: unknown): Error {
+        return error instanceof Error ? error : new Error(String(error));
+    }
+
+    private buildPipelineError(
+        substage: string,
+        error: unknown,
+        metadata?: Record<string, unknown>,
+    ): PipelineError {
+        return {
+            stage: this.stageName,
+            substage,
+            error: this.toError(error),
+            metadata: {
+                nonBlocking: true,
+                ...(metadata || {}),
+            },
+        };
+    }
+
     protected async executeStage(
         context: CodeReviewPipelineContext,
     ): Promise<CodeReviewPipelineContext> {
@@ -130,6 +150,12 @@ export class ProcessFilesReview extends BasePipelineStage<CodeReviewPipelineCont
                 draft.validSuggestions = [];
                 draft.discardedSuggestions = [];
                 draft.fileMetadata = new Map();
+                draft.errors.push(
+                    this.buildPipelineError('executeStage', error, {
+                        pullRequestNumber: context.pullRequest.number,
+                        repositoryName: context.repository.name,
+                    }),
+                );
             });
         }
     }
@@ -161,7 +187,7 @@ export class ProcessFilesReview extends BasePipelineStage<CodeReviewPipelineCont
 
             const batches = this.createOptimizedBatches(changedFiles);
 
-            const { results, tasks } = await this.runBatches(
+            const { results, tasks, errors: batchErrors } = await this.runBatches(
                 batches,
                 analysisContext,
             );
@@ -170,7 +196,7 @@ export class ProcessFilesReview extends BasePipelineStage<CodeReviewPipelineCont
             const validSuggestions: Partial<CodeSuggestion>[] = [];
             const discardedSuggestions: Partial<CodeSuggestion>[] = [];
             const fileMetadata = new Map<string, any>();
-            const errors: PipelineError[] = [];
+            const errors: PipelineError[] = [...batchErrors];
 
             // Process results
             results.forEach((result) => {
@@ -219,7 +245,17 @@ export class ProcessFilesReview extends BasePipelineStage<CodeReviewPipelineCont
                 fileMetadata: new Map(),
                 validCrossFileSuggestions: [],
                 tasks: { ...context.tasks },
-                errors: [],
+                errors: [
+                    this.buildPipelineError(
+                        'AnalyzeChangedFilesInBatches',
+                        error,
+                        {
+                            organizationId: organizationAndTeamData.organizationId,
+                            teamId: organizationAndTeamData.teamId,
+                            pullRequestNumber: pullRequest.number,
+                        },
+                    ),
+                ],
             };
         }
     }
@@ -253,6 +289,7 @@ export class ProcessFilesReview extends BasePipelineStage<CodeReviewPipelineCont
     ): Promise<{
         results: FileProcessingResult[];
         tasks: AnalysisContext['tasks'];
+        errors: PipelineError[];
     }> {
         const tasks: AnalysisContext['tasks'] = {
             astAnalysis: {
@@ -260,7 +297,7 @@ export class ProcessFilesReview extends BasePipelineStage<CodeReviewPipelineCont
             },
         };
 
-        const results = await this.processBatchesSequentially(
+        const { results, errors } = await this.processBatchesSequentially(
             batches,
             context,
             tasks,
@@ -269,6 +306,7 @@ export class ProcessFilesReview extends BasePipelineStage<CodeReviewPipelineCont
         return {
             results,
             tasks,
+            errors,
         };
     }
 
@@ -319,8 +357,12 @@ export class ProcessFilesReview extends BasePipelineStage<CodeReviewPipelineCont
         batches: FileChange[][],
         context: AnalysisContext,
         tasks: AnalysisContext['tasks'],
-    ): Promise<FileProcessingResult[]> {
+    ): Promise<{
+        results: FileProcessingResult[];
+        errors: PipelineError[];
+    }> {
         const allResults: FileProcessingResult[] = [];
+        const errors: PipelineError[] = [];
 
         for (const [index, batch] of batches.entries()) {
             this.logger.log({
@@ -348,10 +390,21 @@ export class ProcessFilesReview extends BasePipelineStage<CodeReviewPipelineCont
                         pullRequestNumber: context.pullRequest.number,
                     },
                 });
+
+                errors.push(
+                    this.buildPipelineError(`batch-${index + 1}`, error, {
+                        batchIndex: index,
+                        batchSize: batch.length,
+                        pullRequestNumber: context.pullRequest.number,
+                    }),
+                );
             }
         }
 
-        return allResults;
+        return {
+            results: allResults,
+            errors,
+        };
     }
 
     private async processSingleBatch(

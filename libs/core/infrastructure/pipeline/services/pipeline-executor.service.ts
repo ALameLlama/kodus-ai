@@ -3,7 +3,10 @@ import { AutomationStatus } from '@libs/automation/domain/automation/enum/automa
 import { MetricsCollectorService } from '@libs/core/infrastructure/metrics/metrics-collector.service';
 import { produce } from 'immer';
 import { v4 as uuid } from 'uuid';
-import { PipelineContext } from '../interfaces/pipeline-context.interface';
+import {
+    PipelineContext,
+    PipelineError,
+} from '../interfaces/pipeline-context.interface';
 import {
     IPipelineObserver,
     PipelineObserverContext,
@@ -16,6 +19,50 @@ export class PipelineExecutor<TContext extends PipelineContext> {
     private readonly logger = createLogger(PipelineExecutor.name);
 
     constructor(private readonly metricsCollector?: MetricsCollectorService) {}
+
+    private toError(error: unknown): Error {
+        return error instanceof Error ? error : new Error(String(error));
+    }
+
+    private appendStageExecutionError(
+        context: TContext,
+        stageName: string,
+        pipelineName: string,
+        pipelineId: string,
+        error: unknown,
+    ): TContext {
+        const parsedError = this.toError(error);
+
+        return produce(context, (draft) => {
+            if (!Array.isArray(draft.errors)) {
+                draft.errors = [];
+            }
+
+            const hasDuplicate = draft.errors.some(
+                (item) =>
+                    item.stage === stageName &&
+                    item.substage === 'StageExecution' &&
+                    item.error?.message === parsedError.message,
+            );
+
+            if (hasDuplicate) {
+                return;
+            }
+
+            const pipelineError: PipelineError = {
+                pipelineId,
+                stage: stageName,
+                substage: 'StageExecution',
+                error: parsedError,
+                metadata: {
+                    nonBlocking: true,
+                    pipelineName,
+                },
+            };
+
+            draft.errors.push(pipelineError);
+        });
+    }
 
     async execute(
         context: TContext,
@@ -126,6 +173,8 @@ export class PipelineExecutor<TContext extends PipelineContext> {
                     },
                 });
             } catch (error) {
+                const parsedError = this.toError(error);
+
                 await this.notifyObservers(
                     observers,
                     (obs) =>
@@ -149,7 +198,7 @@ export class PipelineExecutor<TContext extends PipelineContext> {
                 );
 
                 this.logger.error({
-                    message: `Stage '${stage.stageName}' failed: ${error.message}`,
+                    message: `Stage '${stage.stageName}' failed: ${parsedError.message}`,
                     context: PipelineExecutor.name,
                     serviceName: PipelineExecutor.name,
                     error: error,
@@ -162,6 +211,14 @@ export class PipelineExecutor<TContext extends PipelineContext> {
                         status: context.statusInfo,
                     },
                 });
+
+                context = this.appendStageExecutionError(
+                    context,
+                    stage.stageName,
+                    pipelineName,
+                    pipelineId,
+                    parsedError,
+                );
 
                 this.logger.warn({
                     message: `Pipeline '${pipelineName}:${pipelineId}' continuing despite error in stage '${stage.stageName}'`,

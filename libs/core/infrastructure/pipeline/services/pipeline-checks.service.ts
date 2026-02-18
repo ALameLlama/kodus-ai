@@ -64,6 +64,67 @@ export class PipelineChecksService implements IPipelineChecksService {
 
     constructor(private readonly checksAdapterFactory: ChecksAdapterFactory) {}
 
+    private formatPipelineErrorDetail(
+        errorItem: CodeReviewPipelineContext['errors'][number] | undefined,
+    ): string | undefined {
+        const message = errorItem?.error?.message?.trim();
+        if (!message) {
+            return undefined;
+        }
+
+        let stage = errorItem.stage;
+        if (stage === 'PRLevelReviewStage') stage = 'PR Analysis';
+        if (stage === 'FileAnalysisStage') stage = 'File Analysis';
+        if (stage === 'FetchChangedFilesStage') stage = 'Fetch Files';
+
+        let substage = errorItem.substage;
+        if (
+            substage === 'executeStage' ||
+            substage === 'AnalyzeChangedFilesInBatches'
+        ) {
+            substage = undefined;
+        }
+
+        const location = [stage, substage].filter(Boolean).join(': ');
+        return location ? `[${location}] ${message}` : message;
+    }
+
+    private isGenericFailureMessage(message: string): boolean {
+        const normalized = message.trim().toLowerCase();
+        return (
+            normalized.includes('code review failed') ||
+            normalized.includes('pipeline started') ||
+            normalized.includes('code review started') ||
+            normalized.includes('reviewing file level') ||
+            normalized ===
+                'an error occurred during the review. please check the logs for details.'
+        );
+    }
+
+    private buildFailureSummaryFromContext(
+        context: CodeReviewPipelineContext,
+    ): string | undefined {
+        const statusMessage = context.statusInfo?.message?.trim();
+        const detailedErrors = (context.errors || [])
+            .map((item) => this.formatPipelineErrorDetail(item))
+            .filter((item): item is string => Boolean(item));
+
+        const parts: string[] = [];
+
+        if (statusMessage && !this.isGenericFailureMessage(statusMessage)) {
+            parts.push(statusMessage);
+        }
+
+        parts.push(...detailedErrors);
+
+        if (parts.length === 0) {
+            return undefined;
+        }
+
+        const uniqueParts = [...new Set(parts)];
+        return uniqueParts.slice(0, 3).join(' | ');
+    }
+
     private getContextData(
         observerContext: PipelineObserverContext,
         context: CodeReviewPipelineContext,
@@ -275,6 +336,10 @@ export class PipelineChecksService implements IPipelineChecksService {
                 title = stageCheckInfo.title;
                 summary = summary || stageCheckInfo.summary;
             }
+        }
+
+        if (stageName === CheckStageNames._pipelineEndFailure && !reason) {
+            summary = this.buildFailureSummaryFromContext(context) || summary;
         }
 
         try {

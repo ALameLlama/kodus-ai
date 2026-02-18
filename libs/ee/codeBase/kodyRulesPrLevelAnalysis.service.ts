@@ -302,9 +302,7 @@ export class KodyRulesPrLevelAnalysisService implements IKodyRulesAnalysisServic
                 },
                 error,
             });
-            return {
-                codeSuggestions: [],
-            };
+            throw error;
         }
     }
 
@@ -745,6 +743,8 @@ export class KodyRulesPrLevelAnalysisService implements IKodyRulesAnalysisServic
         fullFilesMap?: Map<string, FileChange>,
     ): Promise<ExtendedKodyRule[]> {
         const allViolatedRules: ExtendedKodyRule[] = [];
+        let failedChunks = 0;
+        let firstChunkError: Error | undefined;
         const totalChunks = chunks.length;
         const { maxConcurrentChunks, batchDelay } = batchConfig;
 
@@ -785,6 +785,10 @@ export class KodyRulesPrLevelAnalysisService implements IKodyRulesAnalysisServic
             // Consolidate batch results
             batchResults.forEach(({ result, error, chunkIndex }) => {
                 if (error) {
+                    failedChunks++;
+                    if (!firstChunkError) {
+                        firstChunkError = error;
+                    }
                     this.logger.error({
                         message: `Error in batch ${batchNumber}, chunk ${chunkIndex}`,
                         context: KodyRulesPrLevelAnalysisService.name,
@@ -810,6 +814,13 @@ export class KodyRulesPrLevelAnalysisService implements IKodyRulesAnalysisServic
                 });
                 await this.delay(batchDelay);
             }
+        }
+
+        if (allViolatedRules.length === 0 && failedChunks > 0) {
+            const errorMessage = firstChunkError?.message || 'Unknown error';
+            throw new Error(
+                `PR-level Kody Rules analysis failed in ${failedChunks}/${totalChunks} chunks: ${errorMessage}`,
+            );
         }
 
         return allViolatedRules;
