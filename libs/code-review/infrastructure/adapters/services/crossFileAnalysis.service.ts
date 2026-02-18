@@ -287,7 +287,7 @@ export class CrossFileAnalysisService {
             }
         }
 
-        if (allSuggestions.length === 0 && failedChunks > 0) {
+        if (failedChunks === totalChunks && totalChunks > 0) {
             const errorMessage = firstChunkError?.message || 'Unknown error';
             throw new Error(
                 `Cross-file analysis failed in ${failedChunks}/${totalChunks} chunks: ${errorMessage}`,

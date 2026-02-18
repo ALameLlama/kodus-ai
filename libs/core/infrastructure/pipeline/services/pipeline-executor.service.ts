@@ -30,23 +30,20 @@ export class PipelineExecutor<TContext extends PipelineContext> {
         pipelineName: string,
         pipelineId: string,
         error: unknown,
+        processedErrors: Set<string>,
     ): TContext {
         const parsedError = this.toError(error);
+        const errorKey = `${stageName}:StageExecution:${parsedError.message}`;
+
+        if (processedErrors.has(errorKey)) {
+            return context;
+        }
+
+        processedErrors.add(errorKey);
 
         return produce(context, (draft) => {
             if (!Array.isArray(draft.errors)) {
                 draft.errors = [];
-            }
-
-            const hasDuplicate = draft.errors.some(
-                (item) =>
-                    item.stage === stageName &&
-                    item.substage === 'StageExecution' &&
-                    item.error?.message === parsedError.message,
-            );
-
-            if (hasDuplicate) {
-                return;
             }
 
             const pipelineError: PipelineError = {
@@ -102,6 +99,17 @@ export class PipelineExecutor<TContext extends PipelineContext> {
             (obs) => obs.onPipelineStart(context, observersContext),
             'onPipelineStart',
         );
+
+        const processedErrors = new Set<string>();
+        if (context.errors && Array.isArray(context.errors)) {
+            context.errors.forEach((e) => {
+                if (e.error?.message) {
+                    processedErrors.add(
+                        `${e.stage}:${e.substage}:${e.error.message}`,
+                    );
+                }
+            });
+        }
 
         for (const stage of stages) {
             // Check if we need to handle skip/jump logic
@@ -218,6 +226,7 @@ export class PipelineExecutor<TContext extends PipelineContext> {
                     pipelineName,
                     pipelineId,
                     parsedError,
+                    processedErrors,
                 );
 
                 this.logger.warn({
