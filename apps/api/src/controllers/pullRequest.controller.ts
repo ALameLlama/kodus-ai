@@ -1,4 +1,5 @@
 import { UserRequest } from '@libs/core/infrastructure/config/types/http/user-request.type';
+import { JWT } from '@libs/core/infrastructure/config/types/jwt/jwt';
 import { BackfillHistoricalPRsUseCase } from '@libs/platformData/application/use-cases/pullRequests/backfill-historical-prs.use-case';
 import { GetEnrichedPullRequestsUseCase } from '@libs/code-review/application/use-cases/dashboard/get-enriched-pull-requests.use-case';
 import {
@@ -18,6 +19,8 @@ import {
     UseGuards,
 } from '@nestjs/common';
 import { REQUEST } from '@nestjs/core';
+import { ConfigService } from '@nestjs/config';
+import { JwtService } from '@nestjs/jwt';
 import { BackfillPRsDto } from '../dtos/backfill-prs.dto';
 import { EnrichedPullRequestsQueryDto } from '@libs/code-review/dtos/dashboard/enriched-pull-requests-query.dto';
 import { PaginatedEnrichedPullRequestsResponse } from '@libs/code-review/dtos/dashboard/paginated-enriched-pull-requests.dto';
@@ -62,6 +65,8 @@ import {
 @ApiStandardResponses()
 @Controller('pull-requests')
 export class PullRequestController {
+    private readonly jwtConfig: JWT;
+
     constructor(
         private readonly getEnrichedPullRequestsUseCase: GetEnrichedPullRequestsUseCase,
         private readonly codeManagementService: CodeManagementService,
@@ -74,7 +79,11 @@ export class PullRequestController {
         private readonly teamCliKeyService: ITeamCliKeyService,
         @Inject(AUTOMATION_EXECUTION_SERVICE_TOKEN)
         private readonly automationExecutionService: IAutomationExecutionService,
-    ) {}
+        private readonly jwtService: JwtService,
+        private readonly configService: ConfigService,
+    ) {
+        this.jwtConfig = this.configService.get<JWT>('jwtConfig');
+    }
 
     @Get('/executions')
     @ApiBearerAuth('jwt')
@@ -232,13 +241,12 @@ export class PullRequestController {
             authHeader,
         } = params;
 
-        const key = teamKey || authHeader?.replace(/^Bearer\s+/i, '');
-        let organizationId = this.request.user?.organization?.uuid;
+        const bearerToken = authHeader?.replace(/^Bearer\s+/i, '');
+        let organizationId: string | undefined;
 
-        if (!organizationId) {
-            if (!key) {
-                throw new UnauthorizedException('Team API key required');
-            }
+        // Route 1: Team CLI key (via x-team-key or Bearer kodus_...)
+        if (teamKey || bearerToken?.startsWith('kodus_')) {
+            const key = teamKey || bearerToken;
             const teamData = await this.teamCliKeyService.validateKey(key);
             if (!teamData?.organization?.uuid) {
                 throw new UnauthorizedException(
@@ -246,6 +254,23 @@ export class PullRequestController {
                 );
             }
             organizationId = teamData.organization.uuid;
+        }
+        // Route 2: JWT Bearer token
+        else if (bearerToken) {
+            let jwtPayload: any;
+            try {
+                jwtPayload = this.jwtService.verify(bearerToken, {
+                    secret: this.jwtConfig.secret,
+                });
+            } catch {
+                throw new UnauthorizedException('Invalid or expired JWT token');
+            }
+            organizationId = jwtPayload.organizationId;
+            if (!organizationId) {
+                throw new UnauthorizedException('Invalid JWT payload');
+            }
+        } else {
+            throw new UnauthorizedException('Team API key or JWT required');
         }
 
         const prEntity = await this.findPrEntity({
