@@ -97,6 +97,7 @@ describe('ProcessFilesReview', () => {
 
     it('should capture errors in executeFileAnalysis', async () => {
         const error = new Error('Analysis failed');
+        // Ensure error gets prefixed with config hint
         (
             codeAnalysisOrchestrator.executeStandardAnalysis as jest.Mock
         ).mockRejectedValue(error);
