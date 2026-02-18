@@ -233,20 +233,26 @@ export class PullRequestController {
         } = params;
 
         const key = teamKey || authHeader?.replace(/^Bearer\s+/i, '');
-        if (!key) {
-            throw new UnauthorizedException('Team API key required');
-        }
+        let organizationId = this.request.user?.organization?.uuid;
 
-        const teamData = await this.teamCliKeyService.validateKey(key);
-        if (!teamData?.organization?.uuid) {
-            throw new UnauthorizedException('Invalid or revoked team API key');
+        if (!organizationId) {
+            if (!key) {
+                throw new UnauthorizedException('Team API key required');
+            }
+            const teamData = await this.teamCliKeyService.validateKey(key);
+            if (!teamData?.organization?.uuid) {
+                throw new UnauthorizedException(
+                    'Invalid or revoked team API key',
+                );
+            }
+            organizationId = teamData.organization.uuid;
         }
 
         const prEntity = await this.findPrEntity({
             prUrl,
             repositoryId,
             prNumber,
-            organizationId: teamData.organization.uuid,
+            organizationId,
         });
 
         if (!prEntity) {
@@ -259,7 +265,7 @@ export class PullRequestController {
             format,
             severity,
             category,
-            organizationId: teamData.organization.uuid,
+            organizationId,
         });
     }
 
