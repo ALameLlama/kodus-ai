@@ -25,6 +25,8 @@ export class TypeORMFactory implements TypeOrmOptionsFactory {
     createTypeOrmOptions(): TypeOrmModuleOptions {
         const env = process.env.API_DATABASE_ENV ?? process.env.API_NODE_ENV;
         const isProduction = !['development', 'test'].includes(env);
+        const disableSSL = process.env.API_DATABASE_DISABLE_SSL === 'true';
+        const useSSL = isProduction && !disableSSL;
 
         // Detect component type to adjust connection pool
         const componentType = process.env.COMPONENT_TYPE || 'default';
@@ -64,14 +66,14 @@ export class TypeORMFactory implements TypeOrmOptionsFactory {
             logging: !isProduction, // Can be overridden by logger
             logger: new TypeOrmCustomLogger(!isProduction),
             maxQueryExecutionTime: 3000, // Logs slow queries > 3000ms
-            ssl: isProduction,
+            ssl: useSSL,
             extra: {
                 max: poolConfig.max,
                 min: poolConfig.min,
                 idleTimeoutMillis: 30000,
                 connectionTimeoutMillis: 60000,
                 keepAlive: true,
-                ...(isProduction
+                ...(useSSL
                     ? {
                           ssl: {
                               rejectUnauthorized: false,

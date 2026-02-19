@@ -9,6 +9,8 @@ import { ENTITIES } from './entities';
 
 const env = process.env.API_DATABASE_ENV ?? process.env.API_NODE_ENV;
 const isProduction = !['development', 'test'].includes(env);
+const disableSSL = process.env.API_DATABASE_DISABLE_SSL === 'true';
+const useSSL = isProduction && !disableSSL;
 
 const optionsDataBase: DataSourceOptions = {
     type: 'postgres',
@@ -27,14 +29,14 @@ const optionsDataBase: DataSourceOptions = {
     migrationsTransactionMode: 'each',
     entities: ENTITIES,
     migrations: [join(__dirname, './migrations/*{.ts,.js}')],
-    ssl: isProduction,
+    ssl: useSSL,
     extra: {
         max: 10,
         min: 1,
         idleTimeoutMillis: 60000,
         connectionTimeoutMillis: 60000,
         keepAlive: true,
-        ...(isProduction
+        ...(useSSL
             ? {
                   ssl: {
                       rejectUnauthorized: false,
