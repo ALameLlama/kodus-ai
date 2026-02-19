@@ -36,7 +36,7 @@ jobs:
               run: |
                   set -euo pipefail
                   # Get latest tag that looks like a version (ignore web-*, etc)
-                  LATEST_TAG=$(git tag -l "v*" --sort=-v:refname | awk '!/^web-/{print; exit}')
+                  LATEST_TAG=$(git tag -l "v*" --sort=-v:refname | awk '!/web-/{print; exit}')
                   if [ -z "${LATEST_TAG}" ]; then
                     LATEST_TAG="v0.0.0"
                   fi
