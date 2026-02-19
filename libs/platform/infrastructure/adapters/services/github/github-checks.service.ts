@@ -6,6 +6,7 @@ import {
     IChecksAdapter,
     UpdateCheckRunParams,
 } from '@libs/core/infrastructure/pipeline/interfaces/checks-adapter.interface';
+import { AuthMode } from '@libs/platform/domain/platformIntegrations/enums/codeManagement/authMode.enum';
 import { Injectable } from '@nestjs/common';
 import { Octokit } from '@octokit/rest';
 import { GithubService } from './github.service';
@@ -41,7 +42,7 @@ const checkConclusionMap = {
 export class GithubChecksService implements IChecksAdapter {
     private readonly logger = createLogger(GithubChecksService.name);
 
-    constructor(private readonly gitHubService: GithubService) {}
+    constructor(private readonly gitHubService: GithubService) { }
 
     async createCheckRun(params: CreateCheckRunParams): Promise<number | null> {
         const {
@@ -54,6 +55,24 @@ export class GithubChecksService implements IChecksAdapter {
         } = params;
 
         try {
+
+            const authDetails = await this.gitHubService.getGithubAuthDetails(
+                organizationAndTeamData,
+            );
+
+            if (authDetails.authMode === AuthMode.TOKEN) {
+                this.logger.log({
+                    message: `Skipping GitHub Check Run creation - not supported with PAT authentication`,
+                    context: GithubChecksService.name,
+                    metadata: {
+                        repository: repository.name,
+                        headSha,
+                        authMode: authDetails.authMode,
+                    },
+                });
+                return null;
+            }
+
             const octokit = await this.gitHubService.getAuthenticatedOctokit(
                 organizationAndTeamData,
             );
@@ -105,6 +124,23 @@ export class GithubChecksService implements IChecksAdapter {
         } = params;
 
         try {
+            const authDetails = await this.gitHubService.getGithubAuthDetails(
+                organizationAndTeamData,
+            );
+
+            if (authDetails.authMode === AuthMode.TOKEN) {
+                this.logger.log({
+                    message: `Skipping GitHub Check Run update - not supported with PAT authentication`,
+                    context: GithubChecksService.name,
+                    metadata: {
+                        repository: repository.name,
+                        checkRunId,
+                        authMode: authDetails.authMode,
+                    },
+                });
+                return false;
+            }
+
             const octokit = await this.gitHubService.getAuthenticatedOctokit(
                 organizationAndTeamData,
             );
