@@ -616,12 +616,12 @@ export function assertPromptFitsInContext(params: {
     }
 }
 
-export const AGENT_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes max per agent
+export const AGENT_TIMEOUT_MS = 180 * 60 * 1000; // 180 minutes max per agent
 // 10 minutes per individual LLM call — matches the undici headersTimeout
 // set in the worker bootstrap so neither layer aborts the other. Large
 // Gemini calls (>500K prompt + high reasoning) can legitimately take
 // 4-7 minutes of wall-clock before the first byte arrives.
-export const LLM_CALL_TIMEOUT_MS = 10 * 60 * 1000;
+export const LLM_CALL_TIMEOUT_MS = 60 * 60 * 1000;
 
 /** Create an AbortSignal that fires after the given ms. */
 export function timeoutSignal(ms: number): AbortSignal {

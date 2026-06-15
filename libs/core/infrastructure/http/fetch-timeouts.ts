@@ -10,6 +10,11 @@ import { Agent, setGlobalDispatcher } from 'undici';
  * in agent-loop.ts. Our signal-based timeouts stay the authoritative
  * cutoff; this just prevents undici from aborting earlier.
  *
+ * keepAliveTimeout must be >= the longest possible LLM call (60 min)
+ * because idle connections between agent steps are common — a 60s
+ * keep-alive would kill the connection mid-call, causing GOAWAY/EOF
+ * errors that the retry layer cannot recover from.
+ *
  * Call once, early in every app entry point (before NestFactory.create).
  */
 export function configureLongFetchTimeouts(): void {
@@ -17,8 +22,8 @@ export function configureLongFetchTimeouts(): void {
         new Agent({
             headersTimeout: 10 * 60 * 1000,
             bodyTimeout: 10 * 60 * 1000,
-            keepAliveTimeout: 60 * 1000,
-            keepAliveMaxTimeout: 10 * 60 * 1000,
+            keepAliveTimeout: 60 * 60 * 1000,
+            keepAliveMaxTimeout: 60 * 60 * 1000,
         }),
     );
 }

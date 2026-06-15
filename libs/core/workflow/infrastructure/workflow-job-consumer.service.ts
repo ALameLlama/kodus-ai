@@ -72,6 +72,7 @@ export class WorkflowJobConsumer implements OnApplicationShutdown {
             channel: 'channel-webhook',
             arguments: {
                 'x-queue-type': 'quorum',
+                'x-consumer-timeout':  180 * 60 * 1000,
                 'x-dead-letter-exchange': 'workflow.exchange.dlx',
                 'x-dead-letter-routing-key': 'workflow.job.failed',
             },
@@ -105,6 +106,7 @@ export class WorkflowJobConsumer implements OnApplicationShutdown {
             channel: 'channel-code-review',
             arguments: {
                 'x-queue-type': 'quorum',
+                'x-consumer-timeout': 180 * 60 * 1000,
                 'x-dead-letter-exchange': 'workflow.exchange.dlx',
                 'x-dead-letter-routing-key': 'workflow.job.failed',
             },
@@ -139,6 +141,7 @@ export class WorkflowJobConsumer implements OnApplicationShutdown {
             channel: 'channel-cli-code-review',
             arguments: {
                 'x-queue-type': 'quorum',
+                'x-consumer-timeout': 180 * 60 * 1000,
                 'x-dead-letter-exchange': 'workflow.exchange.dlx',
                 'x-dead-letter-routing-key': 'workflow.job.failed',
             },
@@ -172,6 +175,7 @@ export class WorkflowJobConsumer implements OnApplicationShutdown {
             channel: 'channel-check-implementation',
             arguments: {
                 'x-queue-type': 'quorum',
+                'x-consumer-timeout': 180 * 60 * 1000,
                 'x-dead-letter-exchange': 'workflow.exchange.dlx',
                 'x-dead-letter-routing-key': 'workflow.job.failed',
             },

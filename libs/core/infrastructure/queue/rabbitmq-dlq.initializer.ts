@@ -18,6 +18,7 @@ const WORKFLOW_JOB_QUEUES: QueueBinding[] = [
         routingKey: 'workflow.jobs.*.CODE_REVIEW',
         queueArgs: {
             'x-queue-type': 'quorum',
+            'x-consumer-timeout': 180 * 60 * 1000,
             'x-dead-letter-exchange': 'workflow.exchange.dlx',
             'x-dead-letter-routing-key': 'workflow.job.failed',
         },
@@ -27,6 +28,7 @@ const WORKFLOW_JOB_QUEUES: QueueBinding[] = [
         routingKey: 'workflow.jobs.*.CLI_CODE_REVIEW',
         queueArgs: {
             'x-queue-type': 'quorum',
+            'x-consumer-timeout': 180 * 60 * 1000,
             'x-dead-letter-exchange': 'workflow.exchange.dlx',
             'x-dead-letter-routing-key': 'workflow.job.failed',
         },
