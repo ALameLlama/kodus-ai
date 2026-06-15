@@ -37,23 +37,6 @@ export const useKodyRulesLimits = () => {
     const subscription = useSubscriptionStatus();
     const total = useSuspenseKodyRulesTotalQuantity();
 
-    if (!subscription.valid)
-        return {
-            total,
-            canAddMoreRules: false,
-            limit: Number.POSITIVE_INFINITY,
-        };
-
-    if (subscription.status === "free" || subscription.status === "self-hosted")
-        return { canAddMoreRules: total < 10, total, limit: 10 };
-
-    if (subscription.status === "licensed-self-hosted")
-        return {
-            canAddMoreRules: true,
-            total,
-            limit: Number.POSITIVE_INFINITY,
-        };
-
     return { canAddMoreRules: true, total, limit: Number.POSITIVE_INFINITY };
 };
 
