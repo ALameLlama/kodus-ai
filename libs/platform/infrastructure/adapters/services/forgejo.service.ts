@@ -354,11 +354,12 @@ export class ForgejoService implements Omit<
                 return null;
             }
 
+            const fullName = repo.full_name || `${repo.organizationName}/${repo.name}`;
+
             return {
                 id: repo.id,
-                name: repo.name,
-                fullName:
-                    repo.full_name || `${repo.organizationName}/${repo.name}`,
+                name: fullName,
+                fullName: fullName,
                 defaultBranch: repo.default_branch,
             };
         } catch (error) {
@@ -828,6 +829,13 @@ export class ForgejoService implements Omit<
             pr.base?.repo?.full_name ?? repoWithDefaults.name;
         const baseRepositoryName = pr.base?.repo?.name ?? repoWithDefaults.name;
 
+        const headFullName =
+            pr.head?.repo?.full_name ?? pr.head?.repo?.name ?? '';
+        const baseFullName =
+            pr.base?.repo?.full_name ??
+            pr.base?.repo?.name ??
+            repoWithDefaults.name;
+
         return {
             id: pr.id?.toString() ?? '',
             number: pr.number ?? -1,
@@ -856,10 +864,9 @@ export class ForgejoService implements Omit<
                 sha: pr.head?.sha,
                 repo: {
                     id: pr.head?.repo?.id?.toString() ?? '',
-                    name: pr.head?.repo?.name ?? '',
+                    name: headFullName,
                     defaultBranch: pr.head?.repo?.default_branch ?? '',
-                    fullName:
-                        pr.head?.repo?.full_name ?? pr.head?.repo?.name ?? '',
+                    fullName: headFullName,
                 },
             },
             targetRefName: pr.base?.ref ?? '',
@@ -1844,7 +1851,7 @@ export class ForgejoService implements Omit<
                             pull_number: pr.number,
                             state: pr.state || 'open',
                             title: pr.title || '',
-                            repository: repo.name,
+                            repository: repo.full_name ?? repo.name,
                             repositoryData: {
                                 platform: 'forgejo',
                                 id: repo.id || '',

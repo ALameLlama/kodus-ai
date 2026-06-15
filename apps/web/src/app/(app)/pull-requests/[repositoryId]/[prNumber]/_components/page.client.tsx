@@ -81,16 +81,13 @@ export function ReviewPageClient({
     const repoFullName =
         suggestionsData?.data?.repositoryFullName ??
         prExecution?.repositoryName;
-    const repoName = repoFullName?.includes("/")
-        ? repoFullName.split("/").pop()
-        : repoFullName;
 
     // Get full file diffs from Git provider
     const {
         data: filesData,
         isLoading: filesLoading,
         error: filesError,
-    } = usePullRequestFiles(repositoryId, prNumber, teamId, repoName);
+    } = usePullRequestFiles(repositoryId, prNumber, teamId, repoFullName);
 
     const fileSuggestions = suggestionsData?.data?.suggestions?.files ?? [];
     const prLevelSuggestions =
